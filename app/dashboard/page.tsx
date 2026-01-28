@@ -11,7 +11,7 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
 );
 
-const adminEmail = "fintatamas@gmail.com"; // Admin e-mail fixálva
+const adminEmail = "fintatamas68@gmail.com"; // Admin e-mail fixálva
 
 const languages = [
   { code: 'en', name: 'English' },
