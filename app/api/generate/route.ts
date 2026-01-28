@@ -9,7 +9,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    // 1. A legújabb Next.js-ben a cookies() hívást await-elni kell!
+    // 1. Next.js cookie-k kezelése
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
@@ -30,13 +30,35 @@ export async function POST(req: Request) {
       }
     );
 
-    // 2. Felhasználó ellenőrzése
+    // 2. Felhasználó azonosítása
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user || user.email !== "fintatamas68@gmail.com") {
-      return NextResponse.json({ error: "Bejelentkezés szükséges!" }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: "Bejelentkezés szükséges!" }, { status: 401 });
     }
 
+    // 3. ELŐFIZETÉS ELLENŐRZÉSE
+    // Megnézzük, van-e 'active' státuszú előfizetése a felhasználónak
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('status')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .single();
+
+    // Hozzáférés kezelése: Admin VAGY Aktív előfizető mehet tovább
+    const adminEmail = "fintatamas68@gmail.com";
+    const isOwner = user.email === adminEmail;
+    const hasActiveSub = !!subscription;
+
+    if (!isOwner && !hasActiveSub) {
+      return NextResponse.json(
+        { error: "A tartalomgeneráláshoz Pro előfizetés szükséges!" }, 
+        { status: 403 }
+      );
+    }
+
+    // 4. Adatok feldolgozása a kérésből
     const { content, tone, lang, templatePrompt } = await req.json();
 
     const langMap: { [key: string]: string } = {
@@ -51,12 +73,13 @@ export async function POST(req: Request) {
     const targetLang = langMap[lang] || 'English';
 
     const prompt = `Te egy világszínvonalú közösségi média stratéga vagy.
-    A feladatod: Készíts egy ${templatePrompt} || 'Alakítsd át a következő forrásszöveget' 5 különböző típusú tartalommá, szigorúan ${tone} stílusban.
+    A feladatod: Készíts egy ${templatePrompt || 'Alakítsd át a következő forrásszöveget'} 5 különböző típusú tartalommá, szigorúan ${tone} stílusban.
     FONTOS: A válaszod minden egyes mezőjét szigorúan ${targetLang} nyelven írd meg! 
     A válaszod szigorúan egy JSON objektum legyen, pontosan ezekkel a kulcsokkal:
     - linkedin, instagram, x_twitter, newsletter, tiktok_script
     Forrásszöveg: ${content}`;
 
+    // 5. OpenAI hívás
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -68,7 +91,7 @@ export async function POST(req: Request) {
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
 
-    // 3. Mentés az adatbázisba
+    // 6. Mentés az adatbázisba
     const { error: dbError } = await supabase.from('generations').insert([
       { 
         original_content: content, 
@@ -84,6 +107,6 @@ export async function POST(req: Request) {
 
   } catch (error) {
     console.error("Critical Error:", error);
-    return NextResponse.json({ error: "Hiba történt" }, { status: 500 });
+    return NextResponse.json({ error: "Hiba történt a generálás során" }, { status: 500 });
   }
 }

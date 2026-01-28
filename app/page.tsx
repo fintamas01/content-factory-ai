@@ -45,6 +45,7 @@ export default function Home() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
+  const [isPro, setIsPro] = useState(false);
 
   const adminEmail = "fintatamas68@gmail.com"
 
@@ -55,6 +56,22 @@ export default function Home() {
     const y = e.clientY - (rect.top + rect.height / 2);
     setButtonPos({ x: x * 0.2, y: y * 0.2 }); // 20%-os elmozdulás
   };
+
+  useEffect(() => {
+    const checkSub = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from('subscriptions')
+          .select('status')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .single();
+        
+        if (data) setIsPro(true);
+      }
+    };
+    checkSub();
+  }, [user]);
 
   useEffect(() => {
     setMounted(true);
@@ -251,35 +268,49 @@ export default function Home() {
                  <Type className="w-5 h-5" /> Neural Input
               </div>
 
-              {/* PRICING SECTION */}
-              <div className="grid md:grid-cols-2 gap-8 mb-20">
-                <div className="p-8 rounded-[40px] bg-white/5 border border-white/10 backdrop-blur-3xl">
-                  <h3 className="text-xl font-bold mb-4">Ingyenes</h3>
-                  <p className="text-4xl font-black mb-6">$0</p>
-                  <ul className="space-y-3 mb-8 opacity-60 text-sm">
-                    <li>• 3 generálás naponta</li>
-                    <li>• Alap AI modell</li>
-                  </ul>
-                  <button className="w-full py-4 rounded-2xl bg-white/10 font-bold opacity-50 cursor-not-allowed">Jelenlegi csomagod</button>
-                </div>
+              {/* PRICING SECTION - MULTI-PLAN */}
+              {!isPro && (
+                <div className="grid md:grid-cols-2 gap-8 mb-20 max-w-4xl mx-auto">
+                  
+                  {/* BASIC PLAN */}
+                  <div className="p-8 rounded-[40px] bg-white/5 border border-white/10 backdrop-blur-3xl hover:border-blue-500/30 transition-all group">
+                    <h3 className="text-xl font-bold mb-2">Basic Plan</h3>
+                    <p className="text-sm opacity-50 mb-6">Ideális alkalmi tartalomgyártóknak</p>
+                    <p className="text-4xl font-black mb-6">$10.00 <span className="text-sm font-normal opacity-50">/ hó</span></p>
+                    <ul className="space-y-3 mb-8 text-sm opacity-70">
+                      <li>• 50 generálás / hó</li>
+                      <li>• Standard AI motor</li>
+                      <li>• Alap sablonok</li>
+                    </ul>
+                    <button 
+                      onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC!)}
+                      className="w-full py-4 rounded-2xl bg-white/10 font-bold hover:bg-white/20 transition-all border border-white/10"
+                    >
+                      Választom
+                    </button>
+                  </div>
 
-                <div className="p-8 rounded-[40px] bg-blue-600 border border-blue-400 shadow-2xl shadow-blue-600/20 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-white text-blue-600 text-[10px] font-black px-4 py-1 rounded-bl-xl uppercase">Best Value</div>
-                  <h3 className="text-xl font-bold mb-4">Pro Plan</h3>
-                  <p className="text-4xl font-black mb-6">$29.99</p>
-                  <ul className="space-y-3 mb-8 text-sm text-blue-100">
-                    <li>• Korlátlan generálás</li>
-                    <li>• GPT-4o Neural Engine</li>
-                    <li>• Prioritásos támogatás</li>
-                  </ul>
-                  <button 
-                    onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)}
-                    className="w-full py-4 rounded-2xl bg-white text-blue-600 font-black hover:scale-105 transition-transform"
-                  >
-                    Upgrade to Pro
-                  </button>
+                  {/* PRO PLAN */}
+                  <div className="p-8 rounded-[40px] bg-blue-600 border border-blue-400 shadow-2xl shadow-blue-600/20 relative overflow-hidden transform hover:scale-[1.02] transition-all">
+                    <div className="absolute top-0 right-0 bg-white text-blue-600 text-[10px] font-black px-4 py-1 rounded-bl-xl uppercase tracking-tighter">Legnépszerűbb</div>
+                    <h3 className="text-xl font-bold mb-2">Pro Plan</h3>
+                    <p className="text-sm text-blue-100/60 mb-6">Profi marketingeseknek és ügynökségeknek</p>
+                    <p className="text-4xl font-black mb-6">$29.99 <span className="text-sm font-normal text-blue-100/50">/ hó</span></p>
+                    <ul className="space-y-3 mb-8 text-sm text-blue-100">
+                      <li>• Korlátlan generálás</li>
+                      <li>• GPT-4o Neural Engine</li>
+                      <li>• Minden prémium sablon</li>
+                      <li>• Prioritásos támogatás</li>
+                    </ul>
+                    <button 
+                      onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)}
+                      className="w-full py-4 rounded-2xl bg-white text-blue-600 font-black shadow-xl hover:bg-blue-50 transition-all"
+                    >
+                      Upgrade to Pro
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="relative">
                 {loading && (
