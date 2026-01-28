@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import { History, Trash2, X, Calendar, MessageSquare, Copy, Check } from 'lucide-react';
+import { History, Trash2, X, Calendar, MessageSquare, Copy, Check, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createBrowserClient(
@@ -74,35 +74,42 @@ export default function HistoryPage() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {history.map((item) => (
+        {history.map((item) => (
             <motion.div
-              key={item.id}
-              onClick={() => setSelectedItem(item)}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="group cursor-pointer bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] hover:border-blue-500/50 hover:shadow-xl transition-all flex items-center justify-between gap-4"
+            key={item.id}
+            onClick={() => setSelectedItem(item)}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            // JAVÍTOTT STÍLUS: Világosabb háttér sötét módban, padding és lekerekítés
+            className="group cursor-pointer bg-slate-100/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-6 rounded-[24px] hover:border-blue-500/50 hover:bg-white dark:hover:bg-white/10 transition-all flex items-center justify-between gap-6 shadow-sm hover:shadow-xl"
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="px-2 py-0.5 bg-blue-600/10 text-blue-600 text-[9px] font-black uppercase rounded-md tracking-wider">
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-4 mb-3">
+                <span className="px-3 py-1 bg-blue-600/10 text-blue-600 text-[10px] font-black uppercase rounded-full tracking-widest border border-blue-600/20">
                     {item.tone}
-                  </span>
-                  <span className="text-slate-400 text-[10px] flex items-center gap-1 font-bold">
-                    <Calendar className="w-3 h-3" /> {new Date(item.created_at).toLocaleDateString()}
-                  </span>
+                </span>
+                <span className="text-slate-400 text-[10px] flex items-center gap-1.5 font-bold opacity-70">
+                    <Calendar className="w-3.5 h-3.5" /> {new Date(item.created_at).toLocaleDateString()}
+                </span>
                 </div>
-                <p className="text-slate-700 dark:text-slate-300 font-bold truncate">
-                  {item.original_content}
+                {/* JAVÍTOTT SZÖVEG: Maximális szélesség és jobb kontraszt */}
+                <p className="text-slate-700 dark:text-slate-200 font-bold text-lg leading-snug line-clamp-2 max-w-4xl">
+                {item.original_content}
                 </p>
-              </div>
-              <button 
+            </div>
+            <div className="flex items-center gap-4">
+                <div className="p-2 bg-blue-600/0 group-hover:bg-blue-600/10 rounded-xl transition-all">
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-all" />
+                </div>
+                <button 
                 onClick={(e) => deleteItem(item.id, e)}
-                className="p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
+                className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all"
+                >
                 <Trash2 className="w-5 h-5" />
-              </button>
+                </button>
+            </div>
             </motion.div>
-          ))}
+        ))}
         </div>
       )}
 
