@@ -65,18 +65,18 @@ export default function DashboardPage() {
     getUser();
   }, []);
 
-  if (!mounted) return null;
+  // if (!mounted) return null;
 
   // Ha be van lépve, de NEM Te vagy az, mutassuk a "Zárt béta" üzenetet
-  if (user && user.email !== adminEmail) {
+  if (user ) { // && user.email !== adminEmail
     return <div className="p-20 text-center text-white">Zárt béta fázis...</div>;
   }
 
-  return (
-    <div className="max-w-5xl mx-auto space-y-12 pb-20">
-       {/* Itt jön a dashboardod többi része */}
-    </div>
-  );
+  // return (
+  //   <div className="max-w-5xl mx-auto space-y-12 pb-20">
+  //      {/* Itt jön a dashboardod többi része */}
+  //   </div>
+  // );
 
   useEffect(() => {
     const checkStatus = async () => {
