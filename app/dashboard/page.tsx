@@ -4,7 +4,7 @@ import {
   Sparkles, Type, Zap, Copy, History as HistoryIcon, Send 
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -267,7 +267,7 @@ export default function DashboardPage() {
 
 function ResultCard({ title, content: initialContent, lang }: any) {
   const [content, setContent] = useState(initialContent);
-  const [showPreview, setShowPreview] = useState(false); // Nézetváltó állapot
+  const [showModal, setShowModal] = useState(false); // Modal állapota
   const [customPrompt, setCustomPrompt] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -290,15 +290,16 @@ function ResultCard({ title, content: initialContent, lang }: any) {
   };
 
   return (
-    <div className="relative h-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col group shadow-sm">
-       <div className="flex justify-between items-center mb-6">
+    <>
+      <div className="relative h-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col group shadow-sm">
+        <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-black tracking-[0.3em] text-blue-600 uppercase">{title}</span>
             <button 
-              onClick={() => setShowPreview(!showPreview)}
-              className="text-[9px] font-black uppercase px-3 py-1 bg-slate-100 dark:bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-all border border-transparent hover:border-blue-400"
+              onClick={() => setShowModal(true)}
+              className="text-[9px] font-black uppercase px-3 py-1 bg-blue-600/10 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20"
             >
-              {showPreview ? "⌨️ Szerkesztés" : "📱 Előnézet"}
+              📱 Live Preview
             </button>
           </div>
           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -309,61 +310,92 @@ function ResultCard({ title, content: initialContent, lang }: any) {
                <Copy className="w-4 h-4" />
              </button>
           </div>
-       </div>
+        </div>
 
-       {showPreview ? (
-         /* SOCIAL PREVIEW NÉZET */
-         <div className="flex-grow flex items-center justify-center bg-slate-50 dark:bg-black/20 rounded-3xl p-6 min-h-[350px] border-2 border-dashed border-slate-200 dark:border-white/5">
-            <div className="w-full max-w-[300px] bg-white dark:bg-[#1c1f26] rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden transform scale-95 md:scale-100 transition-transform">
-               {/* Fejléc imitáció */}
-               <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 p-[2px]">
-                    <div className="w-full h-full rounded-full bg-white dark:bg-black" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="h-2.5 w-20 bg-slate-200 dark:bg-white/10 rounded-full" />
-                    <div className="h-2 w-12 bg-slate-100 dark:bg-white/5 rounded-full" />
-                  </div>
-               </div>
-               {/* Poszt tartalom */}
-               <div className="p-5">
-                  <p className="text-[12px] leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-medium">
-                    {content}
-                  </p>
-               </div>
-               {/* Alsó gombok imitációja */}
-               <div className="px-5 py-4 border-t border-slate-50 dark:border-white/5 flex justify-between items-center opacity-40">
-                  <div className="flex gap-4">
-                    <div className="w-4 h-4 border-2 border-slate-400 dark:border-white/20 rounded-md" />
-                    <div className="w-4 h-4 border-2 border-slate-400 dark:border-white/20 rounded-md" />
-                  </div>
-                  <div className="w-4 h-4 border-2 border-slate-400 dark:border-white/20 rounded-md" />
-               </div>
-            </div>
-         </div>
-       ) : (
-         /* SZERKESZTŐ NÉZET (Meglévő logika) */
-         <>
-           <div className="flex flex-wrap gap-2 mb-4">
-              {[{id:'shorten', l:'✂️ Rövidebb'}, {id:'emoji', l:'✨ Emojik'}, {id:'professional', l:'💼 Profi'}].map(btn => (
-                <button key={btn.id} onClick={() => handleMagicEdit(btn.id)} disabled={loading} className="text-[9px] font-black uppercase px-3 py-1.5 bg-blue-600/10 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50">{btn.l}</button>
-              ))}
-           </div>
+        {/* SZERKESZTŐ INTERFÉSZ */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[{id:'shorten', l:'✂️ Rövidebb'}, {id:'emoji', l:'✨ Emojik'}, {id:'professional', l:'💼 Profi'}].map(btn => (
+            <button key={btn.id} onClick={() => handleMagicEdit(btn.id)} disabled={loading} className="text-[9px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-white/5 text-slate-500 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50">{btn.l}</button>
+          ))}
+        </div>
 
-           <div className="flex gap-2 mb-6">
-              <input type="text" value={customPrompt} onChange={(e)=>setCustomPrompt(e.target.value)} placeholder="Saját kérés..." className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 transition-all" />
-              <button onClick={() => handleMagicEdit('custom')} disabled={!customPrompt || loading} className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors"><Send className="w-4 h-4" /></button>
-           </div>
+        <div className="flex gap-2 mb-6">
+          <input type="text" value={customPrompt} onChange={(e)=>setCustomPrompt(e.target.value)} placeholder="Saját kérés..." className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white" />
+          <button onClick={() => handleMagicEdit('custom')} disabled={!customPrompt || loading} className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors"><Send className="w-4 h-4" /></button>
+        </div>
 
-           <div className="flex-grow">
-              {loading ? (
-                <div className="space-y-2 animate-pulse"><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div></div>
-              ) : (
-                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
-              )}
-           </div>
-         </>
-       )}
-    </div>
+        <div className="flex-grow">
+          {loading ? (
+            <div className="space-y-2 animate-pulse"><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div></div>
+          ) : (
+            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
+          )}
+        </div>
+      </div>
+
+      {/* LIVE PREVIEW MODAL */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setShowModal(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative z-10 w-full max-w-sm"
+            >
+              {/* TELEFON KERET (Mockup) */}
+              <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl overflow-hidden">
+                <div className="w-[148px] h-[18px] bg-gray-800 top-0 left-1/2 -translate-x-1/2 absolute rounded-b-[1rem] z-20"></div>
+                <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[124px] rounded-l-lg"></div>
+                <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[178px] rounded-l-lg"></div>
+                <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[17px] top-[142px] rounded-r-lg"></div>
+                
+                {/* TELEFON KIJELZŐ TARTALMA */}
+                <div className="h-full w-full bg-white dark:bg-[#1c1f26] overflow-y-auto pt-8">
+                  <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 p-[2px]">
+                      <div className="w-full h-full rounded-full bg-white dark:bg-black" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="h-3 w-24 bg-slate-200 dark:bg-white/10 rounded-full" />
+                      <div className="h-2 w-16 bg-slate-100 dark:bg-white/5 rounded-full" />
+                    </div>
+                  </div>
+                  
+                  <div className="p-6">
+                    <p className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-medium animate-in fade-in slide-in-from-bottom-4 duration-700">
+                      {content}
+                    </p>
+                  </div>
+                  
+                  {/* Alsó interakciós sáv imitáció */}
+                  <div className="mt-4 px-6 flex justify-between opacity-30">
+                    <div className="h-4 w-4 rounded bg-slate-400" />
+                    <div className="h-4 w-4 rounded bg-slate-400" />
+                    <div className="h-4 w-4 rounded bg-slate-400" />
+                  </div>
+                </div>
+              </div>
+              
+              {/* BEZÁRÁS GOMB A MODAL ALATT */}
+              <button 
+                onClick={() => setShowModal(false)}
+                className="mt-8 mx-auto block px-6 py-2 bg-white/10 text-white rounded-full text-sm font-bold hover:bg-white/20 transition-all border border-white/10"
+              >
+                Bezárás
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
