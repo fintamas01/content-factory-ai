@@ -51,11 +51,9 @@ export async function POST(req: Request) {
       .eq('status', 'active')
       .single();
 
-    // Hozzáférés kezelése: Admin VAGY Aktív előfizető mehet tovább
-    const isOwner = user.email === adminEmail;
     const hasActiveSub = !!subscription;
 
-    if (!isOwner && !hasActiveSub) {
+    if (!hasActiveSub) {
       return NextResponse.json(
         { error: "A tartalomgeneráláshoz Pro előfizetés szükséges!" }, 
         { status: 403 }
