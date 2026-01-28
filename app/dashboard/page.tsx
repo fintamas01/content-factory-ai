@@ -11,6 +11,8 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
 );
 
+const adminEmail = "fintatamas@gmail.com"; // Admin e-mail fixálva
+
 const languages = [
   { code: 'en', name: 'English' },
   { code: 'hu', name: 'Magyar' },
@@ -28,80 +30,46 @@ const templates = [
 ];
 
 const allPlatforms = [
-    { id: 'linkedin', label: 'LinkedIn' },
-    { id: 'instagram', label: 'Instagram' },
-    { id: 'x_twitter', label: 'X (Twitter)' },
-    { id: 'newsletter', label: 'Newsletter' },
-    { id: 'tiktok_script', label: 'TikTok Script' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'x_twitter', label: 'X (Twitter)' },
+  { id: 'newsletter', label: 'Newsletter' },
+  { id: 'tiktok_script', label: 'TikTok Script' },
 ];
 
-
-
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [input, setInput] = useState('');
   const [tone, setTone] = useState('szakmai');
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('hu');
-  const [user, setUser] = useState<any>(null);
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
-  const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [isPro, setIsPro] = useState(false);
   const [isBasic, setIsBasic] = useState(false);
   const [genCount, setGenCount] = useState(0);
-
-  const [mounted, setMounted] = useState(false);
-
-  const adminEmail = "fintatamas@gmail.com";
+  const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setMounted(true);
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getUser();
-  }, []);
-
-  if (!mounted) return null;
-
-  useEffect(() => {
     const checkStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
       if (user) {
         const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', user.id).single();
         if (sub?.status === 'active') {
           if (sub.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setIsPro(true);
           else setIsBasic(true);
         }
-        // Ingyenes generálások száma az adatbázisból
         const { count } = await supabase.from('generations').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
         setGenCount(count || 0);
       }
     };
     checkStatus();
-  }, []);
-
-  const togglePlatform = (id: string) => {
-    const limit = isPro ? 5 : isBasic ? 2 : 1;
-    
-    if (selectedPlatforms.includes(id)) {
-      setSelectedPlatforms(selectedPlatforms.filter(p => p !== id));
-    } else if (selectedPlatforms.length < limit) {
-      setSelectedPlatforms([...selectedPlatforms, id]);
-    } else {
-      alert(`A jelenlegi csomagod limitje: ${limit} platform.`);
-    }
-  };
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getUser();
   }, []);
 
   const handleButtonMove = (e: React.MouseEvent) => {
@@ -113,13 +81,19 @@ export default function DashboardPage() {
   };
 
   const generateAll = async () => {
-    if (!input) return;
+    if (!input || selectedPlatforms.length === 0) return;
     setLoading(true);
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: input, tone, lang, templatePrompt: selectedTemplate.prompt, platforms: selectedPlatforms }),
+        body: JSON.stringify({ 
+          content: input, 
+          tone, 
+          lang, 
+          templatePrompt: selectedTemplate.prompt, 
+          platforms: selectedPlatforms 
+        }),
       });
       const data = await res.json();
       if (data.error) alert(data.error);
@@ -130,31 +104,51 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
+  const togglePlatform = (id: string) => {
+    const limit = isPro ? 5 : isBasic ? 2 : 1;
+    if (selectedPlatforms.includes(id)) {
+      setSelectedPlatforms(selectedPlatforms.filter(p => p !== id));
+    } else if (selectedPlatforms.length < limit) {
+      setSelectedPlatforms([...selectedPlatforms, id]);
+    } else {
+      alert(`A jelenlegi csomagod limitje: ${limit} platform.`);
+    }
+  };
+
+  // 1. Lépés: Hydration védelem
+  if (!mounted) return null;
+
+  // 2. Lépés: User adat betöltésének ellenőrzése
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div>
       </div>
     );
   }
 
-  // 3. Biztonságos admin ellenőrzés (már biztosan van user objektumunk)
+  // 3. Lépés: Biztonságos admin ellenőrzés
   if (user.email !== adminEmail) {
     return (
-      <div className="p-20 text-center text-white">
-        <h2 className="text-2xl font-black italic">Zárt béta fázis</h2>
-        <p className="opacity-50">Csak az adminisztrátor számára elérhető.</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white/5 backdrop-blur-3xl rounded-[40px] border border-white/10 m-8">
+        <Sparkles className="w-16 h-16 text-blue-500 mb-6 opacity-20" />
+        <h2 className="text-4xl font-black mb-4 italic text-white uppercase tracking-tighter">Zárt Béta Fázis</h2>
+        <p className="text-slate-500 max-w-md font-medium leading-relaxed">
+          Szia! A rendszer jelenleg fejlesztés alatt áll. Jelenleg csak <strong>{adminEmail}</strong> férhet hozzá a funkciókhoz.
+        </p>
       </div>
     );
   }
 
+  // 4. Lépés: A tényleges tartalom renderelése
   return (
-    <div className="max-w-5xl mx-auto space-y-12 pb-20">
+    <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
       <header>
-        <h1 className="text-4xl font-black tracking-tight mb-2">Neural Workspace</h1>
-        <p className="text-slate-500 font-medium">Hozd létre a következő virális kampányodat másodpercek alatt.</p>
+        <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">Neural <span className="text-blue-600">Workspace</span></h1>
+        <p className="text-slate-500 font-medium">Hozd létre a következő kampányodat másodpercek alatt.</p>
       </header>
 
+      {/* Input Section */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-white/50 dark:bg-[#0f172a]/40 backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] p-10 shadow-2xl overflow-hidden">
         <div className="flex justify-between items-center mb-8">
            <div className="flex items-center gap-3 text-slate-500 uppercase text-[10px] font-black tracking-widest">
@@ -187,49 +181,40 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-10 grid lg:grid-cols-2 gap-10">
-          <div className="space-y-5">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Sablon Motor</span>
-            <div className="flex flex-wrap gap-2">
-              {templates.map(t => (
-                <button 
-                  key={t.id} onClick={() => setSelectedTemplate(t)}
-                  className={`px-5 py-3 rounded-2xl text-xs font-bold transition-all border ${selectedTemplate.id === t.id ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-200 dark:bg-white/5 border-slate-300 dark:border-white/10 text-slate-500 hover:text-blue-600'}`}
-                >
-                  {t.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4 mb-10">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Célplatformok</span>
-            <div className="flex flex-wrap gap-3">
-                {allPlatforms.map(p => {
-                const isSelected = selectedPlatforms.includes(p.id);
-                return (
-                    <button
+          <div className="space-y-6">
+            <div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4">Célplatformok</span>
+              <div className="flex flex-wrap gap-3">
+                {allPlatforms.map(p => (
+                  <button
                     key={p.id}
                     onClick={() => togglePlatform(p.id)}
                     className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
-                        isSelected 
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg' 
-                        : 'bg-white/5 border-white/10 text-slate-500 hover:border-blue-500/50'
+                      selectedPlatforms.includes(p.id) 
+                      ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20' 
+                      : 'bg-white/5 border-white/10 text-slate-500 hover:border-blue-500/50'
                     }`}
-                    >
-                    {p.id === 'linkedin' && '💼 '}
-                    {p.id === 'instagram' && '📸 '}
-                    {p.id === 'x_twitter' && '🐦 '}
+                  >
                     {p.label}
-                    </button>
-                );
-                })}
+                  </button>
+                ))}
+              </div>
             </div>
-            {!isPro && !isBasic && (
-                <p className="text-[10px] text-orange-500 font-bold italic">
-                Ingyenes próba: {genCount}/2 generálás felhasználva. Próbaként 1 platform választható.
-                </p>
-            )}
+            
+            <div className="pt-4 border-t border-white/5">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4">Sablon Motor</span>
+              <div className="flex flex-wrap gap-2">
+                {templates.map(t => (
+                  <button 
+                    key={t.id} onClick={() => setSelectedTemplate(t)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border ${selectedTemplate.id === t.id ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-200 dark:bg-white/5 border-slate-300 dark:border-white/10 text-slate-500 hover:text-blue-600'}`}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
             </div>
+          </div>
 
           <div className="flex flex-col gap-6">
             <div className="flex bg-slate-200 dark:bg-black/40 p-1 rounded-2xl border border-slate-300 dark:border-white/10">
@@ -249,37 +234,31 @@ export default function DashboardPage() {
               onMouseLeave={() => setButtonPos({ x: 0, y: 0 })}
               animate={{ x: buttonPos.x, y: buttonPos.y }}
               onClick={generateAll}
-              disabled={loading}
-              className="relative group w-full bg-[#020617] p-[2px] rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(37,99,235,0.1)] active:scale-95 transition-transform"
+              disabled={loading || selectedPlatforms.length === 0}
+              className="relative group w-full bg-[#020617] p-[2px] rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(37,99,235,0.1)] active:scale-95 transition-transform disabled:opacity-50"
             >
               <div className={`absolute inset-0 z-0 transition-opacity duration-500 ${loading ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[250%] h-[250%] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,#3b82f6_360deg)] animate-spin" />
               </div>
-
               <div className="relative z-10 bg-[#020617] py-5 rounded-2xl flex items-center justify-center gap-4 text-white font-black text-lg group-hover:bg-blue-600/10 transition-colors">
-                {loading ? (
-                   <span className="tracking-[0.2em] animate-pulse text-sm">NEURAL PROCESSING...</span>
-                ) : (
-                  <span className="flex items-center gap-3 tracking-tight">KAMPÁNY GENERÁLÁSA <Zap className="w-5 h-5 text-blue-500" /></span>
-                )}
+                {loading ? <span className="tracking-[0.2em] animate-pulse text-sm uppercase">Neural Processing...</span> : <span>KAMPÁNY GENERÁLÁSA <Zap className="w-5 h-5 text-blue-500" /></span>}
               </div>
             </motion.button>
           </div>
         </div>
       </motion.div>
 
+      {/* Results Section */}
       {results && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {Object.entries(results).map(([key, data]: any) => (
-              <ResultCard 
-                key={key} 
-                title={key.replace(/_/g, ' ')} 
-                content={typeof data === 'object' ? data.content : data} 
-                lang={lang}
-              />
-            ))}
-          </div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {Object.entries(results).map(([key, data]: any) => (
+            <ResultCard 
+              key={key} 
+              title={key.replace(/_/g, ' ')} 
+              content={typeof data === 'object' ? data.content : data} 
+              lang={lang}
+            />
+          ))}
         </motion.div>
       )}
     </div>
@@ -310,7 +289,7 @@ function ResultCard({ title, content: initialContent, lang }: any) {
   };
 
   return (
-    <div className="relative h-full bg-white dark:bg-white/[0.03] backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col group">
+    <div className="relative h-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col group">
        <div className="flex justify-between items-center mb-6">
           <span className="text-[10px] font-black tracking-[0.3em] text-blue-600 uppercase">{title}</span>
           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -322,49 +301,18 @@ function ResultCard({ title, content: initialContent, lang }: any) {
              </button>
           </div>
        </div>
-
-       {/* MAGIC TOOLBAR */}
        <div className="flex flex-wrap gap-2 mb-4">
-          {[
-            { id: 'shorten', label: '✂️ Rövidebb' },
-            { id: 'emoji', label: '✨ Emojik' },
-            { id: 'professional', label: '💼 Profi' },
-          ].map(btn => (
-            <button 
-              key={btn.id}
-              onClick={() => handleMagicEdit(btn.id)}
-              disabled={loading}
-              className="text-[9px] font-black uppercase px-3 py-1.5 bg-blue-600/10 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
-            >
-              {btn.label}
-            </button>
+          {[{id:'shorten', l:'✂️ Rövidebb'}, {id:'emoji', l:'✨ Emojik'}, {id:'professional', l:'💼 Profi'}].map(btn => (
+            <button key={btn.id} onClick={() => handleMagicEdit(btn.id)} disabled={loading} className="text-[9px] font-black uppercase px-3 py-1.5 bg-blue-600/10 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50">{btn.l}</button>
           ))}
        </div>
-
-       {/* CUSTOM PROMPT FIELD */}
        <div className="flex gap-2 mb-6">
-          <input 
-            type="text"
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder="Saját kérés (pl. 'Írd át kérdésként')..."
-            className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 transition-all"
-          />
-          <button 
-            onClick={() => handleMagicEdit('custom')}
-            disabled={!customPrompt || loading}
-            className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          <input type="text" value={customPrompt} onChange={(e)=>setCustomPrompt(e.target.value)} placeholder="Saját kérés..." className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] outline-none" />
+          <button onClick={() => handleMagicEdit('custom')} disabled={!customPrompt || loading} className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50"><Send className="w-4 h-4" /></button>
        </div>
-
        <div className="flex-grow">
           {loading ? (
-            <div className="space-y-2 animate-pulse">
-              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div>
-              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div>
-            </div>
+            <div className="space-y-2 animate-pulse"><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div></div>
           ) : (
             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
           )}
