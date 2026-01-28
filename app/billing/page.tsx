@@ -92,7 +92,38 @@ export default function BillingPage() {
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-8">
-           {/* Itt maradnak a korábbi ártáblázatok (Basic/Pro) */}
+           {/* BASIC PLAN */}
+          <div className="p-8 rounded-[40px] bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            <h3 className="text-xl font-bold mb-6">Basic Plan</h3>
+            <p className="text-4xl font-black mb-6 text-slate-900 dark:text-white">$10.00 <span className="text-sm font-normal opacity-50">/ hó</span></p>
+            <ul className="space-y-4 mb-8 text-sm opacity-70">
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> 50 generálás / hó</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> Standard AI motor</li>
+            </ul>
+            <button 
+              onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC!)}
+              className="w-full py-4 rounded-2xl bg-slate-100 dark:bg-white/10 font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all"
+            >
+              Választom
+            </button>
+          </div>
+
+          {/* PRO PLAN */}
+          <div className="p-8 rounded-[40px] bg-white dark:bg-white/5 border-2 border-blue-600 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black px-4 py-1 rounded-bl-xl uppercase">Best Value</div>
+            <h3 className="text-xl font-bold mb-6">Pro Plan</h3>
+            <p className="text-4xl font-black mb-6 text-slate-900 dark:text-white">$29.99 <span className="text-sm font-normal opacity-50">/ hó</span></p>
+            <ul className="space-y-4 mb-8 text-sm opacity-70">
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> Korlátlan generálás</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> GPT-4o Neural Engine</li>
+            </ul>
+            <button 
+              onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)}
+              className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black hover:scale-[1.02] transition-transform"
+            >
+              Upgrade to Pro
+            </button>
+          </div>
         </div>
       )}
     </div>
