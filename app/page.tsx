@@ -46,6 +46,8 @@ export default function Home() {
   const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
 
+  const adminEmail = "fintatamas68@gmail.com"
+
   const handleButtonMove = (e: React.MouseEvent) => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
@@ -224,6 +226,18 @@ export default function Home() {
 
       <main className="relative z-10 max-w-6xl mx-auto px-8 py-16">
         {!user ? (
+          /* 1. ESET: NINCS BEJELENTKEZVE */
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-32 bg-white/40 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[60px] backdrop-blur-3xl shadow-3xl">
+            <h1 className="text-8xl font-black mb-8 tracking-tight leading-[0.9]">Create <br/><span className="text-blue-600">Faster.</span></h1>
+            <button onClick={handleLogin} className="bg-blue-600 text-white px-12 py-5 rounded-[24px] font-black text-xl hover:scale-105 transition-all">Get Started</button>
+          </motion.div>
+        ) : user.email === adminEmail ? (
+          /* 2. ESET: TE VAGY AZ ADMIN - MINDENT LÁTSZ */
+          <div className="space-y-12">
+            {/* Ide jön a teljes meglévő kódod: PRICING SECTION, INPUT CORE, RESULTS PLATFORM */}
+            {/* ... (a jelenlegi kódod folytatása) ... */}
+
+            {!user ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-32 bg-white/40 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[60px] backdrop-blur-3xl shadow-3xl">
              <h1 className="text-8xl font-black mb-8 tracking-tight leading-[0.9]">Create <br/><span className="text-blue-600">Faster.</span></h1>
              <button onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)} className="bg-blue-600 text-white px-12 py-5 rounded-[24px] font-black text-xl hover:scale-105 transition-all">Get Started</button>
@@ -382,7 +396,21 @@ export default function Home() {
             )}
           </div>
         )}
+          </div>
+        ) : (
+          /* 3. ESET: IDEGEN VAN BENT - ELREJTJÜK A FUNKCIÓKAT */
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-24 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[40px]">
+            <Sparkles className="w-16 h-16 text-blue-500 mx-auto mb-6 opacity-20" />
+            <h2 className="text-4xl font-black mb-4">Zárt Béta Fázis</h2>
+            <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+              Köszönjük az érdeklődést! Az alkalmazás jelenleg fejlesztés alatt áll és csak meghívott tesztelők számára érhető el.
+            </p>
+            <button onClick={handleLogout} className="text-sm font-black uppercase tracking-widest text-blue-600 hover:text-blue-400 transition-colors">Vissza a főoldalra</button>
+          </motion.div>
+        )}
       </main>
+
+      
 
       {/* ARCHIVE DRAWER */}
       <AnimatePresence>

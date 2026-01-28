@@ -33,8 +33,8 @@ export async function POST(req: Request) {
     // 2. Felhasználó ellenőrzése
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: "Bejelentkezés szükséges!" }, { status: 401 });
+    if (!user || user.email !== "fintatamas68@gmail.com") {
+      return NextResponse.json({ error: "Bejelentkezés szükséges!" }, { status: 403 });
     }
 
     const { content, tone, lang, templatePrompt } = await req.json();
