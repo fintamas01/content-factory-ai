@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
 
     // Admin ellenőrzés
-    if (!user || user.email !== ADMIN_EMAIL) {
+    if (!user ) { // || user.email !== ADMIN_EMAIL
       return NextResponse.json(
         { error: "Zárt tesztfázis: Csak az adminisztrátor használhatja a rendszert." }, 
         { status: 403 }
