@@ -237,6 +237,36 @@ export default function Home() {
                  <Type className="w-5 h-5" /> Neural Input
               </div>
 
+              {/* PRICING SECTION */}
+              <div className="grid md:grid-cols-2 gap-8 mb-20">
+                <div className="p-8 rounded-[40px] bg-white/5 border border-white/10 backdrop-blur-3xl">
+                  <h3 className="text-xl font-bold mb-4">Ingyenes</h3>
+                  <p className="text-4xl font-black mb-6">$0</p>
+                  <ul className="space-y-3 mb-8 opacity-60 text-sm">
+                    <li>• 3 generálás naponta</li>
+                    <li>• Alap AI modell</li>
+                  </ul>
+                  <button className="w-full py-4 rounded-2xl bg-white/10 font-bold opacity-50 cursor-not-allowed">Jelenlegi csomagod</button>
+                </div>
+
+                <div className="p-8 rounded-[40px] bg-blue-600 border border-blue-400 shadow-2xl shadow-blue-600/20 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-white text-blue-600 text-[10px] font-black px-4 py-1 rounded-bl-xl uppercase">Best Value</div>
+                  <h3 className="text-xl font-bold mb-4">Pro Plan</h3>
+                  <p className="text-4xl font-black mb-6">$29.99</p>
+                  <ul className="space-y-3 mb-8 text-sm text-blue-100">
+                    <li>• Korlátlan generálás</li>
+                    <li>• GPT-4o Neural Engine</li>
+                    <li>• Prioritásos támogatás</li>
+                  </ul>
+                  <button 
+                    onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)}
+                    className="w-full py-4 rounded-2xl bg-white text-blue-600 font-black hover:scale-105 transition-transform"
+                  >
+                    Upgrade to Pro
+                  </button>
+                </div>
+              </div>
+
               <div className="relative">
                 {loading && (
                   <motion.div 
