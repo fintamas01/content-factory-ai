@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+const adminEmail = "fintatamas@gmail.com";
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -33,8 +35,11 @@ export async function POST(req: Request) {
     // 2. Felhasználó azonosítása
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: "Bejelentkezés szükséges!" }, { status: 401 });
+    if (!user || user.email !== adminEmail) {
+      return NextResponse.json(
+        { error: "Az alkalmazás jelenleg zárt tesztelési fázisban van. Csak az adminisztrátor használhatja." }, 
+        { status: 403 }
+      );
     }
 
     // 3. ELŐFIZETÉS ELLENŐRZÉSE
@@ -47,7 +52,6 @@ export async function POST(req: Request) {
       .single();
 
     // Hozzáférés kezelése: Admin VAGY Aktív előfizető mehet tovább
-    const adminEmail = "fintatamas68@gmail.com";
     const isOwner = user.email === adminEmail;
     const hasActiveSub = !!subscription;
 

@@ -35,6 +35,8 @@ const allPlatforms = [
     { id: 'tiktok_script', label: 'TikTok Script' },
 ];
 
+const adminEmail = "fintatamas@gmail.com";
+
 export default function DashboardPage() {
   const [input, setInput] = useState('');
   const [tone, setTone] = useState('szakmai');
@@ -49,6 +51,33 @@ export default function DashboardPage() {
   const [isPro, setIsPro] = useState(false);
   const [isBasic, setIsBasic] = useState(false);
   const [genCount, setGenCount] = useState(0);
+
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, []);
+
+  if (!mounted) return null;
+
+  // Ha be van lépve, de NEM Te vagy az, mutassuk a "Zárt béta" üzenetet
+  if (user && user.email !== adminEmail) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white/5 backdrop-blur-3xl rounded-[40px] border border-white/10 m-8">
+        <Sparkles className="w-16 h-16 text-blue-500 mb-6 opacity-20" />
+        <h2 className="text-4xl font-black mb-4 italic text-white">Zárt Béta Fázis</h2>
+        <p className="text-slate-500 max-w-md font-medium leading-relaxed">
+          Köszönjük az érdeklődést! Az alkalmazás jelenleg fejlesztés alatt áll. 
+          Jelenleg csak az adminisztrátor (<strong>{adminEmail}</strong>) használhatja a rendszert.
+        </p>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const checkStatus = async () => {
