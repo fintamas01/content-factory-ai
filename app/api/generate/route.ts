@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const adminEmail = "fintatamas@gmail.com";
+// CSAK ITT, KÍVÜL DEKLARÁLJUK!
+const ADMIN_EMAIL = "fintatamas68@gmail.com"; 
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -11,7 +12,6 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    // 1. Next.js cookie-k kezelése
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
@@ -19,95 +19,57 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options });
-          },
+          get(name: string) { return cookieStore.get(name)?.value; },
+          set(name: string, value: string, options: CookieOptions) { cookieStore.set({ name, value, ...options }); },
+          remove(name: string, options: CookieOptions) { cookieStore.set({ name, value: '', ...options }); },
         },
       }
     );
 
-    // 2. Felhasználó azonosítása
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user || user.email !== adminEmail) {
+    // Admin ellenőrzés
+    if (!user || user.email !== ADMIN_EMAIL) {
       return NextResponse.json(
-        { error: "Az alkalmazás jelenleg zárt tesztelési fázisban van. Csak az adminisztrátor használhatja." }, 
+        { error: "Zárt tesztfázis: Csak az adminisztrátor használhatja a rendszert." }, 
         { status: 403 }
       );
     }
 
-    // 3. ELŐFIZETÉS ELLENŐRZÉSE
-    // Megnézzük, van-e 'active' státuszú előfizetése a felhasználónak
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('status')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    const hasActiveSub = !!subscription;
-
-    if (!hasActiveSub) {
-      return NextResponse.json(
-        { error: "A tartalomgeneráláshoz Pro előfizetés szükséges!" }, 
-        { status: 403 }
-      );
-    }
-
-    // 4. Adatok feldolgozása a kérésből
     const { content, tone, lang, templatePrompt, platforms } = await req.json();
 
+    if (!platforms || platforms.length === 0) {
+       return NextResponse.json({ error: "Válassz legalább egy platformot!" }, { status: 400 });
+    }
+
     const langMap: { [key: string]: string } = {
-        en: 'English',
-        hu: 'Hungarian',
-        de: 'German',
-        fr: 'French',
-        es: 'Spanish',
-        it: 'Italian'
+        en: 'English', hu: 'Hungarian', de: 'German',
+        fr: 'French', es: 'Spanish', it: 'Italian'
     };
 
     const targetLang = langMap[lang] || 'English';
 
-    const prompt = `Te egy világszínvonalú közösségi média stratéga vagy.
-    A feladatod: Készíts egy ${templatePrompt || 'Alakítsd át a következő forrásszöveget'} 5 különböző típusú tartalommá, szigorúan ${tone} stílusban.
-    FONTOS: A válaszod minden egyes mezőjét szigorúan ${targetLang} nyelven írd meg! 
-    A válaszod szigorúan egy JSON objektum legyen, kizárólag a következő platformokra készíts tartalmat: ${platforms.join(', ')}.
-    Forrásszöveg: ${content}`;
+    const prompt = `Te egy profi marketinges vagy. Készíts ${tone} stílusú tartalmat szigorúan ${targetLang} nyelven.
+    Platformok: ${platforms.join(', ')}.
+    Forrás: ${content}
+    Válaszformátum: JSON objektum a megadott platformokkal kulcsként.`;
 
-    // 5. OpenAI hívás
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Te egy segítőkész marketing automatizációs szoftver vagy." }, 
-        { role: "user", content: prompt }
-      ],
+      messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
 
-    // 6. Mentés az adatbázisba
-    const { error: dbError } = await supabase.from('generations').insert([
-      { 
-        original_content: content, 
-        tone: tone, 
-        results: result,
-        user_id: user.id 
-      }
+    await supabase.from('generations').insert([
+      { original_content: content, tone, results: result, user_id: user.id }
     ]);
-
-    if (dbError) console.error("Supabase Error:", dbError);
 
     return NextResponse.json(result);
 
   } catch (error) {
-    console.error("Critical Error:", error);
-    return NextResponse.json({ error: "Hiba történt a generálás során" }, { status: 500 });
+    console.error("Hiba:", error);
+    return NextResponse.json({ error: "Generálási hiba" }, { status: 500 });
   }
 }
