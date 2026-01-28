@@ -1,9 +1,13 @@
-// components/Sidebar.tsx
 "use client";
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, History, CreditCard, Settings, LogOut, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { createBrowserClient } from '@supabase/ssr';
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
+);
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -14,12 +18,18 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
 
-  // A kezdőoldalon ne jelenjen meg a sidebar
   if (pathname === '/') return null;
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/'); // Kijelentkezés után vissza a főoldalra
+    router.refresh();
+  };
+
   return (
-    <aside className="w-64 bg-white dark:bg-[#020617] border-r border-slate-200 dark:border-white/10 flex flex-col h-screen sticky top-0">
+    <aside className="w-64 bg-white dark:bg-[#020617] border-r border-slate-200 dark:border-white/10 flex flex-col h-screen sticky top-0 z-50">
       <div className="p-8 flex items-center gap-3">
         <div className="p-2 bg-blue-600 rounded-lg shadow-lg">
           <Sparkles className="w-5 h-5 text-white" />
@@ -32,7 +42,7 @@ export default function Sidebar() {
           const isActive = pathname === item.href;
           return (
             <Link key={item.href} href={item.href}>
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm ${
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm cursor-pointer ${
                 isActive 
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
@@ -46,11 +56,10 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 mt-auto border-t border-slate-200 dark:border-white/10">
-        <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl mb-4">
-          <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Aktív csomag</p>
-          <p className="text-sm font-bold text-blue-600">Pro Plan Member</p>
-        </div>
-        <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 font-bold text-sm hover:text-red-500 transition-colors">
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 font-bold text-sm hover:text-red-500 transition-colors cursor-pointer"
+        >
           <LogOut className="w-5 h-5" /> Logout
         </button>
       </div>
