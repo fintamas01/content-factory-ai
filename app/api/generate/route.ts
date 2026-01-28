@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     // 4. Adatok feldolgozása a kérésből
-    const { content, tone, lang, templatePrompt } = await req.json();
+    const { content, tone, lang, templatePrompt, platforms } = await req.json();
 
     const langMap: { [key: string]: string } = {
         en: 'English',
@@ -75,8 +75,7 @@ export async function POST(req: Request) {
     const prompt = `Te egy világszínvonalú közösségi média stratéga vagy.
     A feladatod: Készíts egy ${templatePrompt || 'Alakítsd át a következő forrásszöveget'} 5 különböző típusú tartalommá, szigorúan ${tone} stílusban.
     FONTOS: A válaszod minden egyes mezőjét szigorúan ${targetLang} nyelven írd meg! 
-    A válaszod szigorúan egy JSON objektum legyen, pontosan ezekkel a kulcsokkal:
-    - linkedin, instagram, x_twitter, newsletter, tiktok_script
+    A válaszod szigorúan egy JSON objektum legyen, kizárólag a következő platformokra készíts tartalmat: ${platforms.join(', ')}.
     Forrásszöveg: ${content}`;
 
     // 5. OpenAI hívás

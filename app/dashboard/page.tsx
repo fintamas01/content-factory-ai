@@ -27,6 +27,14 @@ const templates = [
   { id: 'event', name: '📅 Esemény meghívó', prompt: 'Emeld ki a dátumot, helyszínt és a részvétel okait.' }
 ];
 
+const allPlatforms = [
+    { id: 'linkedin', label: 'LinkedIn' },
+    { id: 'instagram', label: 'Instagram' },
+    { id: 'x_twitter', label: 'X (Twitter)' },
+    { id: 'newsletter', label: 'Newsletter' },
+    { id: 'tiktok_script', label: 'TikTok Script' },
+];
+
 export default function DashboardPage() {
   const [input, setInput] = useState('');
   const [tone, setTone] = useState('szakmai');
@@ -37,6 +45,39 @@ export default function DashboardPage() {
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [isPro, setIsPro] = useState(false);
+  const [isBasic, setIsBasic] = useState(false);
+  const [genCount, setGenCount] = useState(0);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', user.id).single();
+        if (sub?.status === 'active') {
+          if (sub.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setIsPro(true);
+          else setIsBasic(true);
+        }
+        // Ingyenes generálások száma az adatbázisból
+        const { count } = await supabase.from('generations').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
+        setGenCount(count || 0);
+      }
+    };
+    checkStatus();
+  }, []);
+
+  const togglePlatform = (id: string) => {
+    const limit = isPro ? 5 : isBasic ? 2 : 1;
+    
+    if (selectedPlatforms.includes(id)) {
+      setSelectedPlatforms(selectedPlatforms.filter(p => p !== id));
+    } else if (selectedPlatforms.length < limit) {
+      setSelectedPlatforms([...selectedPlatforms, id]);
+    } else {
+      alert(`A jelenlegi csomagod limitje: ${limit} platform.`);
+    }
+  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -61,7 +102,7 @@ export default function DashboardPage() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: input, tone, lang, templatePrompt: selectedTemplate.prompt }),
+        body: JSON.stringify({ content: input, tone, lang, templatePrompt: selectedTemplate.prompt, platforms: selectedPlatforms }),
       });
       const data = await res.json();
       if (data.error) alert(data.error);
@@ -124,6 +165,36 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          <div className="space-y-4 mb-10">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Célplatformok</span>
+            <div className="flex flex-wrap gap-3">
+                {allPlatforms.map(p => {
+                const isSelected = selectedPlatforms.includes(p.id);
+                return (
+                    <button
+                    key={p.id}
+                    onClick={() => togglePlatform(p.id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                        isSelected 
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg' 
+                        : 'bg-white/5 border-white/10 text-slate-500 hover:border-blue-500/50'
+                    }`}
+                    >
+                    {p.id === 'linkedin' && '💼 '}
+                    {p.id === 'instagram' && '📸 '}
+                    {p.id === 'x_twitter' && '🐦 '}
+                    {p.label}
+                    </button>
+                );
+                })}
+            </div>
+            {!isPro && !isBasic && (
+                <p className="text-[10px] text-orange-500 font-bold italic">
+                Ingyenes próba: {genCount}/2 generálás felhasználva. Próbaként 1 platform választható.
+                </p>
+            )}
+            </div>
 
           <div className="flex flex-col gap-6">
             <div className="flex bg-slate-200 dark:bg-black/40 p-1 rounded-2xl border border-slate-300 dark:border-white/10">
