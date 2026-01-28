@@ -18,9 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="hu" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
+          {/* A flex elrendezés marad, de a Sidebar-nak belső védelme van */}
           <div className="flex min-h-screen bg-slate-50 dark:bg-[#020617]">
             <Sidebar /> 
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto w-full">
               {children}
             </main>
           </div>

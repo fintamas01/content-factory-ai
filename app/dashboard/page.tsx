@@ -67,9 +67,6 @@ export default function DashboardPage() {
 
   if (!mounted) return null;
 
-  // Ha be van lépve, de NEM Te vagy az, mutassuk a "Zárt béta" üzenetet
-  
-
   useEffect(() => {
     const checkStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -133,8 +130,22 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
-  if (!user && user.email !== adminEmail) { // 
-    return <div className="p-20 text-center text-white">Zárt béta fázis...</div>;
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // 3. Biztonságos admin ellenőrzés (már biztosan van user objektumunk)
+  if (user.email !== adminEmail) {
+    return (
+      <div className="p-20 text-center text-white">
+        <h2 className="text-2xl font-black italic">Zárt béta fázis</h2>
+        <p className="opacity-50">Csak az adminisztrátor számára elérhető.</p>
+      </div>
+    );
   }
 
   return (
