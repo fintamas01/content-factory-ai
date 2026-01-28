@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Sparkles, Type, Zap, Copy 
+  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send 
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion } from 'framer-motion';
@@ -72,13 +72,6 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
-  const getCharLimit = (title: string) => {
-    if (title.includes('X_TWITTER')) return 280;
-    if (title.includes('INSTAGRAM')) return 2200;
-    if (title.includes('LINKEDIN')) return 3000;
-    return null;
-  };
-
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-20">
       <header>
@@ -86,7 +79,6 @@ export default function DashboardPage() {
         <p className="text-slate-500 font-medium">Hozd létre a következő virális kampányodat másodpercek alatt.</p>
       </header>
 
-      {/* INPUT CORE */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-white/50 dark:bg-[#0f172a]/40 backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] p-10 shadow-2xl overflow-hidden">
         <div className="flex justify-between items-center mb-8">
            <div className="flex items-center gap-3 text-slate-500 uppercase text-[10px] font-black tracking-widest">
@@ -170,12 +162,16 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* RESULTS PLATFORM */}
       {results && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {Object.entries(results).map(([key, data]: any, i) => (
-              <ResultCard key={key} title={key.replace(/_/g, ' ')} content={typeof data === 'object' ? data.content : data} charLimit={getCharLimit(key.toUpperCase())} />
+            {Object.entries(results).map(([key, data]: any) => (
+              <ResultCard 
+                key={key} 
+                title={key.replace(/_/g, ' ')} 
+                content={typeof data === 'object' ? data.content : data} 
+                lang={lang}
+              />
             ))}
           </div>
         </motion.div>
@@ -184,14 +180,89 @@ export default function DashboardPage() {
   );
 }
 
-function ResultCard({ title, content, charLimit }: any) {
+function ResultCard({ title, content: initialContent, lang }: any) {
+  const [content, setContent] = useState(initialContent);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleMagicEdit = async (action: string) => {
+    setLoading(true);
+    const finalAction = action === 'custom' ? customPrompt : action;
+    try {
+      const res = await fetch('/api/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: content, action: finalAction, lang }),
+      });
+      const data = await res.json();
+      if (data.updatedText) {
+        setContent(data.updatedText);
+        setCustomPrompt('');
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
   return (
-    <div className="relative h-full bg-white dark:bg-white/[0.03] backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col">
-       <div className="flex justify-between items-center mb-8">
+    <div className="relative h-full bg-white dark:bg-white/[0.03] backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col group">
+       <div className="flex justify-between items-center mb-6">
           <span className="text-[10px] font-black tracking-[0.3em] text-blue-600 uppercase">{title}</span>
-          <button onClick={() => navigator.clipboard.writeText(content)} className="p-2.5 bg-slate-200 dark:bg-white/5 rounded-xl hover:text-blue-500 transition-all"><Copy className="w-4 h-4" /></button>
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+             <button onClick={() => setContent(initialContent)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-orange-500" title="Visszaállítás">
+               <HistoryIcon className="w-4 h-4" />
+             </button>
+             <button onClick={() => navigator.clipboard.writeText(content)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-blue-500">
+               <Copy className="w-4 h-4" />
+             </button>
+          </div>
        </div>
-       <p className="text-slate-600 dark:text-slate-300 text-sm leading-[1.8] font-medium opacity-90">{content}</p>
+
+       {/* MAGIC TOOLBAR */}
+       <div className="flex flex-wrap gap-2 mb-4">
+          {[
+            { id: 'shorten', label: '✂️ Rövidebb' },
+            { id: 'emoji', label: '✨ Emojik' },
+            { id: 'professional', label: '💼 Profi' },
+          ].map(btn => (
+            <button 
+              key={btn.id}
+              onClick={() => handleMagicEdit(btn.id)}
+              disabled={loading}
+              className="text-[9px] font-black uppercase px-3 py-1.5 bg-blue-600/10 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
+            >
+              {btn.label}
+            </button>
+          ))}
+       </div>
+
+       {/* CUSTOM PROMPT FIELD */}
+       <div className="flex gap-2 mb-6">
+          <input 
+            type="text"
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            placeholder="Saját kérés (pl. 'Írd át kérdésként')..."
+            className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+          />
+          <button 
+            onClick={() => handleMagicEdit('custom')}
+            disabled={!customPrompt || loading}
+            className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+       </div>
+
+       <div className="flex-grow">
+          {loading ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div>
+              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div>
+            </div>
+          ) : (
+            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
+          )}
+       </div>
     </div>
   );
 }
