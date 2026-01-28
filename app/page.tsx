@@ -107,6 +107,28 @@ export default function Home() {
     setLoading(false);
   };
 
+  const handleSubscription = async (priceId: string) => {
+    if (!user) {
+      handleLogin();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      });
+      
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Fizetési hiba:", error);
+    }
+  };
+
   const getCharLimit = (title: string) => {
     if (title.includes('X_TWITTER')) return 280;
     if (title.includes('INSTAGRAM')) return 2200;
@@ -204,7 +226,7 @@ export default function Home() {
         {!user ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-32 bg-white/40 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[60px] backdrop-blur-3xl shadow-3xl">
              <h1 className="text-8xl font-black mb-8 tracking-tight leading-[0.9]">Create <br/><span className="text-blue-600">Faster.</span></h1>
-             <button onClick={handleLogin} className="bg-blue-600 text-white px-12 py-5 rounded-[24px] font-black text-xl hover:scale-105 transition-all">Get Started</button>
+             <button onClick={() => handleSubscription(process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!)} className="bg-blue-600 text-white px-12 py-5 rounded-[24px] font-black text-xl hover:scale-105 transition-all">Get Started</button>
           </motion.div>
         ) : (
           <div className="space-y-12">
