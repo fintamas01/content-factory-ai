@@ -52,6 +52,21 @@ export default function DashboardPage() {
   const [genCount, setGenCount] = useState(0);
   const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
+  const [brandProfile, setBrandProfile] = useState({
+    name: '',
+    desc: '',
+    audience: ''
+  });
+
+  useEffect(() => {
+    const fetchBrand = async () => {
+      if (user) {
+        const { data } = await supabase.from('brand_profiles').select('*').eq('user_id', user.id).single();
+        if (data) setBrandProfile({ name: data.brand_name, desc: data.description, audience: data.target_audience });
+      }
+    };
+    fetchBrand();
+  }, [user]);
 
   useEffect(() => {
     setMounted(true);
@@ -198,6 +213,36 @@ export default function DashboardPage() {
                     {p.label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="bg-blue-600/5 border border-blue-500/20 rounded-3xl p-6 mb-10">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-4 h-4 text-blue-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Smart Brand Voice</span>
+              </div>
+              <div className="grid md:grid-cols-3 gap-4">
+                <input 
+                  type="text" 
+                  placeholder="Márkanév..."
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                  value={brandProfile.name}
+                  onChange={(e) => setBrandProfile({...brandProfile, name: e.target.value})}
+                />
+                <input 
+                  type="text" 
+                  placeholder="Márka leírása (stílus, értékek)..."
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                  value={brandProfile.desc}
+                  onChange={(e) => setBrandProfile({...brandProfile, desc: e.target.value})}
+                />
+                <input 
+                  type="text" 
+                  placeholder="Célközönség..."
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                  value={brandProfile.audience}
+                  onChange={(e) => setBrandProfile({...brandProfile, audience: e.target.value})}
+                />
               </div>
             </div>
             

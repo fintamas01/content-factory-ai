@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { content, tone, lang, templatePrompt, platforms } = await req.json();
+    const { content, tone, lang, templatePrompt, platforms, brandProfile } = await req.json();
 
     if (!platforms || platforms.length === 0) {
        return NextResponse.json({ error: "Válassz legalább egy platformot!" }, { status: 400 });
@@ -49,7 +49,13 @@ export async function POST(req: Request) {
 
     const targetLang = langMap[lang] || 'English';
 
-    const prompt = `Te egy profi marketinges vagy. Készíts ${tone} stílusú tartalmat szigorúan ${targetLang} nyelven.
+    const prompt = `Te egy világszínvonalú marketing stratéga vagy. 
+    KIZÁRÓLAG A KÖVETKEZŐ MÁRKASTÍLUSBAN DOLGOZZ:
+    - Márka: ${brandProfile.name}
+    - Leírás: ${brandProfile.desc}
+    - Célközönség: ${brandProfile.audience} 
+    FELADAT:
+    Készíts ${tone} stílusú tartalmat szigorúan ${targetLang} nyelven.
     Platformok: ${platforms.join(', ')}.
     Forrás: ${content}
     Válaszformátum: JSON objektum a megadott platformokkal kulcsként.`;
