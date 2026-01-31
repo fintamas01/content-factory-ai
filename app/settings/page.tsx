@@ -24,31 +24,24 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const { data: { user: activeUser } } = await supabase.auth.getUser();
-        setUser(activeUser);
+      setLoading(true); // Minden belépéskor elindítjuk a töltést
+      const { data: { user: activeUser } } = await supabase.auth.getUser();
+      setUser(activeUser);
 
-        if (activeUser) {
-          // Párhuzamos lekérés a sebességért
-          const [subResult, brandsResult] = await Promise.all([
-            supabase.from('subscriptions').select('price_id, status').eq('user_id', activeUser.id).eq('status', 'active').maybeSingle(),
-            supabase.from('brand_profiles').select('*').eq('user_id', activeUser.id).order('created_at', { ascending: false })
-          ]);
+      if (activeUser) {
+        const [subResult, brandsResult] = await Promise.all([
+          supabase.from('subscriptions').select('price_id, status').eq('user_id', activeUser.id).eq('status', 'active').maybeSingle(),
+          supabase.from('brand_profiles').select('*').eq('user_id', activeUser.id).order('created_at', { ascending: false })
+        ]);
 
-          // Előfizetés azonosítás (Price ID-k alapján)
-          if (subResult.data) {
-            if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
-            else if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
-          }
-
-          setBrands(brandsResult.data || []);
+        if (subResult.data) {
+          if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
+          else if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
         }
-      } catch (err) {
-        console.error("Error loading settings:", err);
-      } finally {
-        setLoading(false);
+
+        setBrands(brandsResult.data || []);
       }
+      setLoading(false);
     };
 
     loadInitialData();
@@ -80,8 +73,9 @@ export default function SettingsPage() {
     const { error } = await supabase.from('brand_profiles').delete().eq('id', id);
     if (!error) setBrands(brands.filter(b => b.id !== id));
   };
+  
+  const limit = getLimit();
 
-  // Hydration védelem és Loading screen
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-white">
@@ -90,8 +84,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-
-  const limit = getLimit();
 
   return (
     <div className="max-w-4xl mx-auto p-10 space-y-12 pb-32">
@@ -110,45 +102,58 @@ export default function SettingsPage() {
         )}
       </header>
 
-      {/* ÚJ MÁRKA HOZZÁADÁSA - Csak ha van hely */}
+      {brands.length < limit ? (
+        <section className="bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6">
+           {/* ... a meglévő form kódod ... */}
+           {/* ÚJ MÁRKA HOZZÁADÁSA - Csak ha van hely */}
       <section className={`transition-all duration-500 ${brands.length >= limit ? 'opacity-50 grayscale pointer-events-none' : 'opacity-100'}`}>
         <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6 backdrop-blur-3xl">
           <h2 className="text-xl font-bold flex items-center gap-2 text-white">
             <Plus className="w-5 h-5 text-blue-500" /> Új ügyfél hozzáadása
           </h2>
-          <div className="grid gap-4">
-            <input 
-              placeholder="Márkanév (pl. Tesla, Starbucks)..." 
-              className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 transition-all text-white placeholder:text-slate-600"
-              value={newBrand.name}
-              onChange={e => setNewBrand({...newBrand, name: e.target.value})}
-            />
-            <textarea 
-              placeholder="Márka leírása, tónusa, egyedi stílusjegyei..." 
-              className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 min-h-[120px] text-white placeholder:text-slate-600"
-              value={newBrand.desc}
-              onChange={e => setNewBrand({...newBrand, desc: e.target.value})}
-            />
-            <input 
-              placeholder="Ki a célközönség? (pl. 25-40 év közötti vállalkozók)..." 
-              className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 text-white placeholder:text-slate-600"
-              value={newBrand.audience}
-              onChange={e => setNewBrand({...newBrand, audience: e.target.value})}
-            />
-            <button 
-              onClick={addBrand} 
-              className="bg-blue-600 py-5 rounded-2xl font-black uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-[0.98] transition-all"
-            >
-              Ügyfél Mentése
-            </button>
+            <div className="grid gap-4">
+              <input 
+                placeholder="Márkanév (pl. Tesla, Starbucks)..." 
+                className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 transition-all text-white placeholder:text-slate-600"
+                value={newBrand.name}
+                onChange={e => setNewBrand({...newBrand, name: e.target.value})}
+              />
+              <textarea 
+                placeholder="Márka leírása, tónusa, egyedi stílusjegyei..." 
+                className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 min-h-[120px] text-white placeholder:text-slate-600"
+                value={newBrand.desc}
+                onChange={e => setNewBrand({...newBrand, desc: e.target.value})}
+              />
+              <input 
+                placeholder="Ki a célközönség? (pl. 25-40 év közötti vállalkozók)..." 
+                className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 text-white placeholder:text-slate-600"
+                value={newBrand.audience}
+                onChange={e => setNewBrand({...newBrand, audience: e.target.value})}
+              />
+              <button 
+                onClick={addBrand} 
+                className="bg-blue-600 py-5 rounded-2xl font-black uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-[0.98] transition-all"
+              >
+                Ügyfél Mentése
+              </button>
+            </div>
           </div>
-        </div>
-        {brands.length >= limit && (
-          <p className="text-center mt-4 text-[10px] font-black text-orange-500 uppercase tracking-widest">
-            Limit elérve. Törölj egy márkát vagy válts csomagot az újabbakhoz!
+          {brands.length >= limit && (
+            <p className="text-center mt-4 text-[10px] font-black text-orange-500 uppercase tracking-widest">
+              Limit elérve. Törölj egy márkát vagy válts csomagot az újabbakhoz!
+            </p>
+          )}
+        </section>
+        </section>
+      ) : (
+        <div className="bg-blue-600/10 border border-blue-500/20 p-8 rounded-[40px] text-center">
+          <p className="text-blue-500 font-bold uppercase text-xs tracking-widest">
+            Limit elérve ({limit}/{limit}). Frissíts csomagot több ügyfélhez!
           </p>
-        )}
-      </section>
+        </div>
+      )}
+
+      
 
       {/* MÁRKÁK LISTÁJA */}
       <section className="space-y-6">
