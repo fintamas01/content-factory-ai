@@ -57,17 +57,20 @@ export default function DashboardPage() {
     desc: '',
     audience: ''
   });
+  const [brands, setBrands] = useState<any[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState<any>(null);
 
   useEffect(() => {
-    const fetchBrand = async () => {
-      if (user) {
-        const { data } = await supabase.from('brand_profiles').select('*').eq('user_id', user.id).single();
-        if (data) setBrandProfile({ name: data.brand_name, desc: data.description, audience: data.target_audience });
+    const fetchBrands = async () => {
+      const { data } = await supabase.from('brand_profiles').select('*').eq('user_id', user.id);
+      if (data) {
+        setBrands(data);
+        setSelectedBrand(data[0]); // Alapértelmezett az első
       }
     };
-    fetchBrand();
+    if (user) fetchBrands();
   }, [user]);
-
+  
   useEffect(() => {
     setMounted(true);
     const checkStatus = async () => {
@@ -243,34 +246,16 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            <div className="bg-blue-600/5 border border-blue-500/20 rounded-3xl p-6 mb-10">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-4 h-4 text-blue-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Smart Brand Voice</span>
-              </div>
-              <div className="grid md:grid-cols-3 gap-4">
-                <input 
-                  type="text" 
-                  placeholder="Márkanév..."
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                  value={brandProfile.name}
-                  onChange={(e) => setBrandProfile({...brandProfile, name: e.target.value})}
-                />
-                <input 
-                  type="text" 
-                  placeholder="Márka leírása (stílus, értékek)..."
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                  value={brandProfile.desc}
-                  onChange={(e) => setBrandProfile({...brandProfile, desc: e.target.value})}
-                />
-                <input 
-                  type="text" 
-                  placeholder="Célközönség..."
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                  value={brandProfile.audience}
-                  onChange={(e) => setBrandProfile({...brandProfile, audience: e.target.value})}
-                />
-              </div>
+            <div className="mb-6">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Márkaprofil kiválasztása</span>
+              <select 
+                value={selectedBrand?.id}
+                onChange={(e) => setSelectedBrand(brands.find(b => b.id === e.target.value))}
+                className="w-full bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 p-3 rounded-xl outline-none text-sm font-bold"
+              >
+                {brands.length === 0 && <option>Nincs mentett márka (Settings)</option>}
+                {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
+              </select>
             </div>
 
             <motion.button 
