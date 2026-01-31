@@ -62,13 +62,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchBrands = async () => {
-      const { data } = await supabase.from('brand_profiles').select('*').eq('user_id', user.id);
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('brand_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('brand_name', { ascending: true });
+        
       if (data) {
         setBrands(data);
-        setSelectedBrand(data[0]); // Alapértelmezett az első
+        // Ha még nincs kiválasztva semmi, legyen az első az alapértelmezett
+        if (!selectedBrand && data.length > 0) setSelectedBrand(data[0]);
       }
     };
-    if (user) fetchBrands();
+    fetchBrands();
   }, [user]);
   
   useEffect(() => {
