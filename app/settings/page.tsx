@@ -9,6 +9,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
   const [subscription, setSubscription] = useState<string>('free');
   const [newBrand, setNewBrand] = useState({ name: '', desc: '', audience: '' });
+  const [isSyncing, setIsSyncing] = useState(true);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,34 +24,34 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true); // Minden belépéskor elindítjuk a töltést
-      const { data: { user: activeUser } } = await supabase.auth.getUser();
-      setUser(activeUser);
-
-      if (activeUser) {
-        const [subResult, brandsResult] = await Promise.all([
-          supabase.from('subscriptions').select('price_id, status').eq('user_id', activeUser.id).eq('status', 'active').maybeSingle(),
-          supabase.from('brand_profiles').select('*').eq('user_id', activeUser.id).order('created_at', { ascending: false })
+    const loadData = async () => {
+      setIsSyncing(true); // Belépéskor azonnal lezárjuk a felületet
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Friss adatokat kérünk le az adatbázisból
+        const [subRes, brandsRes] = await Promise.all([
+          supabase.from('subscriptions').select('price_id').eq('user_id', user.id).maybeSingle(),
+          supabase.from('brand_profiles').select('*').eq('user_id', user.id)
         ]);
 
-        if (subResult.data) {
-          if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
-          else if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
+        if (subRes.data) {
+          // Ellenőrizzük az ID-kat a .env fájlból
+          if (subRes.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
+          else if (subRes.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
         }
-
-        setBrands(brandsResult.data || []);
+        
+        setBrands(brandsRes.data || []);
       }
-      setLoading(false);
+      setIsSyncing(false); // Csak itt oldjuk fel a zárat
     };
-
-    loadInitialData();
+    loadData();
   }, []);
 
   const addBrand = async () => {
     const currentLimit = getLimit();
-    if (brands.length >= currentLimit) {
-      alert(`Limit elérve! A ${subscription} csomagod maximum ${currentLimit} márkát engedélyez.`);
+    if (brands.length >= getLimit()) {
+      alert("Hiba: Elérted a csomagodhoz tartozó maximum limitet!");
       return;
     }
 
@@ -75,6 +76,8 @@ export default function SettingsPage() {
   };
   
   const limit = getLimit();
+
+  if (isSyncing) return <div className="p-20 text-center animate-pulse text-blue-500 font-black">ADATOK SZINKRONIZÁLÁSA...</div>;
 
   if (loading) {
     return (
