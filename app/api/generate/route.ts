@@ -3,7 +3,6 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-// CSAK ITT, KÍVÜL DEKLARÁLJUK!
 const ADMIN_EMAIL = "fintatamas68@gmail.com"; 
 
 const openai = new OpenAI({

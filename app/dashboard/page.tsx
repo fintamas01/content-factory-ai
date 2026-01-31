@@ -11,7 +11,7 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
 );
 
-const adminEmail = "fintatamas68@gmail.com"; // Admin e-mail fixálva
+const adminEmail = "fintatamas68@gmail.com";
 
 const languages = [
   { code: 'en', name: 'English' },
@@ -106,7 +106,10 @@ export default function DashboardPage() {
   };
 
   const generateAll = async () => {
-    if (!input || selectedPlatforms.length === 0) return;
+    if (!input || selectedPlatforms.length === 0 || !selectedBrand) {
+      alert("Valassz ki egy markat is");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/generate', {
@@ -117,7 +120,12 @@ export default function DashboardPage() {
           tone, 
           lang, 
           templatePrompt: selectedTemplate.prompt, 
-          platforms: selectedPlatforms 
+          platforms: selectedPlatforms,
+          brandProfile: {
+            name: selectedBrand.brand_name,
+            desc: selectedBrand.description,
+            audience: selectedBrand.target_audience
+          }
         }),
       });
       const data = await res.json();
