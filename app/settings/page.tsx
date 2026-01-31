@@ -1,15 +1,13 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import { Trash2, Plus, Building2, ShieldCheck } from 'lucide-react';
+import { Trash2, Plus, Building2, ShieldCheck, Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [subscription, setSubscription] = useState<string>('free');
-  
-  // Új márka form
   const [newBrand, setNewBrand] = useState({ name: '', desc: '', audience: '' });
 
   const supabase = createBrowserClient(
@@ -17,6 +15,7 @@ export default function SettingsPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
   );
 
+  // Stabil limit meghatározás
   const getLimit = () => {
     if (subscription === 'pro') return 10;
     if (subscription === 'basic') return 3;
@@ -25,35 +24,45 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        setLoading(true);
+        const { data: { user: activeUser } } = await supabase.auth.getUser();
+        setUser(activeUser);
 
-      if (user) {
-        // 1. Előfizetés és Brandek párhuzamos lekérése
-        const [subResult, brandsResult] = await Promise.all([
-          supabase.from('subscriptions').select('price_id').eq('user_id', user.id).single(),
-          supabase.from('brand_profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
-        ]);
+        if (activeUser) {
+          // Párhuzamos lekérés a sebességért
+          const [subResult, brandsResult] = await Promise.all([
+            supabase.from('subscriptions').select('price_id, status').eq('user_id', activeUser.id).eq('status', 'active').maybeSingle(),
+            supabase.from('brand_profiles').select('*').eq('user_id', activeUser.id).order('created_at', { ascending: false })
+          ]);
 
-        // Előfizetés beállítása
-        if (subResult.data?.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
-        else if (subResult.data?.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
+          // Előfizetés azonosítás (Price ID-k alapján)
+          if (subResult.data) {
+            if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
+            else if (subResult.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
+          }
 
-        // BRANDEK FRISSÍTÉSE - Ez oldja meg a 0/1 problémát
-        setBrands(brandsResult.data || []);
+          setBrands(brandsResult.data || []);
+        }
+      } catch (err) {
+        console.error("Error loading settings:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     loadInitialData();
   }, []);
 
   const addBrand = async () => {
-    if (brands.length >= getLimit()) {
-      alert("Elérted a csomagod limitjét! Frissíts a bővítéshez.");
+    const currentLimit = getLimit();
+    if (brands.length >= currentLimit) {
+      alert(`Limit elérve! A ${subscription} csomagod maximum ${currentLimit} márkát engedélyez.`);
       return;
     }
+
+    if (!newBrand.name) return alert("Márkanév megadása kötelező!");
+
     const { data, error } = await supabase.from('brand_profiles').insert([{
       user_id: user.id,
       brand_name: newBrand.name,
@@ -61,7 +70,7 @@ export default function SettingsPage() {
       target_audience: newBrand.audience
     }]).select();
 
-    if (!error) {
+    if (!error && data) {
       setBrands([data[0], ...brands]);
       setNewBrand({ name: '', desc: '', audience: '' });
     }
@@ -72,70 +81,104 @@ export default function SettingsPage() {
     if (!error) setBrands(brands.filter(b => b.id !== id));
   };
 
-  if (loading) return <div className="p-20 text-center">Loading settings...</div>;
+  // Hydration védelem és Loading screen
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-4" />
+        <p className="text-slate-500 font-medium animate-pulse uppercase tracking-widest text-xs">Márkaprofilok szinkronizálása...</p>
+      </div>
+    );
+  }
+
+  const limit = getLimit();
 
   return (
     <div className="max-w-4xl mx-auto p-10 space-y-12 pb-32">
-      <header>
-        <h1 className="text-4xl font-black italic uppercase tracking-tighter">Settings</h1>
-        <div className="flex items-center gap-2 mt-2 text-blue-500 font-bold text-sm uppercase">
-          <ShieldCheck className="w-4 h-4" />
-          Current Plan: {subscription.toUpperCase()} ({brands.length} / {getLimit()} Brands)
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black italic uppercase tracking-tighter text-white">Settings</h1>
+          <div className="flex items-center gap-2 mt-2 text-blue-500 font-black text-[10px] uppercase tracking-[0.2em]">
+            <ShieldCheck className="w-4 h-4" />
+            Plan: {subscription} <span className="text-slate-600">|</span> {brands.length} / {limit} Brands
+          </div>
         </div>
+        {subscription === 'free' && (
+          <button className="bg-blue-600/10 text-blue-500 border border-blue-500/20 px-6 py-2 rounded-full text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">
+            Upgrade to Pro
+          </button>
+        )}
       </header>
 
-      {/* ÚJ MÁRKA HOZZÁADÁSA */}
-      {brands.length < getLimit() && (
-        <section className="bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Plus className="w-5 h-5 text-blue-500" /> Új ügyfél / márka hozzáadása
+      {/* ÚJ MÁRKA HOZZÁADÁSA - Csak ha van hely */}
+      <section className={`transition-all duration-500 ${brands.length >= limit ? 'opacity-50 grayscale pointer-events-none' : 'opacity-100'}`}>
+        <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6 backdrop-blur-3xl">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+            <Plus className="w-5 h-5 text-blue-500" /> Új ügyfél hozzáadása
           </h2>
           <div className="grid gap-4">
             <input 
-              placeholder="Márkanév..." 
-              className="bg-black/20 border border-white/10 p-4 rounded-2xl outline-none focus:border-blue-500 transition-all"
+              placeholder="Márkanév (pl. Tesla, Starbucks)..." 
+              className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 transition-all text-white placeholder:text-slate-600"
               value={newBrand.name}
               onChange={e => setNewBrand({...newBrand, name: e.target.value})}
             />
             <textarea 
-              placeholder="Márka leírása, stílusa..." 
-              className="bg-black/20 border border-white/10 p-4 rounded-2xl outline-none focus:border-blue-500 min-h-[100px]"
+              placeholder="Márka leírása, tónusa, egyedi stílusjegyei..." 
+              className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 min-h-[120px] text-white placeholder:text-slate-600"
               value={newBrand.desc}
               onChange={e => setNewBrand({...newBrand, desc: e.target.value})}
             />
             <input 
-              placeholder="Célközönség..." 
-              className="bg-black/20 border border-white/10 p-4 rounded-2xl outline-none focus:border-blue-500"
+              placeholder="Ki a célközönség? (pl. 25-40 év közötti vállalkozók)..." 
+              className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 text-white placeholder:text-slate-600"
               value={newBrand.audience}
               onChange={e => setNewBrand({...newBrand, audience: e.target.value})}
             />
-            <button onClick={addBrand} className="bg-blue-600 py-4 rounded-2xl font-black uppercase hover:bg-blue-500 transition-all">
-              Mentés
+            <button 
+              onClick={addBrand} 
+              className="bg-blue-600 py-5 rounded-2xl font-black uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-[0.98] transition-all"
+            >
+              Ügyfél Mentése
             </button>
           </div>
-        </section>
-      )}
+        </div>
+        {brands.length >= limit && (
+          <p className="text-center mt-4 text-[10px] font-black text-orange-500 uppercase tracking-widest">
+            Limit elérve. Törölj egy márkát vagy válts csomagot az újabbakhoz!
+          </p>
+        )}
+      </section>
 
       {/* MÁRKÁK LISTÁJA */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-bold">Mentett márkák</h2>
+      <section className="space-y-6">
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] text-slate-500">Mentett Ügyfelek</h2>
         <div className="grid gap-4">
-          {brands.map(brand => (
-            <div key={brand.id} className="flex justify-between items-center bg-white/5 border border-white/5 p-6 rounded-3xl hover:border-blue-500/30 transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center">
-                  <Building2 className="text-blue-500 w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">{brand.brand_name}</h3>
-                  <p className="text-xs text-slate-500 truncate max-w-xs">{brand.description}</p>
-                </div>
-              </div>
-              <button onClick={() => deleteBrand(brand.id)} className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
-                <Trash2 className="w-5 h-5" />
-              </button>
+          {brands.length === 0 ? (
+            <div className="p-10 border-2 border-dashed border-white/5 rounded-[40px] text-center">
+              <p className="text-slate-600 text-sm font-medium">Még nincsenek mentett márkáid.</p>
             </div>
-          ))}
+          ) : (
+            brands.map(brand => (
+              <div key={brand.id} className="flex justify-between items-center bg-white/[0.02] border border-white/5 p-6 rounded-[30px] hover:border-blue-500/40 transition-all group">
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 bg-blue-600/10 rounded-[20px] flex items-center justify-center border border-blue-500/20 group-hover:bg-blue-600/20 transition-all">
+                    <Building2 className="text-blue-500 w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg">{brand.brand_name}</h3>
+                    <p className="text-xs text-slate-500 truncate max-w-[200px] md:max-w-md">{brand.description || "Nincs leírás megadva"}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => deleteBrand(brand.id)} 
+                  className="p-4 bg-red-500/5 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </section>
     </div>
