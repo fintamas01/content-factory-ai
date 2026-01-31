@@ -24,22 +24,29 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadInitialData = async () => {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
-      if (user) {
-        // Előfizetés lekérése (példa logika)
-        const { data: sub } = await supabase.from('subscriptions').select('price_id').eq('user_id', user.id).single();
-        if (sub?.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
-        else if (sub?.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
 
-        // Márkák lekérése
-        const { data: brandList } = await supabase.from('brand_profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-        setBrands(brandList || []);
+      if (user) {
+        // 1. Előfizetés és Brandek párhuzamos lekérése
+        const [subResult, brandsResult] = await Promise.all([
+          supabase.from('subscriptions').select('price_id').eq('user_id', user.id).single(),
+          supabase.from('brand_profiles').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+        ]);
+
+        // Előfizetés beállítása
+        if (subResult.data?.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setSubscription('pro');
+        else if (subResult.data?.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC) setSubscription('basic');
+
+        // BRANDEK FRISSÍTÉSE - Ez oldja meg a 0/1 problémát
+        setBrands(brandsResult.data || []);
       }
       setLoading(false);
     };
-    loadData();
+
+    loadInitialData();
   }, []);
 
   const addBrand = async () => {
