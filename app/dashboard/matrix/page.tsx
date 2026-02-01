@@ -28,16 +28,18 @@ export default function ContentMatrix() {
     async function getUserData() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-        // Itt a 'profiles' helyett a 'subscriptions' táblát kérdezzük le
-        const { data, error } = await supabase
+        const { data: sub } = await supabase
             .from('subscriptions')
-            .select('status, plan') // Ellenőrizd a pontos oszlopneveket a tábládban!
+            .select('price_id, status')
             .eq('user_id', user.id)
-            .single();
+            .eq('status', 'active')
+            .maybeSingle();
         
-        if (data) {
-            // Ha van aktív előfizetése (pl. 'active' státusz vagy konkrét terv név)
-            setUserPlan(data.plan || 'free'); 
+        // Ha van aktív előfizetés, a price_id lesz a terv, egyébként 'free'
+        if (sub && sub.price_id) {
+            setUserPlan(sub.price_id);
+        } else {
+            setUserPlan('free');
         }
         }
         setLoading(false);
@@ -45,7 +47,9 @@ export default function ContentMatrix() {
     getUserData();
     }, [supabase]);
 
-  const isPro = userPlan === 'pro' || userPlan === 'basic';
+    // Itt is módosítani kell a logikát:
+    const isPro = userPlan !== 'free';
+
   const mockDays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
 
   const handleGenerate = async () => {

@@ -7,17 +7,13 @@ import { PLAN_LIMITS } from '@/app/lib/plan-limits';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
-  // 1. A sütik lekérése aszinkron módon (Javítás a 'get' hibára)
   const cookieStore = await cookies();
-  
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
+        get(name: string) { return cookieStore.get(name)?.value },
       },
     }
   );
@@ -25,32 +21,36 @@ export async function POST(req: Request) {
   try {
     const { brandName, audience, topic } = await req.json();
 
-    // 2. Felhasználó lekérése
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Nincs bejelentkezve' }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 3. Előfizetés lekérése típusbiztosan (Javítás a PLAN_LIMITS[plan] hibára)
+    // 1. Előfizetés lekérése a 'subscriptions' táblából
     const { data: subscription } = await supabase
-    .from('subscriptions') // Itt is átírva profiles-ról
-    .select('plan')
-    .eq('user_id', user.id)
-    .single();
+      .from('subscriptions')
+      .select('price_id, status')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
 
-    const plan = (subscription?.plan as keyof typeof PLAN_LIMITS) || 'free';
+    const plan = (subscription?.price_id as keyof typeof PLAN_LIMITS) || 'free';
 
-    // 4. Limit ellenőrzése
+    // 2. Limit ellenőrzése (Javított 'count' deklaráció)
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const { count } = await supabase
+    const { count, error: countError } = await supabase
       .from('matrix_generations')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('month_year', currentMonth);
 
-    if (count !== null && count >= PLAN_LIMITS[plan].matrixGenerations) {
+    if (countError) throw countError;
+
+    // Biztonságos ellenőrzés: ha free vagy elérte a limitet
+    const limit = PLAN_LIMITS[plan]?.matrixGenerations ?? 0;
+    if (count !== null && count >= limit) {
       return NextResponse.json({ error: 'Havi limit elérve!' }, { status: 403 });
     }
 
-    // 5. OpenAI hívás
+    // 3. AI Generálás
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       response_format: { type: "json_object" }
     });
 
-    // 6. Generálás rögzítése
+    // 4. Mentés
     await supabase.from('matrix_generations').insert({
       user_id: user.id,
       brand_name: brandName,
@@ -70,6 +70,6 @@ export async function POST(req: Request) {
     return NextResponse.json(JSON.parse(completion.choices[0].message.content!));
   } catch (error) {
     console.error('API Error:', error);
-    return NextResponse.json({ error: 'Hiba történt a generálás során' }, { status: 500 });
+    return NextResponse.json({ error: 'Szerver hiba' }, { status: 500 });
   }
 }
