@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, History, CreditCard, Settings, LogOut, Sparkles } from 'lucide-react';
+import { LayoutDashboard, History, CreditCard, Settings, LogOut, Sparkles, LayoutGrid } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import Image from 'next/image';
 
@@ -12,6 +12,7 @@ const supabase = createBrowserClient(
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+  { icon: LayoutDashboard, label: 'Smart Matrix', href: '/dashboard/matrix' },
   { icon: History, label: 'Archives', href: '/history' },
   { icon: CreditCard, label: 'Billing', href: '/billing' },
   { icon: Settings, label: 'Settings', href: '/settings' },
@@ -39,9 +40,6 @@ export default function Sidebar() {
           height={100} 
           className="object-contain"
         />
-        <span className="text-xl font-bold tracking-tight text-white">
-          CFAI
-        </span>
       </div>
 
       <nav className="flex-1 px-4 space-y-2">
@@ -55,7 +53,14 @@ export default function Sidebar() {
                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
               }`}>
                 <item.icon className="w-5 h-5" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+  
+                {/* PRO Badge a Matrix mellé */}
+                {item.label === 'Smart Matrix' && (
+                  <span className="text-[10px] bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                    PRO
+                  </span>
+                )}
               </div>
             </Link>
           );
