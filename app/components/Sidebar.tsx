@@ -35,8 +35,8 @@ export default function Sidebar() {
         <Image 
           src="/CF_logo.png" 
           alt="CFAI Logo" 
-          width={40} 
-          height={40} 
+          width={100} 
+          height={100} 
           className="object-contain"
         />
         <span className="text-xl font-bold tracking-tight text-white">
