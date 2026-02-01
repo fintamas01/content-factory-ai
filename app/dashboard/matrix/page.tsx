@@ -1,11 +1,14 @@
 "use client";
 import { useState } from 'react';
 import { Lock } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function ContentMatrix() {
   const [isPro, setIsPro] = useState(false); // Ezt majd a backendből kapjuk
 
   const mockDays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
+
+  const router = useRouter();
 
   return (
     <div className="p-8 bg-slate-950 min-h-screen text-white">
@@ -20,7 +23,7 @@ export default function ContentMatrix() {
             <p className="text-slate-300 mb-6 text-center max-w-xs">
               Oldd fel a teljes heti stratégiát és a multi-platform generálást!
             </p>
-            <button className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-full font-bold transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+            <button onClick={() => router.push('/billing')} className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-full font-bold transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)]">
               Upgrade Most
             </button>
           </div>
