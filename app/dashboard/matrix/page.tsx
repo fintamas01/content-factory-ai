@@ -26,20 +26,24 @@ export default function ContentMatrix() {
 
   useEffect(() => {
     async function getUserData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('plan')
-          .eq('id', user.id)
-          .single();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+        // Itt a 'profiles' helyett a 'subscriptions' táblát kérdezzük le
+        const { data, error } = await supabase
+            .from('subscriptions')
+            .select('status, plan') // Ellenőrizd a pontos oszlopneveket a tábládban!
+            .eq('user_id', user.id)
+            .single();
         
-        if (data) setUserPlan(data.plan);
-      }
-      setLoading(false);
+        if (data) {
+            // Ha van aktív előfizetése (pl. 'active' státusz vagy konkrét terv név)
+            setUserPlan(data.plan || 'free'); 
+        }
+        }
+        setLoading(false);
     }
     getUserData();
-  }, [supabase]);
+    }, [supabase]);
 
   const isPro = userPlan === 'pro' || userPlan === 'basic';
   const mockDays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];

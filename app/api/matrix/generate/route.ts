@@ -30,14 +30,13 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: 'Nincs bejelentkezve' }, { status: 401 });
 
     // 3. Előfizetés lekérése típusbiztosan (Javítás a PLAN_LIMITS[plan] hibára)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan')
-      .eq('id', user.id)
-      .single();
+    const { data: subscription } = await supabase
+    .from('subscriptions') // Itt is átírva profiles-ról
+    .select('plan')
+    .eq('user_id', user.id)
+    .single();
 
-    // Explicit típusmeghatározás a TypeScriptnek
-    const plan = (profile?.plan as keyof typeof PLAN_LIMITS) || 'free';
+    const plan = (subscription?.plan as keyof typeof PLAN_LIMITS) || 'free';
 
     // 4. Limit ellenőrzése
     const currentMonth = new Date().toISOString().slice(0, 7);
