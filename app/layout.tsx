@@ -11,6 +11,9 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "ContentFactory.AI",
   description: "AI Social Media Content Automation",
+  icons: {
+    icon: '/CF_favicon.png'
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

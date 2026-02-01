@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, History, CreditCard, Settings, LogOut, Sparkles } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
+import Image from 'next/image';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,11 +31,17 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-white dark:bg-[#020617] border-r border-slate-200 dark:border-white/10 flex flex-col h-screen sticky top-0 z-50">
-      <div className="p-8 flex items-center gap-3">
-        <div className="p-2 bg-blue-600 rounded-lg shadow-lg">
-          <Sparkles className="w-5 h-5 text-white" />
-        </div>
-        <span className="font-black text-xl tracking-tighter">Factory<span className="text-blue-600">.AI</span></span>
+      <div className="flex items-center gap-2 px-4 py-6">
+        <Image 
+          src="/CF_logo.png" 
+          alt="CFAI Logo" 
+          width={40} 
+          height={40} 
+          className="object-contain"
+        />
+        <span className="text-xl font-bold tracking-tight text-white">
+          CFAI
+        </span>
       </div>
 
       <nav className="flex-1 px-4 space-y-2">
