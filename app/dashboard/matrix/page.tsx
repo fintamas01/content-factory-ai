@@ -419,9 +419,9 @@ export default function ContentMatrix() {
                              {slides[0]}
                            </h1>
                         ) : (
-                           <p className="text-xl font-medium leading-relaxed whitespace-pre-wrap drop-shadow-md" style={{ color: '#f8fafc', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                             {slides[currentSlide]}
-                           </p>
+                           <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap drop-shadow-md" style={{ color: '#f8fafc', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                            {slides[currentSlide]}
+                          </p>
                         )}
                       </div>
 
