@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, History, RefreshCcw, FileText } from 'lucide-react';
+import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, History, RefreshCcw, FileText,
+  Smartphone, ThumbsUp, MessageCircle, Send, Bookmark, MoreHorizontal, Globe
+ } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import html2canvas from 'html2canvas';
@@ -60,6 +62,8 @@ export default function ContentMatrix() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const [isPreview, setIsPreview] = useState(false);
   
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -572,15 +576,150 @@ export default function ContentMatrix() {
               
               {viewMode === 'text' && (
                 <div className="p-8">
-                   <div className="mb-6 bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
-                    <label className="block text-[10px] font-bold text-blue-400 uppercase mb-1">Stratégia</label>
-                    <p className="text-sm text-slate-300 italic">{selectedPost.outline}</p>
+                   
+                   {/* --- TOGGLE BAR: Váltás Szerkesztő és Előnézet között --- */}
+                   <div className="flex items-center justify-between mb-6">
+                      <div className="bg-slate-900 border border-white/10 p-1 rounded-lg inline-flex">
+                         <button 
+                           onClick={() => setIsPreview(false)} 
+                           className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${!isPreview ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-white'}`}
+                         >
+                            <Edit3 className="w-3 h-3" /> Szerkesztő
+                         </button>
+                         <button 
+                           onClick={() => setIsPreview(true)} 
+                           className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${isPreview ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                         >
+                            <Smartphone className="w-3 h-3" /> Élő Előnézet
+                         </button>
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                         {selectedPost.platform === 'Insta' ? 'Instagram' : 'LinkedIn'} Nézet
+                      </span>
                    </div>
-                   <textarea 
-                    className="w-full h-96 bg-slate-900 border border-slate-800 rounded-xl p-6 text-slate-200 focus:border-blue-500 outline-none resize-none leading-relaxed font-mono text-sm shadow-inner"
-                    value={selectedPost.content}
-                    onChange={(e) => setSelectedPost({...selectedPost, content: e.target.value})}
-                   />
+
+                   {!isPreview ? (
+                     // --- EDITOR VIEW (A régi szerkesztő felület) ---
+                     <>
+                        <div className="mb-6 bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
+                            <label className="block text-[10px] font-bold text-blue-400 uppercase mb-1">Stratégia</label>
+                            <p className="text-sm text-slate-300 italic">{selectedPost.outline}</p>
+                        </div>
+                        <textarea 
+                            className="w-full h-96 bg-slate-900 border border-slate-800 rounded-xl p-6 text-slate-200 focus:border-blue-500 outline-none resize-none leading-relaxed font-mono text-sm shadow-inner"
+                            value={selectedPost.content}
+                            onChange={(e) => setSelectedPost({...selectedPost, content: e.target.value})}
+                        />
+                     </>
+                   ) : (
+                     // --- PREVIEW VIEW (Az új Mockupok) ---
+                     <div className="flex justify-center py-4 bg-slate-900/50 rounded-2xl border border-white/5 min-h-[500px] items-center">
+                        
+                        {/* 1. INSTAGRAM MOCKUP */}
+                        {selectedPost.platform === 'Insta' && (
+                            <div className="w-[375px] bg-white text-black rounded-[30px] overflow-hidden border-8 border-slate-900 shadow-2xl relative">
+                                {/* Header */}
+                                <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-white">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-purple-600 p-[2px]">
+                                            <div className="w-full h-full bg-white rounded-full p-[2px]">
+                                                <div className="w-full h-full bg-slate-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500">
+                                                    {formData.brand?.charAt(0).toUpperCase() || 'B'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <span className="text-xs font-bold">{formData.brand?.toLowerCase().replace(/\s/g, '') || 'brandname'}</span>
+                                    </div>
+                                    <MoreHorizontal className="w-4 h-4 text-gray-600" />
+                                </div>
+                                
+                                {/* Kép helye */}
+                                <div className="w-full aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden">
+                                    {selectedPost.generatedImageUrl ? (
+                                        <img src={selectedPost.generatedImageUrl} className="w-full h-full object-cover" alt="Post" />
+                                    ) : (
+                                        <div className="text-gray-400 text-xs text-center p-4">
+                                            <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                            A kép itt fog megjelenni<br/>(Generálj egyet az AI fülön!)
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Lábléc ikonok & Szöveg */}
+                                <div className="p-3 bg-white">
+                                    <div className="flex justify-between mb-3">
+                                        <div className="flex gap-4 text-black">
+                                            <ThumbsUp className="w-6 h-6 rotate-[-10deg]" />
+                                            <MessageCircle className="w-6 h-6" />
+                                            <Send className="w-6 h-6" />
+                                        </div>
+                                        <Bookmark className="w-6 h-6 text-black" />
+                                    </div>
+                                    <div className="text-xs font-bold mb-1">1,234 kedvelés</div>
+                                    <div className="text-sm">
+                                        <span className="font-bold mr-1">{formData.brand?.toLowerCase().replace(/\s/g, '') || 'brand'}</span>
+                                        {selectedPost.content.slice(0, 120)}... <span className="text-gray-500 cursor-pointer">több</span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-2 uppercase">2 órája</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 2. LINKEDIN MOCKUP */}
+                        {selectedPost.platform === 'LinkedIn' && (
+                            <div className="w-[375px] bg-[#f3f2ef] text-black rounded-[20px] overflow-hidden border-8 border-slate-900 shadow-2xl font-sans relative">
+                                <div className="bg-white m-2 mt-4 rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                                    {/* Header */}
+                                    <div className="p-3 flex gap-3">
+                                        <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">
+                                            {formData.brand?.charAt(0).toUpperCase() || 'B'}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-bold flex items-center gap-1">
+                                                {formData.brand || 'Vállalat Neve'} <span className="text-gray-400 font-normal text-xs">• 1st</span>
+                                            </div>
+                                            <div className="text-xs text-gray-500">Marketing & Strategy • 2h • <Globe className="w-3 h-3 inline" /></div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Content */}
+                                    <div className="px-3 pb-2 text-sm text-gray-800 whitespace-pre-wrap">
+                                        {selectedPost.content.slice(0, 150)}... <span className="text-blue-600 font-bold cursor-pointer">see more</span>
+                                    </div>
+                                    
+                                    {/* Image */}
+                                    <div className="w-full h-56 bg-slate-100 flex items-center justify-center overflow-hidden">
+                                         {selectedPost.generatedImageUrl ? (
+                                            <img src={selectedPost.generatedImageUrl} className="w-full h-full object-cover" alt="Post" />
+                                        ) : (
+                                            <div className="text-gray-400 text-xs">Kép helye</div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Footer Actions */}
+                                    <div className="flex justify-around py-2 border-t border-gray-100 mt-1">
+                                        <div className="flex flex-col items-center gap-1 text-gray-500 cursor-pointer hover:bg-gray-100 p-1 rounded flex-1">
+                                            <ThumbsUp className="w-4 h-4" />
+                                            <span className="text-xs font-bold">Like</span>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1 text-gray-500 cursor-pointer hover:bg-gray-100 p-1 rounded flex-1">
+                                            <MessageCircle className="w-4 h-4" />
+                                            <span className="text-xs font-bold">Comment</span>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1 text-gray-500 cursor-pointer hover:bg-gray-100 p-1 rounded flex-1">
+                                            <RefreshCcw className="w-4 h-4" />
+                                            <span className="text-xs font-bold">Repost</span>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1 text-gray-500 cursor-pointer hover:bg-gray-100 p-1 rounded flex-1">
+                                            <Send className="w-4 h-4" />
+                                            <span className="text-xs font-bold">Send</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                     </div>
+                   )}
                 </div>
               )}
 
