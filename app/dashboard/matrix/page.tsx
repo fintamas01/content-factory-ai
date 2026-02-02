@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, History, RefreshCcw } from 'lucide-react';
+import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, History, RefreshCcw, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface MatrixItem {
   day: string;
@@ -23,7 +25,6 @@ interface BrandProfile {
   description: string;
 }
 
-// Típus a mentett előzményekhez
 interface HistoryItem {
   id: string;
   created_at: string;
@@ -55,7 +56,7 @@ export default function ContentMatrix() {
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
   const [formData, setFormData] = useState({ brand: '', audience: '', topic: '', tone: 'Professzionális' });
 
-  // --- ÚJ: ELŐZMÉNYEK KEZELÉSE ---
+  // History states
   const [showHistory, setShowHistory] = useState(false);
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -93,7 +94,41 @@ export default function ContentMatrix() {
     loadInitialData();
   }, [supabase]);
 
-  // --- ELŐZMÉNYEK BETÖLTÉSE (AMIKOR MEGNYITJA A MODALT) ---
+  // --- ÚJ: PDF EXPORTÁLÁS ---
+  const handleExportPDF = () => {
+    if (matrixData.length === 0) return alert("Nincs mit exportálni!");
+
+    const doc = new jsPDF();
+    
+    // Fejléc
+    doc.setFontSize(18);
+    doc.text(`Tartalomterv: ${formData.brand || 'Márka'}`, 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Téma: ${formData.topic} | Generálva: ${new Date().toLocaleDateString('hu-HU')}`, 14, 30);
+
+    // Táblázat adatok előkészítése
+    const tableRows = matrixData.map(post => [
+        post.day,
+        post.platform,
+        post.title,
+        post.content.substring(0, 200) + "..." // Levágjuk, hogy kiférjen
+    ]);
+
+    // Táblázat generálása
+    autoTable(doc, {
+        head: [['Nap', 'Platform', 'Cím', 'Tartalom']],
+        body: tableRows,
+        startY: 40,
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [37, 99, 235] }, // Kék fejléc
+    });
+
+    // Mentés
+    doc.save(`${formData.brand}_heti_terv.pdf`);
+  };
+
   const fetchHistory = async () => {
     setLoadingHistory(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -103,19 +138,18 @@ export default function ContentMatrix() {
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
-            .limit(20); // Csak az utolsó 20-at töltjük be
+            .limit(20);
         
         if (data) setHistoryItems(data);
     }
     setLoadingHistory(false);
   };
 
-  // --- EGY KORÁBBI TERV BETÖLTÉSE A KÉPERNYŐRE ---
   const loadFromHistory = (item: HistoryItem) => {
     if (confirm("Ez felülírja a jelenlegi képernyőt. Biztosan betöltöd?")) {
         setMatrixData(item.generation_data.days || []);
-        setFormData(prev => ({ ...prev, brand: item.brand_name })); // Márkanevet is beállítjuk
-        setShowHistory(false); // Bezárjuk a modalt
+        setFormData(prev => ({ ...prev, brand: item.brand_name }));
+        setShowHistory(false);
     }
   };
 
@@ -132,6 +166,7 @@ export default function ContentMatrix() {
     }
   };
 
+  // Carousel & Image Logic
   useEffect(() => {
     if (selectedPost && viewMode === 'visual') {
       let generatedSlides: string[] = [];
@@ -322,7 +357,16 @@ export default function ContentMatrix() {
         </div>
         
         <div className="flex items-center gap-3">
-            {/* ÚJ: ELŐZMÉNYEK GOMB */}
+            {/* EXPORT GOMB (Csak ha van tartalom) */}
+            {matrixData.length > 0 && (
+                <button 
+                    onClick={handleExportPDF}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+                >
+                    <FileText className="w-4 h-4" /> Export (PDF)
+                </button>
+            )}
+
             <button 
                 onClick={() => { setShowHistory(true); fetchHistory(); }}
                 className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all border border-white/10"
@@ -643,7 +687,7 @@ export default function ContentMatrix() {
         </div>
       )}
 
-      {/* --- ÚJ: ELŐZMÉNYEK MODAL --- */}
+      {/* --- ELŐZMÉNYEK MODAL --- */}
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
