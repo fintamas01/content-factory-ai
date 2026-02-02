@@ -84,11 +84,14 @@ export async function POST(req: Request) {
       response_format: { type: "json_object" }
     });
 
+    const generatedContent = JSON.parse(completion.choices[0].message.content!);
+
     // 4. Mentés
     await supabase.from('matrix_generations').insert({
       user_id: user.id,
       brand_name: brandName,
-      month_year: currentMonth
+      month_year: currentMonth,
+      generation_data: generatedContent
     });
 
     return NextResponse.json(JSON.parse(completion.choices[0].message.content!));
