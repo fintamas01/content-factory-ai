@@ -11,6 +11,7 @@ interface MatrixItem {
   platform: string;
   outline: string;
   content: string;
+  generatedImageUrl?: string | null;
 }
 
 export default function ContentMatrix() {
@@ -23,14 +24,18 @@ export default function ContentMatrix() {
   const [isCopied, setIsCopied] = useState(false);
   
   // --- VISUAL MODE ---
-  const [viewMode, setViewMode] = useState<'text' | 'visual'>('text');
+  const [viewMode, setViewMode] = useState<'text' | 'visual' | 'image'> ('text');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<string[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   
-  // --- ÚJ: SAJÁT KÉP FELTÖLTÉS ---
-  const [customBgImage, setCustomBgImage] = useState<string | null>(null);
+  // --- ÚJ: DIÁNKÉNTI KÉP TÁROLÁS (Tömb) ---
+  // A kulcs az index lesz, az érték a base64 kép string
+  const [slideImages, setSlideImages] = useState<(string | null)[]>([]);
+
+  // AI Image állapotok
+  const [imageGenerating, setImageGenerating] = useState(false);
 
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
   const [formData, setFormData] = useState({ brand: '', audience: '', topic: '', tone: 'Professzionális' });
@@ -60,7 +65,7 @@ export default function ContentMatrix() {
     getUserData();
   }, [supabase]);
 
-  // Carousel logika
+  // Carousel logika + Képtömb inicializálása
   useEffect(() => {
     if (selectedPost && viewMode === 'visual') {
       const generatedSlides = [selectedPost.title];
@@ -68,7 +73,7 @@ export default function ContentMatrix() {
       const sentences = selectedPost.content.split(/(?<=[.!?])\s+/);
       let chunk = "";
       sentences.forEach((sentence) => {
-        if ((chunk + sentence).length < 120) { // Kicsit rövidebb szöveg, hogy ráférjen a képre
+        if ((chunk + sentence).length < 120) {
           chunk += sentence + " ";
         } else {
           generatedSlides.push(chunk);
@@ -80,44 +85,96 @@ export default function ContentMatrix() {
       
       setSlides(generatedSlides);
       setCurrentSlide(0);
-      setCustomBgImage(null); // Reseteljük a képet új poszt nyitásakor
+      
+      // ÚJ: Létrehozunk egy üres tömböt, ami pont akkora, ahány dia van
+      setSlideImages(new Array(generatedSlides.length).fill(null));
     }
   }, [selectedPost, viewMode, formData.brand]);
 
-  // Képfeltöltés kezelése (Base64 konvertálás a html2canvas miatt)
+  // --- ÚJ: KÉPFELTÖLTÉS AZ AKTUÁLIS DIÁHOZ ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCustomBgImage(reader.result as string);
+        // Lemásoljuk a jelenlegi tömböt
+        const newImages = [...slideImages];
+        // Csak az aktuális dia (currentSlide) helyére tesszük be a képet
+        newImages[currentSlide] = reader.result as string;
+        setSlideImages(newImages);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // --- JAVÍTOTT LETÖLTÉS ---
+  // --- ÚJ: KÉP TÖRLÉSE AZ AKTUÁLIS DIÁRÓL ---
+  const handleRemoveImage = () => {
+    const newImages = [...slideImages];
+    newImages[currentSlide] = null;
+    setSlideImages(newImages);
+  };
+
   const handleDownloadSlide = async () => {
     if (!carouselRef.current) return;
     setDownloading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 200)); // Kis várakozás
+      await new Promise(resolve => setTimeout(resolve, 200));
       const canvas = await html2canvas(carouselRef.current, {
         scale: 2,
         backgroundColor: null,
-        useCORS: true, // Fontos a képekhez
+        useCORS: true,
         allowTaint: true,
       });
       const image = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = image;
-      link.download = `${formData.brand}_post_${currentSlide + 1}.png`;
+      link.download = `${formData.brand}_slide_${currentSlide + 1}.png`;
       link.click();
     } catch (err) {
       console.error(err);
       alert("Hiba a letöltéskor. Próbáld újra.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // AI Generálás (DALL-E)
+  const handleGenerateImage = async () => {
+    if (!selectedPost) return;
+    setImageGenerating(true);
+    try {
+      const promptBase = selectedPost.content || selectedPost.outline;
+      const res = await fetch('/api/matrix/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptBase }),
+      });
+      if (!res.ok) throw new Error("API Hiba");
+      const data = await res.json();
+      if (data.imageUrl) {
+        setSelectedPost({ ...selectedPost, generatedImageUrl: data.imageUrl });
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Nem sikerült a képet legenerálni.");
+    } finally {
+      setImageGenerating(false);
+    }
+  };
+
+  const handleDownloadAIImage = async () => {
+    if (!selectedPost?.generatedImageUrl) return;
+    try {
+      const imageBlob = await fetch(selectedPost.generatedImageUrl).then(r => r.blob());
+      const imageURL = URL.createObjectURL(imageBlob);
+      const link = document.createElement("a");
+      link.href = imageURL;
+      link.download = `ai_image_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert("Használd a jobb klikk -> Mentés másként opciót.");
     }
   };
 
@@ -225,7 +282,16 @@ export default function ContentMatrix() {
       
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative min-h-[300px]">
-        {/* ... (Pro check rész maradhat ugyanaz) ... */}
+        {!isPro && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-sm rounded-2xl border border-white/10">
+            <div className="bg-slate-900 p-8 rounded-3xl border border-white/10 shadow-2xl text-center max-w-sm">
+              <Lock className="w-12 h-12 text-blue-500 mb-4 mx-auto" />
+              <h2 className="text-2xl font-bold mb-2">Pro Funkció</h2>
+              <button onClick={() => router.push('/billing')} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold mt-4">Upgrade Most</button>
+            </div>
+          </div>
+        )}
+
         {matrixData.length > 0 ? (
           matrixData.map((item, index) => (
             <div 
@@ -259,22 +325,24 @@ export default function ContentMatrix() {
           <div className="relative w-full max-w-4xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
             
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-slate-900 z-10">
-              <div className="flex items-center gap-6">
-                 <div>
-                    <span className="text-blue-500 font-bold uppercase tracking-widest text-xs">{selectedPost.day}</span>
-                    <h3 className="text-xl font-bold text-white max-w-xs truncate">{selectedPost.title}</h3>
-                 </div>
-                 
-                 <div className="flex bg-slate-800 p-1 rounded-lg">
-                    <button onClick={() => setViewMode('text')} className={`px-4 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'text' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
-                      <Edit3 className="w-4 h-4" /> Szöveg
-                    </button>
-                    <button onClick={() => setViewMode('visual')} className={`px-4 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'visual' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-                      <ImageIcon className="w-4 h-4" /> Poszt Dizájn
-                    </button>
-                 </div>
+            <div className="flex flex-col md:flex-row items-center justify-between p-6 border-b border-white/5 bg-slate-900 z-10 gap-4">
+              <div className="flex-1 min-w-0">
+                  <span className="text-blue-500 font-bold uppercase tracking-widest text-xs">{selectedPost.day}</span>
+                  <h3 className="text-xl font-bold text-white truncate">{selectedPost.title}</h3>
               </div>
+               
+               <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
+                  <button onClick={() => setViewMode('text')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'text' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
+                    <Edit3 className="w-4 h-4" /> Szöveg
+                  </button>
+                  <button onClick={() => setViewMode('visual')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'visual' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
+                    <ImageIcon className="w-4 h-4" /> Poszt Dizájn
+                  </button>
+                  <button onClick={() => setViewMode('image')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'image' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                    <ImageIcon className="w-4 h-4" /> AI Illusztráció
+                  </button>
+               </div>
+               
               <button onClick={() => setSelectedPost(null)} className="p-2 hover:bg-white/10 rounded-full">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
@@ -298,46 +366,48 @@ export default function ContentMatrix() {
                 </div>
               )}
 
-              {/* VISUAL MODE - SAJÁT FOTÓVAL */}
+              {/* VISUAL MODE - KÉP SLIDE-ONKÉNT */}
               {viewMode === 'visual' && (
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   
                   {/* VEZÉRLŐPULT */}
                   <div className="mb-6 flex gap-4">
                      <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold flex items-center gap-2 transition-all border border-white/10">
-                        <Upload className="w-4 h-4" /> Saját Fotó Feltöltése
+                        <Upload className="w-4 h-4" /> 
+                        {/* Itt jelezzük a usernek, hogy ez az aktuális diára vonatkozik */}
+                        Kép feltöltése erre a diára ({currentSlide + 1}.)
                         <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                      </label>
-                     {customBgImage && (
-                        <button onClick={() => setCustomBgImage(null)} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
-                           <Trash2 className="w-4 h-4" /> Fotó Törlése
+                     {/* Ha van kép az AKTUÁLIS dián (slideImages[currentSlide]), akkor megjelenik a törlés */}
+                     {slideImages[currentSlide] && (
+                        <button onClick={handleRemoveImage} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
+                           <Trash2 className="w-4 h-4" /> Törlés
                         </button>
                      )}
                   </div>
 
-                  {/* PREVIEW AREA (EZT FOTÓZZUK LE) */}
+                  {/* PREVIEW AREA */}
                   <div className="relative shadow-2xl shadow-blue-900/20 mb-8">
                     <div 
                       ref={carouselRef}
-                      // JAVÍTÁS: Kivettem a 'border-white/10' Tailwind osztályt!
                       className="w-[400px] h-[500px] flex flex-col p-8 relative overflow-hidden"
                       style={{ 
-                        // Háttér és Keret: Biztonságos HEX/RGBA kódok
                         backgroundColor: '#0f172a', 
-                        backgroundImage: customBgImage ? `url(${customBgImage})` : 'none',
+                        // JAVÍTÁS: Itt már a tömbből vesszük ki az aktuális dia képét!
+                        backgroundImage: slideImages[currentSlide] ? `url(${slideImages[currentSlide]})` : 'none',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         fontFamily: 'sans-serif',
-                        border: '1px solid rgba(255, 255, 255, 0.1)' // Tailwind helyett manualis border
+                        border: '1px solid rgba(255, 255, 255, 0.1)'
                       }}
                     >
-                      {/* SÖTÉTÍTŐ RÉTEG */}
-                      {customBgImage && (
+                      {/* SÖTÉTÍTŐ RÉTEG (csak ha van kép) */}
+                      {slideImages[currentSlide] && (
                         <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} />
                       )}
 
-                      {/* DEKORÁCIÓ (Csak ha nincs saját fotó) */}
-                      {!customBgImage && (
+                      {/* ALAPÉRTELMEZETT DÍSZ (ha nincs kép) */}
+                      {!slideImages[currentSlide] && (
                         <>
                           <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10" style={{ background: '#1e3a8a' }}/>
                           <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl -ml-10 -mb-10" style={{ background: '#312e81' }}/>
@@ -346,9 +416,7 @@ export default function ContentMatrix() {
 
                       {/* Header */}
                       <div className="relative z-10 flex items-center gap-2 mb-6">
-                         {/* JAVÍTÁS: bg-white/10 helyett rgba */}
                          <div className="w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-                            {/* JAVÍTÁS: text-blue-400 helyett hex kód */}
                             <Sparkles className="w-4 h-4" style={{ color: '#60a5fa' }} />
                          </div>
                          <span className="font-bold text-xs uppercase tracking-widest" style={{ color: '#e2e8f0' }}>
@@ -388,7 +456,7 @@ export default function ContentMatrix() {
                     </div>
                   </div>
 
-                  {/* VEZÉRLŐK (Ezek maradnak Tailwindesek, mert nem kerülnek a fotóra) */}
+                  {/* CONTROLS */}
                   <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))} disabled={currentSlide === 0} className="p-3 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-30 border border-white/5">
                       <ChevronLeft className="w-6 h-6" />
@@ -401,17 +469,54 @@ export default function ContentMatrix() {
                 </div>
               )}
 
+              {/* AI IMAGE MODE */}
+              {viewMode === 'image' && (
+                <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
+                  {!selectedPost.generatedImageUrl && !imageGenerating && (
+                    <div className="text-center max-w-md">
+                      <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Sparkles className="w-10 h-10 text-blue-500" />
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">AI Illusztráció</h3>
+                      <p className="text-slate-400 mb-8">Generálj egyedi, jogtiszta képet a DALL-E 3 segítségével.</p>
+                      <button onClick={handleGenerateImage} className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white font-bold flex items-center gap-3">
+                        <ImageIcon className="w-5 h-5" /> Kép Generálása
+                      </button>
+                    </div>
+                  )}
+                  {imageGenerating && (
+                    <div className="text-center">
+                      <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+                      <p className="text-slate-300">Generálás... (kb. 15 mp)</p>
+                    </div>
+                  )}
+                  {selectedPost.generatedImageUrl && !imageGenerating && (
+                    <div className="flex flex-col items-center animate-in fade-in zoom-in">
+                      <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 mb-6 max-h-[450px]">
+                        <img src={selectedPost.generatedImageUrl} alt="AI Generated" className="h-full w-auto object-contain" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
 
             {/* Footer */}
             <div className="p-6 border-t border-white/5 bg-slate-900/50 flex justify-end gap-3 z-10">
-               {viewMode === 'text' ? (
+               {viewMode === 'text' && (
                  <button onClick={handleCopy} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${isCopied ? 'bg-green-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}>
                    {isCopied ? <><Check className="w-4 h-4" /> Másolva</> : <><Copy className="w-4 h-4" /> Szöveg Másolása</>}
                  </button>
-               ) : (
+               )}
+               {viewMode === 'visual' && (
                  <button onClick={handleDownloadSlide} disabled={downloading} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-2 shadow-lg">
                    {downloading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />} Letöltés
+                 </button>
+               )}
+               {viewMode === 'image' && (
+                 <button onClick={handleDownloadAIImage} disabled={!selectedPost.generatedImageUrl} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold flex items-center gap-2">
+                   <Download className="w-4 h-4" /> Kép Letöltése
                  </button>
                )}
             </div>
