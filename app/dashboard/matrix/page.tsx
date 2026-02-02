@@ -302,7 +302,7 @@ export default function ContentMatrix() {
               {viewMode === 'visual' && (
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   
-                  {/* VEZÉRLŐPULT: KÉPFELTÖLTÉS */}
+                  {/* VEZÉRLŐPULT */}
                   <div className="mb-6 flex gap-4">
                      <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold flex items-center gap-2 transition-all border border-white/10">
                         <Upload className="w-4 h-4" /> Saját Fotó Feltöltése
@@ -315,29 +315,41 @@ export default function ContentMatrix() {
                      )}
                   </div>
 
-                  {/* PREVIEW AREA (HTML2CANVAS CÉLPONT) */}
+                  {/* PREVIEW AREA (EZT FOTÓZZUK LE) */}
                   <div className="relative shadow-2xl shadow-blue-900/20 mb-8">
                     <div 
                       ref={carouselRef}
-                      className="w-[400px] h-[500px] border border-white/10 flex flex-col p-8 relative overflow-hidden"
+                      // JAVÍTÁS: Kivettem a 'border-white/10' Tailwind osztályt!
+                      className="w-[400px] h-[500px] flex flex-col p-8 relative overflow-hidden"
                       style={{ 
-                        // JAVÍTÁS: Hex kódok és feltételes háttérkép
+                        // Háttér és Keret: Biztonságos HEX/RGBA kódok
                         backgroundColor: '#0f172a', 
                         backgroundImage: customBgImage ? `url(${customBgImage})` : 'none',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
-                        fontFamily: 'sans-serif' 
+                        fontFamily: 'sans-serif',
+                        border: '1px solid rgba(255, 255, 255, 0.1)' // Tailwind helyett manualis border
                       }}
                     >
-                      {/* SÖTÉTÍTŐ RÉTEG (Hogy olvasható legyen a szöveg a fotón) */}
+                      {/* SÖTÉTÍTŐ RÉTEG */}
                       {customBgImage && (
                         <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} />
                       )}
 
+                      {/* DEKORÁCIÓ (Csak ha nincs saját fotó) */}
+                      {!customBgImage && (
+                        <>
+                          <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10" style={{ background: '#1e3a8a' }}/>
+                          <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl -ml-10 -mb-10" style={{ background: '#312e81' }}/>
+                        </>
+                      )}
+
                       {/* Header */}
                       <div className="relative z-10 flex items-center gap-2 mb-6">
-                         <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-sm">
-                            <Sparkles className="w-4 h-4 text-blue-400" />
+                         {/* JAVÍTÁS: bg-white/10 helyett rgba */}
+                         <div className="w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                            {/* JAVÍTÁS: text-blue-400 helyett hex kód */}
+                            <Sparkles className="w-4 h-4" style={{ color: '#60a5fa' }} />
                          </div>
                          <span className="font-bold text-xs uppercase tracking-widest" style={{ color: '#e2e8f0' }}>
                             {formData.brand || 'BRAND'}
@@ -358,7 +370,7 @@ export default function ContentMatrix() {
                       </div>
 
                       {/* Pagination */}
-                      <div className="relative z-10 mt-6 flex justify-between items-center border-t border-white/20 pt-4">
+                      <div className="relative z-10 mt-6 flex justify-between items-center pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
                         <span className="text-xs" style={{ color: '#cbd5e1' }}>Lapozz tovább 👉</span>
                         <div className="flex gap-1">
                           {slides.map((_, idx) => (
@@ -376,13 +388,13 @@ export default function ContentMatrix() {
                     </div>
                   </div>
 
-                  {/* CONTROLS */}
+                  {/* VEZÉRLŐK (Ezek maradnak Tailwindesek, mert nem kerülnek a fotóra) */}
                   <div className="flex items-center gap-6">
-                    <button onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))} disabled={currentSlide === 0} className="p-3 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-30">
+                    <button onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))} disabled={currentSlide === 0} className="p-3 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-30 border border-white/5">
                       <ChevronLeft className="w-6 h-6" />
                     </button>
                     <span className="font-mono font-bold text-slate-400">{currentSlide + 1} / {slides.length}</span>
-                    <button onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))} disabled={currentSlide === slides.length - 1} className="p-3 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-30">
+                    <button onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))} disabled={currentSlide === slides.length - 1} className="p-3 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-30 border border-white/5">
                       <ChevronRight className="w-6 h-6" />
                     </button>
                   </div>
