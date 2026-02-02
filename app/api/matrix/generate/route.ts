@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   );
 
   try {
-    const { brandName, audience, topic } = await req.json();
+    const { brandName, audience, topic, tone } = await req.json();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -50,12 +50,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Havi limit elérve!' }, { status: 403 });
     }
 
-    // 3. AI Generálás
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: "Profi social media stratégia készítő vagy. JSON formátumban válaszolj, a 'days' kulcs alatt egy tömbbel." },
-        { role: "user", content: `Készíts 5 napos tartalomtervet a ${brandName} számára. 
+        { 
+          role: "system", 
+          content: `Profi social media manager vagy.
+          
+          Kiemelt utasítás: A tartalmakat a következő hangnemben (Tone of Voice) írd meg: "${tone || 'Professzionális és meggyőző'}".
+          
+          Ha a stílus "Humoros", használj szlenget és vicces fordulatokat.
+          Ha "Provokatív", tegyél fel megosztó kérdéseket.
+          Ha "Oktató", legyél tényszerű és segítőkész.
+          
+          JSON formátumban válaszolj, a 'days' kulcs alatt egy tömbbel.` 
+        },
+        { 
+          role: "user", 
+          content: `Készíts 5 napos tartalomtervet a ${brandName} számára. 
           Célközönség: ${audience}. 
           Téma: ${topic}. 
           
@@ -64,8 +76,8 @@ export async function POST(req: Request) {
             "day": "Hétfő", 
             "title": "Rövid, ütős cím", 
             "platform": "LinkedIn/X/Instagram", 
-            "outline": "Rövid stratégiai magyarázat (miért ezt posztoljuk?)",
-            "content": "A teljes, kész poszt szövege emojikkal és hashtagekkel. Legyen azonnal publikálható." 
+            "outline": "Stratégiai cél egy mondatban",
+            "content": "A teljes poszt szövege a kért hangnemben (${tone}), hashtagekkel és emojikkal." 
           }] }` 
         }
       ],

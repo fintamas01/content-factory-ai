@@ -22,7 +22,7 @@ export default function ContentMatrix() {
   const [isCopied, setIsCopied] = useState(false);
 
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
-  const [formData, setFormData] = useState({ brand: '', audience: '', topic: '' });
+  const [formData, setFormData] = useState({ brand: '', audience: '', topic: '', tone: 'Professzionális' });
   
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -53,6 +53,14 @@ export default function ContentMatrix() {
 
   const isPro = userPlan !== 'free';
   const mockDays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
+
+  const tones = [
+    { id: 'professional', label: '👔 Professzionális', value: 'Professzionális, szakértői és hiteles' },
+    { id: 'funny', label: '😂 Humoros / Laza', value: 'Humoros, laza, tele szlenggel és emojikkal' },
+    { id: 'provocative', label: '🔥 Provokatív', value: 'Megosztó, vitaindító, figyelemfelkeltő' },
+    { id: 'educational', label: '📚 Oktató', value: 'Tényszerű, segítőkész, "hogyan csináld" stílus' },
+    { id: 'emotional', label: '❤️ Érzelmes', value: 'Személyes történetmesélő, inspiráló, érzelmes' },
+  ];
 
   const handleGenerate = async () => {
     if (!formData.brand || !formData.topic) {
@@ -114,32 +122,54 @@ export default function ContentMatrix() {
         )}
       </div>
 
-      {/* INPUT MEZŐK */}
-      <div className="mb-10 grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl">
-        <input 
-          placeholder="Márka neve (pl. ContentFactory)" 
-          className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all placeholder:text-slate-600"
-          value={formData.brand}
-          onChange={(e) => setFormData({...formData, brand: e.target.value})}
-        />
-        <input 
-          placeholder="Célközönség" 
-          className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all placeholder:text-slate-600"
-          value={formData.audience}
-          onChange={(e) => setFormData({...formData, audience: e.target.value})}
-        />
-        <input 
-          placeholder="Téma / Kampány" 
-          className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all placeholder:text-slate-600"
-          value={formData.topic}
-          onChange={(e) => setFormData({...formData, topic: e.target.value})}
-        />
+      {/* INPUT MEZŐK - Most már Tone of Voice választóval */}
+      <div className="mb-10 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <input 
+            placeholder="Márka neve (pl. ContentFactory)" 
+            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 text-white"
+            value={formData.brand}
+            onChange={(e) => setFormData({...formData, brand: e.target.value})}
+          />
+          <input 
+            placeholder="Célközönség (pl. Marketingesek)" 
+            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 text-white"
+            value={formData.audience}
+            onChange={(e) => setFormData({...formData, audience: e.target.value})}
+          />
+          <input 
+            placeholder="Téma (pl. Fekete Péntek)" 
+            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 text-white"
+            value={formData.topic}
+            onChange={(e) => setFormData({...formData, topic: e.target.value})}
+          />
+          
+          {/* TONE OF VOICE SELECTOR */}
+          <div className="relative">
+            <select 
+              className="w-full appearance-none bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none transition-all text-white cursor-pointer"
+              value={formData.tone}
+              onChange={(e) => setFormData({...formData, tone: e.target.value})}
+            >
+              {tones.map((t) => (
+                <option key={t.id} value={t.value} className="bg-slate-900">
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            {/* Kis nyíl ikon a select végére */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
+        </div>
+
         <button 
           onClick={handleGenerate}
           disabled={generating || !isPro}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
         >
-          {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Sparkles className="w-5 h-5" /> Generálás</>}
+          {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Sparkles className="w-5 h-5" /> Stratégia Generálás</>}
         </button>
       </div>
       
