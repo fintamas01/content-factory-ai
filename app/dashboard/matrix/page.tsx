@@ -633,14 +633,43 @@ export default function ContentMatrix() {
                                     <MoreHorizontal className="w-4 h-4 text-gray-600" />
                                 </div>
                                 
-                                {/* Kép helye */}
+                                {/* Image Placeholder VAGY 1. Dia Dizájn */}
                                 <div className="w-full aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden">
                                     {selectedPost.generatedImageUrl ? (
                                         <img src={selectedPost.generatedImageUrl} className="w-full h-full object-cover" alt="Post" />
                                     ) : (
-                                        <div className="text-gray-400 text-xs text-center p-4">
-                                            <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                            A kép itt fog megjelenni<br/>(Generálj egyet az AI fülön!)
+                                        // --- HA NINCS KÉP, AKKOR AZ 1. DIA DIZÁJNJA JELENIK MEG ---
+                                        <div className="w-full h-full bg-[#0f172a] relative overflow-hidden flex flex-col p-6 text-left">
+                                            {/* Háttér effektek */}
+                                            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl bg-blue-900/60 -mr-10 -mt-10"></div>
+                                            <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl bg-indigo-900/60 -ml-10 -mb-10"></div>
+
+                                            {/* Brand Header */}
+                                            <div className="relative z-10 flex items-center gap-2 mb-auto">
+                                                <div className="w-5 h-5 rounded-full flex items-center justify-center bg-white/10 backdrop-blur-sm">
+                                                    <Sparkles className="w-3 h-3 text-blue-400" />
+                                                </div>
+                                                <span className="text-[10px] font-bold tracking-widest text-slate-300 uppercase">
+                                                    {formData.brand || 'BRAND'}
+                                                </span>
+                                            </div>
+
+                                            {/* CÍM (1. Dia tartalom vagy a Cím) */}
+                                            <div className="relative z-10 my-auto">
+                                                <h1 className="text-2xl font-black leading-tight text-white drop-shadow-md">
+                                                    {slides[0] || selectedPost.title}
+                                                </h1>
+                                            </div>
+
+                                            {/* Footer indikátor */}
+                                            <div className="relative z-10 mt-auto pt-4 border-t border-white/10 flex justify-between items-center">
+                                                <span className="text-[8px] text-slate-400">Lapozz tovább 👉</span>
+                                                <div className="flex gap-1">
+                                                    <div className="w-4 h-1 bg-blue-500 rounded-full"></div>
+                                                    <div className="w-1 h-1 bg-slate-700 rounded-full"></div>
+                                                    <div className="w-1 h-1 bg-slate-700 rounded-full"></div>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -687,12 +716,37 @@ export default function ContentMatrix() {
                                         {selectedPost.content.slice(0, 150)}... <span className="text-blue-600 font-bold cursor-pointer">see more</span>
                                     </div>
                                     
-                                    {/* Image */}
-                                    <div className="w-full h-56 bg-slate-100 flex items-center justify-center overflow-hidden">
+                                    {/* Image VAGY 1. Dia Dizájn */}
+                                    <div className="w-full h-64 bg-slate-100 flex items-center justify-center overflow-hidden border-t border-b border-gray-100">
                                          {selectedPost.generatedImageUrl ? (
                                             <img src={selectedPost.generatedImageUrl} className="w-full h-full object-cover" alt="Post" />
                                         ) : (
-                                            <div className="text-gray-400 text-xs">Kép helye</div>
+                                            // --- HA NINCS KÉP, AKKOR AZ 1. DIA DIZÁJNJA ---
+                                            <div className="w-full h-full bg-[#0f172a] relative overflow-hidden flex flex-col p-5 text-left">
+                                                {/* Háttér */}
+                                                <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl bg-blue-900/50 -mr-5 -mt-5"></div>
+                                                <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full blur-2xl bg-indigo-900/50 -ml-5 -mb-5"></div>
+
+                                                {/* Brand */}
+                                                <div className="relative z-10 flex items-center gap-2 mb-auto">
+                                                    <Sparkles className="w-3 h-3 text-blue-400" />
+                                                    <span className="text-[9px] font-bold tracking-widest text-slate-300 uppercase">
+                                                        {formData.brand || 'BRAND'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Cím */}
+                                                <div className="relative z-10 my-auto">
+                                                    <h1 className="text-xl font-black leading-tight text-white">
+                                                        {slides[0] || selectedPost.title}
+                                                    </h1>
+                                                </div>
+
+                                                {/* Footer */}
+                                                <div className="relative z-10 mt-auto w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className="w-1/4 h-full bg-blue-500"></div>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                     
