@@ -336,34 +336,47 @@ export default function ContentMatrix() {
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   
                   {/* CAROUSEL PREVIEW AREA (Ez lesz lefotózva) */}
-                  <div className="relative shadow-2xl shadow-blue-900/20 mb-8"> 
-                    {/* Kivettem a 'transform transition-all hover:scale-[1.01]' részt, mert ez okozza a hibát! */}
+                  <div className="relative shadow-2xl shadow-blue-900/20 mb-8">
                     <div 
                       ref={carouselRef}
-                      className="w-[400px] h-[500px] bg-gradient-to-br from-slate-900 to-blue-950 border border-white/10 flex flex-col p-8 relative overflow-hidden"
+                      className="w-[400px] h-[500px] border border-white/10 flex flex-col p-8 relative overflow-hidden"
+                      // JAVÍTÁS: Inline stílus HEX kódokkal (ezt biztosan érti a html2canvas)
+                      style={{ 
+                        background: 'linear-gradient(135deg, #0f172a 0%, #172554 100%)',
+                        fontFamily: 'sans-serif' 
+                      }}
                     >
-                      {/* Háttér Díszítés */}
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl -mr-10 -mt-10" />
-                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -ml-10 -mb-10" />
+                      {/* Háttér Díszítés (Blobok) - Szintén konkrét RGBA színekkel */}
+                      <div 
+                        className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10" 
+                        style={{ background: 'rgba(59, 130, 246, 0.2)' }}
+                      />
+                      <div 
+                        className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl -ml-10 -mb-10" 
+                        style={{ background: 'rgba(99, 102, 241, 0.2)' }}
+                      />
 
                       {/* Header */}
                       <div className="relative z-10 flex items-center gap-2 mb-6">
                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
                             <Sparkles className="w-4 h-4 text-blue-400" />
                          </div>
-                         <span className="font-bold text-xs uppercase tracking-widest text-slate-400">{formData.brand || 'BRAND'}</span>
+                         {/* A szöveg színét is explicit megadjuk */}
+                         <span className="font-bold text-xs uppercase tracking-widest" style={{ color: '#94a3b8' }}>
+                            {formData.brand || 'BRAND'}
+                         </span>
                       </div>
 
                       {/* CONTENT */}
                       <div className="relative z-10 flex-1 flex flex-col justify-center">
                         {currentSlide === 0 ? (
                            // TITLE SLIDE
-                           <h1 className="text-3xl font-black text-white leading-tight drop-shadow-lg">
+                           <h1 className="text-3xl font-black leading-tight drop-shadow-lg" style={{ color: '#ffffff' }}>
                              {slides[0]}
                            </h1>
                         ) : (
                            // CONTENT SLIDE
-                           <p className="text-xl font-medium text-slate-100 leading-relaxed whitespace-pre-wrap">
+                           <p className="text-xl font-medium leading-relaxed whitespace-pre-wrap" style={{ color: '#f1f5f9' }}>
                              {slides[currentSlide]}
                            </p>
                         )}
@@ -371,17 +384,25 @@ export default function ContentMatrix() {
 
                       {/* Footer / Pagination */}
                       <div className="relative z-10 mt-6 flex justify-between items-center border-t border-white/10 pt-4">
-                        <span className="text-xs text-slate-500">Lapozz tovább 👉</span>
+                        <span className="text-xs" style={{ color: '#64748b' }}>Lapozz tovább 👉</span>
                         <div className="flex gap-1">
                           {slides.map((_, idx) => (
-                            <div key={idx} className={`h-1 rounded-full transition-all ${idx === currentSlide ? 'w-6 bg-blue-500' : 'w-1 bg-slate-700'}`} />
+                            <div 
+                              key={idx} 
+                              className={`h-1 rounded-full transition-all`}
+                              // Itt is inline style-t használunk a biztonság kedvéért
+                              style={{ 
+                                width: idx === currentSlide ? '24px' : '4px',
+                                background: idx === currentSlide ? '#3b82f6' : '#334155'
+                              }}
+                            />
                           ))}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* CONTROLS */}
+                  {/* CONTROLS (Ez maradhat változatlan, mert nem kerül a képre) */}
                   <div className="flex items-center gap-6">
                     <button 
                       onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
