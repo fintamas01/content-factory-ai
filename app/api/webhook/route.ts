@@ -21,61 +21,98 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err: any) {
-    console.error(`Webhook hiba: ${err.message}`);
+    console.error(`Webhook Signature Error: ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // --- 1. ESET: ÚJ ELŐFIZETÉS (checkout.session.completed) ---
+  console.log(`🔔 Webhook received: ${event.type}`);
+
+  // --- 1. ÚJ ELŐFIZETÉS (checkout.session.completed) ---
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as any; // 'any'-re castingoljuk a nyugalom érdekében
+    const session = event.data.object as any;
     const subscriptionId = session.subscription;
 
+    console.log(`Processing Session: ${session.id}, Sub ID: ${subscriptionId}`);
+
     if (subscriptionId) {
-      // Itt a ': any' a kulcs, ezzel megkerüljük a TS szigorát
-      const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
+      try {
+        // Lekérjük az előfizetést
+        const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
+        
+        console.log("Stripe Subscription Data:", JSON.stringify(subscription, null, 2)); // Debug log
 
-      // Most már a TS nem fog panaszkodni a 'items' vagy 'current_period_end' miatt
-      const priceId = subscription.items.data[0].price.id;
-      const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        // BIZTONSÁGOS DÁTUM KONVERTÁLÁS
+        let currentPeriodEnd;
+        if (subscription.current_period_end) {
+            currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        } else {
+            console.warn("⚠️ HIÁNYZÓ current_period_end! Fallback dátum használata.");
+            // Ha nincs dátum, adjunk hozzá 30 napot a mostanihoz
+            const now = new Date();
+            now.setDate(now.getDate() + 30);
+            currentPeriodEnd = now.toISOString();
+        }
 
-      const { error } = await supabaseAdmin.from('subscriptions').upsert({
-        user_id: session.metadata?.userId,
-        stripe_customer_id: session.customer,
-        stripe_subscription_id: subscriptionId,
-        status: 'active',
-        price_id: priceId,
-        current_period_end: currentPeriodEnd,
-      });
+        const priceId = subscription.items?.data?.[0]?.price?.id;
 
-      if (error) {
-        console.error("Supabase mentési hiba:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const { error } = await supabaseAdmin.from('subscriptions').upsert({
+          user_id: session.metadata?.userId,
+          stripe_customer_id: session.customer,
+          stripe_subscription_id: subscriptionId,
+          status: 'active',
+          price_id: priceId,
+          current_period_end: currentPeriodEnd,
+        });
+
+        if (error) {
+          console.error("❌ Supabase Upsert Error:", error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        console.log("✅ Subscription saved successfully!");
+
+      } catch (err: any) {
+        console.error("❌ Error retrieving/saving subscription:", err);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
       }
+    } else {
+        console.error("❌ No subscription ID found in session.");
     }
   }
 
-  // --- 2. ESET: MEGÚJÍTÁS (invoice.payment_succeeded) ---
+  // --- 2. MEGÚJÍTÁS (invoice.payment_succeeded) ---
   if (event.type === 'invoice.payment_succeeded') {
-    const invoice = event.data.object as any; // Itt is 'any'-t használunk
+    const invoice = event.data.object as any;
     const subscriptionId = invoice.subscription;
 
     if (subscriptionId) {
-      const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
-      
-      const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      const priceId = subscription.items.data[0].price.id;
-
-      const { error } = await supabaseAdmin
-        .from('subscriptions')
-        .update({
-          current_period_end: currentPeriodEnd,
-          status: 'active',
-          price_id: priceId 
-        })
-        .eq('stripe_subscription_id', subscriptionId);
+      try {
+        const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
         
-      if (error) {
-        console.error("Supabase frissítési hiba:", error);
+        let currentPeriodEnd;
+        if (subscription.current_period_end) {
+             currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        } else {
+             const now = new Date();
+             now.setDate(now.getDate() + 30);
+             currentPeriodEnd = now.toISOString();
+        }
+        
+        const priceId = subscription.items?.data?.[0]?.price?.id;
+
+        const { error } = await supabaseAdmin
+          .from('subscriptions')
+          .update({
+            current_period_end: currentPeriodEnd,
+            status: 'active',
+            price_id: priceId 
+          })
+          .eq('stripe_subscription_id', subscriptionId);
+          
+        if (error) console.error("❌ Supabase Update Error:", error);
+        else console.log("✅ Subscription renewed successfully!");
+
+      } catch (err) {
+        console.error("❌ Error in invoice handler:", err);
       }
     }
   }
