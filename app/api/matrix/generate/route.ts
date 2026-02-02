@@ -55,7 +55,19 @@ export async function POST(req: Request) {
       model: "gpt-4o",
       messages: [
         { role: "system", content: "Profi social media stratégia készítő vagy. JSON formátumban válaszolj, a 'days' kulcs alatt egy tömbbel." },
-        { role: "user", content: `Készíts 5 napos tartalomtervet a ${brandName} számára. Célközönség: ${audience}. Téma: ${topic}. JSON formátum: { "days": [{ "day": "Hétfő", "title": "...", "platform": "...", "outline": "..." }] }` }
+        { role: "user", content: `Készíts 5 napos tartalomtervet a ${brandName} számára. 
+          Célközönség: ${audience}. 
+          Téma: ${topic}. 
+          
+          A válasz JSON legyen: 
+          { "days": [{ 
+            "day": "Hétfő", 
+            "title": "Rövid, ütős cím", 
+            "platform": "LinkedIn/X/Instagram", 
+            "outline": "Rövid stratégiai magyarázat (miért ezt posztoljuk?)",
+            "content": "A teljes, kész poszt szövege emojikkal és hashtagekkel. Legyen azonnal publikálható." 
+          }] }` 
+        }
       ],
       response_format: { type: "json_object" }
     });
