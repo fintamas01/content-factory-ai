@@ -89,19 +89,27 @@ export default function ContentMatrix() {
   const handleDownloadSlide = async () => {
     if (!carouselRef.current) return;
     setDownloading(true);
+    
     try {
+      // Várunk egy picit, hogy a renderelés biztosan kész legyen
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const canvas = await html2canvas(carouselRef.current, {
-        scale: 2, // Nagyobb felbontás (Retina ready)
-        backgroundColor: null,
+        scale: 2, // Nagy felbontás
+        backgroundColor: null, // Átlátszó háttér kezelése
+        useCORS: true, // Képek/Ikonok biztonsági kezelése
+        logging: true, // Hiba esetén többet látunk a konzolon
+        allowTaint: true,
       });
+
       const image = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = image;
       link.download = `${formData.brand}_slide_${currentSlide + 1}.png`;
       link.click();
     } catch (err) {
-      console.error(err);
-      alert("Hiba a letöltéskor");
+      console.error("Letöltési hiba részletei:", err); // Itt látni fogjuk a pontos bajt
+      alert("Hiba történt a kép generálásakor. Nyisd meg a konzolt (F12) a részletekért.");
     } finally {
       setDownloading(false);
     }
@@ -328,7 +336,8 @@ export default function ContentMatrix() {
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   
                   {/* CAROUSEL PREVIEW AREA (Ez lesz lefotózva) */}
-                  <div className="relative shadow-2xl shadow-blue-900/20 mb-8 transform transition-all hover:scale-[1.01]">
+                  <div className="relative shadow-2xl shadow-blue-900/20 mb-8"> 
+                    {/* Kivettem a 'transform transition-all hover:scale-[1.01]' részt, mert ez okozza a hibát! */}
                     <div 
                       ref={carouselRef}
                       className="w-[400px] h-[500px] bg-gradient-to-br from-slate-900 to-blue-950 border border-white/10 flex flex-col p-8 relative overflow-hidden"
