@@ -94,39 +94,81 @@ export default function ContentMatrix() {
     loadInitialData();
   }, [supabase]);
 
-  // --- ÚJ: PDF EXPORTÁLÁS ---
-  const handleExportPDF = () => {
+  // --- JAVÍTOTT PDF EXPORT (MAGYAR KARAKTEREKKEL) ---
+  const handleExportPDF = async () => {
     if (matrixData.length === 0) return alert("Nincs mit exportálni!");
 
-    const doc = new jsPDF();
-    
-    // Fejléc
-    doc.setFontSize(18);
-    doc.text(`Tartalomterv: ${formData.brand || 'Márka'}`, 14, 22);
-    
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Téma: ${formData.topic} | Generálva: ${new Date().toLocaleDateString('hu-HU')}`, 14, 30);
+    // Betöltés jelzése (opcionális, de szép UX)
+    const originalText = document.body.style.cursor;
+    document.body.style.cursor = 'wait';
 
-    // Táblázat adatok előkészítése
-    const tableRows = matrixData.map(post => [
-        post.day,
-        post.platform,
-        post.title,
-        post.content.substring(0, 200) + "..." // Levágjuk, hogy kiférjen
-    ]);
+    try {
+        const doc = new jsPDF();
 
-    // Táblázat generálása
-    autoTable(doc, {
-        head: [['Nap', 'Platform', 'Cím', 'Tartalom']],
-        body: tableRows,
-        startY: 40,
-        styles: { fontSize: 10, cellPadding: 3 },
-        headStyles: { fillColor: [37, 99, 235] }, // Kék fejléc
-    });
+        // 1. Font letöltése (Roboto - ez ismeri az ő/ű betűket)
+        const fontResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf');
+        const fontBlob = await fontResponse.blob();
+        
+        // 2. Konvertálás base64-re (amit a jsPDF megért)
+        const reader = new FileReader();
+        reader.readAsDataURL(fontBlob);
+        
+        reader.onloadend = () => {
+            const base64data = reader.result?.toString().split(',')[1];
+            
+            if (base64data) {
+                // 3. Font hozzáadása a PDF-hez
+                doc.addFileToVFS("Roboto-Regular.ttf", base64data);
+                doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+                doc.setFont("Roboto"); // Beállítjuk aktívnak
 
-    // Mentés
-    doc.save(`${formData.brand}_heti_terv.pdf`);
+                // Fejléc
+                doc.setFontSize(18);
+                doc.text(`Tartalomterv: ${formData.brand || 'Márka'}`, 14, 22);
+                
+                doc.setFontSize(11);
+                doc.setTextColor(100);
+                doc.text(`Téma: ${formData.topic} | Generálva: ${new Date().toLocaleDateString('hu-HU')}`, 14, 30);
+
+                // Táblázat adatok
+                const tableRows = matrixData.map(post => [
+                    post.day,
+                    post.platform,
+                    post.title,
+                    post.content // Itt már nem vágom le, hadd férjen ki
+                ]);
+
+                // Táblázat generálása (fontos: itt is megadjuk a fontot!)
+                autoTable(doc, {
+                    head: [['Nap', 'Platform', 'Cím', 'Tartalom']],
+                    body: tableRows,
+                    startY: 40,
+                    styles: { 
+                        font: "Roboto", // Fontos: a táblázat is ezt használja!
+                        fontSize: 10, 
+                        cellPadding: 3,
+                        overflow: 'linebreak' // Sortörés, ha hosszú a szöveg
+                    },
+                    headStyles: { fillColor: [37, 99, 235] },
+                    columnStyles: {
+                        0: { cellWidth: 20 }, // Nap
+                        1: { cellWidth: 20 }, // Platform
+                        2: { cellWidth: 40 }, // Cím
+                        3: { cellWidth: 'auto' } // Tartalom (maradék hely)
+                    }
+                });
+
+                // Mentés
+                doc.save(`${formData.brand}_heti_terv.pdf`);
+            }
+            document.body.style.cursor = originalText;
+        };
+
+    } catch (error) {
+        console.error("PDF Hiba:", error);
+        alert("Hiba történt a PDF generálásakor.");
+        document.body.style.cursor = originalText;
+    }
   };
 
   const fetchHistory = async () => {
