@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   );
 
   try {
-    const { brandName, audience, topic, tone } = await req.json();
+    const { brand, audience, topic, tone } = await req.json();
 
     // 1. User check
     const { data: { user } } = await supabase.auth.getUser();
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         },
         { 
             role: "user", 
-            content: `Márka: ${brandName}. Célközönség: ${audience}. Téma: ${topic}.
+            content: `Márka: ${brand}. Célközönség: ${audience}. Téma: ${topic}.
             
             A válasz JSON struktúrája (tartsd be): 
             { 
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     // 4. Mentés
     const { error: insertError } = await supabase.from('matrix_generations').insert({
       user_id: user.id,
-      brand_name: brandName,
+      brand_name: brand,
       month_year: currentMonth,
       generation_data: generatedContent
     });
