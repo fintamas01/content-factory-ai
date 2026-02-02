@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase } from 'lucide-react';
+import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, RefreshCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import html2canvas from 'html2canvas';
@@ -13,6 +13,7 @@ interface MatrixItem {
   content: string;
   generatedImageUrl?: string | null;
   slides?: string[];
+  isRegenerating?: boolean;
 }
 
 // JAVÍTÁS: A te adatbázisod oszlopneveihez igazítva!
@@ -249,6 +250,50 @@ export default function ContentMatrix() {
     }
   };
 
+  // --- EGYETLEN POSZT ÚJRAGENERÁLÁSA (MAGIC REMIX) ---
+  const handleRegenerateSingle = async (index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Ne nyissa meg a modalt, amikor a gombra kattintunk
+    
+    const postToRegenerate = matrixData[index];
+    if (!postToRegenerate) return;
+
+    // 1. Töltés állapot bekapcsolása az adott kártyán
+    const newData = [...matrixData];
+    newData[index] = { ...postToRegenerate, isRegenerating: true };
+    setMatrixData(newData);
+
+    try {
+        const res = await fetch('/api/matrix/regenerate-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                brand: formData.brand,
+                audience: formData.audience,
+                topic: formData.topic,
+                tone: formData.tone,
+                day: postToRegenerate.day,
+                platform: postToRegenerate.platform,
+                currentPost: postToRegenerate
+            }),
+        });
+
+        const newPost = await res.json();
+
+        // 2. Kicseréljük a régi posztot az újjal
+        const updatedData = [...matrixData];
+        updatedData[index] = { ...newPost, isRegenerating: false };
+        setMatrixData(updatedData);
+
+    } catch (error) {
+        console.error("Remix hiba:", error);
+        alert("Nem sikerült frissíteni a posztot.");
+        // Hiba esetén levesszük a töltést
+        const errorData = [...matrixData];
+        errorData[index] = { ...postToRegenerate, isRegenerating: false };
+        setMatrixData(errorData);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-blue-500"/></div>;
 
   return (
@@ -354,12 +399,29 @@ export default function ContentMatrix() {
               onClick={() => { setSelectedPost(item); setViewMode('text'); }}
               className="group cursor-pointer p-5 rounded-2xl border border-white/5 bg-slate-900 hover:border-blue-500/50 hover:bg-slate-800 transition-all flex flex-col h-full relative overflow-hidden"
             >
+              {/* --- MAGIC REMIX GOMB (JOBB FELSŐ SAROK) --- */}
+              <button 
+                onClick={(e) => handleRegenerateSingle(index, e)}
+                disabled={item.isRegenerating}
+                className="absolute top-3 right-3 p-2 bg-slate-800 hover:bg-blue-600 rounded-lg text-slate-400 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
+                title="Újragenerálás (Remix)"
+              >
+                <RefreshCcw className={`w-3.5 h-3.5 ${item.isRegenerating ? 'animate-spin text-blue-400' : ''}`} />
+              </button>
+
               <div className="flex justify-between items-center mb-4">
                 <span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">{item.day}</span>
                 <span className="bg-white/5 text-[10px] px-2 py-1 rounded text-slate-300 font-medium">{item.platform}</span>
               </div>
-              <h3 className="text-sm font-bold mb-3 leading-tight text-white group-hover:text-blue-200">{item.title}</h3>
-              <p className="text-xs text-slate-400 line-clamp-4 mb-4">{item.outline}</p>
+              
+              <h3 className="text-sm font-bold mb-3 leading-tight text-white group-hover:text-blue-200">
+                {item.isRegenerating ? <span className="animate-pulse">Új verzió írása... ✍️</span> : item.title}
+              </h3>
+              
+              <p className="text-xs text-slate-400 line-clamp-4 mb-4">
+                 {item.isRegenerating ? "Az AI éppen újragondolja ezt a posztot..." : item.outline}
+              </p>
+              
               <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
                 <Edit3 className="w-3 h-3" /> Szerkesztés
               </div>
