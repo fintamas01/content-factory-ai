@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import html2canvas from 'html2canvas';
@@ -12,7 +12,15 @@ interface MatrixItem {
   outline: string;
   content: string;
   generatedImageUrl?: string | null;
-  slides?: string[]; // <--- ÚJ MEZŐ: Az AI által generált dia szövegek
+  slides?: string[];
+}
+
+// JAVÍTÁS: A te adatbázisod oszlopneveihez igazítva!
+interface BrandProfile {
+  id: string;
+  brand_name: string;      // A te tábládban ez a neve
+  target_audience: string; // A te tábládban ez a neve
+  description: string;
 }
 
 export default function ContentMatrix() {
@@ -23,7 +31,7 @@ export default function ContentMatrix() {
   const [selectedPost, setSelectedPost] = useState<MatrixItem | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   
-  // JAVÍTVA: 'image' hozzáadva
+  // View módok (Szöveg, Képes, AI)
   const [viewMode, setViewMode] = useState<'text' | 'visual' | 'image'>('text');
   
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -32,6 +40,10 @@ export default function ContentMatrix() {
   const [downloading, setDownloading] = useState(false);
   const [slideImages, setSlideImages] = useState<(string | null)[]>([]);
   const [imageGenerating, setImageGenerating] = useState(false);
+
+  // --- MENTETT MÁRKÁK KEZELÉSE ---
+  const [savedBrands, setSavedBrands] = useState<BrandProfile[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("");
 
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
   const [formData, setFormData] = useState({ brand: '', audience: '', topic: '', tone: 'Professzionális' });
@@ -43,9 +55,10 @@ export default function ContentMatrix() {
   );
 
   useEffect(() => {
-    async function getUserData() {
+    async function loadInitialData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // 1. Előfizetés
         const { data: sub } = await supabase
           .from('subscriptions')
           .select('price_id, status')
@@ -55,27 +68,51 @@ export default function ContentMatrix() {
         
         if (sub?.price_id) setUserPlan('pro'); 
         else setUserPlan('free');
+
+        // 2. MÁRKÁK BETÖLTÉSE (A te tábládból)
+        const { data: brands, error } = await supabase
+          .from('brand_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (brands) {
+            // Itt konvertáljuk a Supabase választ a TypeScript típusunkra, ha kell
+            setSavedBrands(brands as BrandProfile[]);
+        }
       }
       setLoading(false);
     }
-    getUserData();
+    loadInitialData();
   }, [supabase]);
 
-  // --- JAVÍTOTT CAROUSEL LOGIKA ---
+  // --- AMIKOR KIVÁLASZT EGY MÁRKÁT ---
+  const handleBrandSelect = (brandId: string) => {
+    setSelectedBrandId(brandId);
+    if (brandId === "") return; 
+
+    const brand = savedBrands.find(b => b.id === brandId);
+    if (brand) {
+        // JAVÍTÁS: A helyes oszlopnevekből töltjük be az adatot
+        setFormData(prev => ({
+            ...prev,
+            brand: brand.brand_name,           // brand_name a táblából
+            audience: brand.target_audience    // target_audience a táblából
+        }));
+    }
+  };
+
+  // Carousel logika
   useEffect(() => {
     if (selectedPost && viewMode === 'visual') {
       let generatedSlides: string[] = [];
 
-      // A) Ha az AI generált konkrét diaszövegeket (EZ AZ ÚJ MÓDSZER)
       if (selectedPost.slides && selectedPost.slides.length > 0) {
         generatedSlides = selectedPost.slides;
-      } 
-      // B) Vészmegoldás: Ha régi a generálás és nincs 'slides', akkor a címből indulunk
-      else {
+      } else {
         generatedSlides = [selectedPost.title, "Részletek a leírásban..."];
       }
       
-      // Záró dia hozzáadása, ha még nincs benne
       const lastSlide = generatedSlides[generatedSlides.length - 1];
       if (!lastSlide.includes('@')) {
          generatedSlides.push(`Kövess minket!\n@${formData.brand || 'Márka'}`);
@@ -87,7 +124,7 @@ export default function ContentMatrix() {
     }
   }, [selectedPost, viewMode, formData.brand]);
 
-  // Kép feltöltés / törlés / letöltés / generálás maradhat változatlan...
+  // Képkezelés
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -125,7 +162,7 @@ export default function ContentMatrix() {
       link.click();
     } catch (err) {
       console.error(err);
-      alert("Hiba a letöltéskor. Próbáld újra.");
+      alert("Hiba a letöltéskor.");
     } finally {
       setDownloading(false);
     }
@@ -231,35 +268,58 @@ export default function ContentMatrix() {
         )}
       </div>
 
-      {/* INPUT */}
-      <div className="mb-10 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      {/* INPUT CONTAINER */}
+      <div className="mb-10 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl space-y-4">
+        
+        {/* --- ÜGYFÉL VÁLASZTÓ (Settingsből) --- */}
+        {savedBrands.length > 0 && (
+            <div className="flex items-center gap-3 bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl animate-in fade-in">
+                <Briefcase className="w-5 h-5 text-blue-500" />
+                <select 
+                    className="bg-transparent text-white outline-none w-full cursor-pointer text-sm font-medium"
+                    value={selectedBrandId}
+                    onChange={(e) => handleBrandSelect(e.target.value)}
+                >
+                    <option value="" className="bg-slate-900">-- Válassz mentett ügyfelet / márkát --</option>
+                    {savedBrands.map(b => (
+                        <option key={b.id} value={b.id} className="bg-slate-900">
+                            {b.brand_name}
+                        </option>
+                    ))}
+                </select>
+            </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <input 
             placeholder="Márka neve" 
-            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white"
+            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white transition-all"
             value={formData.brand}
             onChange={(e) => setFormData({...formData, brand: e.target.value})}
           />
           <input 
             placeholder="Célközönség" 
-            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white"
+            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white transition-all"
             value={formData.audience}
             onChange={(e) => setFormData({...formData, audience: e.target.value})}
           />
           <input 
             placeholder="Téma" 
-            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white"
+            className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white transition-all"
             value={formData.topic}
             onChange={(e) => setFormData({...formData, topic: e.target.value})}
           />
           <div className="relative">
             <select 
-              className="w-full appearance-none bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white cursor-pointer"
+              className="w-full appearance-none bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white cursor-pointer transition-all"
               value={formData.tone}
               onChange={(e) => setFormData({...formData, tone: e.target.value})}
             >
               {tones.map((t) => <option key={t.id} value={t.value} className="bg-slate-900">{t.label}</option>)}
             </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <ChevronRight className="w-4 h-4 text-slate-500 rotate-90" />
+            </div>
           </div>
         </div>
 
@@ -309,7 +369,7 @@ export default function ContentMatrix() {
         )}
       </div>
 
-      {/* --- EDIT MODAL --- */}
+      {/* --- EDIT MODAL (Változatlan, csak a visual mode rész van frissítve) --- */}
       {selectedPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPost(null)} />
@@ -323,7 +383,6 @@ export default function ContentMatrix() {
                   <h3 className="text-xl font-bold text-white truncate">{selectedPost.title}</h3>
               </div>
                
-               {/* VIEW SWITCHER */}
                <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
                   <button onClick={() => setViewMode('text')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'text' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
                     <Edit3 className="w-4 h-4" /> Szöveg
@@ -419,9 +478,10 @@ export default function ContentMatrix() {
                              {slides[0]}
                            </h1>
                         ) : (
+                           // JAVÍTÁS: Kisebb betűméret (text-lg), hogy kiférjen a hosszabb szöveg
                            <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap drop-shadow-md" style={{ color: '#f8fafc', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                            {slides[currentSlide]}
-                          </p>
+                             {slides[currentSlide]}
+                           </p>
                         )}
                       </div>
 
