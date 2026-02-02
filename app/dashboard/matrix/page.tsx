@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, RefreshCcw } from 'lucide-react';
+import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, History, RefreshCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import html2canvas from 'html2canvas';
@@ -16,12 +16,21 @@ interface MatrixItem {
   isRegenerating?: boolean;
 }
 
-// JAVÍTÁS: A te adatbázisod oszlopneveihez igazítva!
 interface BrandProfile {
   id: string;
-  brand_name: string;      // A te tábládban ez a neve
-  target_audience: string; // A te tábládban ez a neve
+  brand_name: string;
+  target_audience: string;
   description: string;
+}
+
+// Típus a mentett előzményekhez
+interface HistoryItem {
+  id: string;
+  created_at: string;
+  brand_name: string;
+  generation_data: {
+    days: MatrixItem[];
+  };
 }
 
 export default function ContentMatrix() {
@@ -31,8 +40,6 @@ export default function ContentMatrix() {
   
   const [selectedPost, setSelectedPost] = useState<MatrixItem | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-  
-  // View módok (Szöveg, Képes, AI)
   const [viewMode, setViewMode] = useState<'text' | 'visual' | 'image'>('text');
   
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -42,12 +49,16 @@ export default function ContentMatrix() {
   const [slideImages, setSlideImages] = useState<(string | null)[]>([]);
   const [imageGenerating, setImageGenerating] = useState(false);
 
-  // --- MENTETT MÁRKÁK KEZELÉSE ---
   const [savedBrands, setSavedBrands] = useState<BrandProfile[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
 
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
   const [formData, setFormData] = useState({ brand: '', audience: '', topic: '', tone: 'Professzionális' });
+
+  // --- ÚJ: ELŐZMÉNYEK KEZELÉSE ---
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -59,7 +70,6 @@ export default function ContentMatrix() {
     async function loadInitialData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // 1. Előfizetés
         const { data: sub } = await supabase
           .from('subscriptions')
           .select('price_id, status')
@@ -70,65 +80,76 @@ export default function ContentMatrix() {
         if (sub?.price_id) setUserPlan('pro'); 
         else setUserPlan('free');
 
-        // 2. MÁRKÁK BETÖLTÉSE (A te tábládból)
-        const { data: brands, error } = await supabase
+        const { data: brands } = await supabase
           .from('brand_profiles')
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
-
-        console.log("Betöltött márkák:", brands); // <--- EZT FIGYELD A KONZOLBAN!
-        console.log("Hiba:", error);
         
-        if (brands) {
-            // Itt konvertáljuk a Supabase választ a TypeScript típusunkra, ha kell
-            setSavedBrands(brands as BrandProfile[]);
-        }
+        if (brands) setSavedBrands(brands as BrandProfile[]);
       }
       setLoading(false);
     }
     loadInitialData();
   }, [supabase]);
 
-  // --- AMIKOR KIVÁLASZT EGY MÁRKÁT ---
+  // --- ELŐZMÉNYEK BETÖLTÉSE (AMIKOR MEGNYITJA A MODALT) ---
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const { data } = await supabase
+            .from('matrix_generations')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(20); // Csak az utolsó 20-at töltjük be
+        
+        if (data) setHistoryItems(data);
+    }
+    setLoadingHistory(false);
+  };
+
+  // --- EGY KORÁBBI TERV BETÖLTÉSE A KÉPERNYŐRE ---
+  const loadFromHistory = (item: HistoryItem) => {
+    if (confirm("Ez felülírja a jelenlegi képernyőt. Biztosan betöltöd?")) {
+        setMatrixData(item.generation_data.days || []);
+        setFormData(prev => ({ ...prev, brand: item.brand_name })); // Márkanevet is beállítjuk
+        setShowHistory(false); // Bezárjuk a modalt
+    }
+  };
+
   const handleBrandSelect = (brandId: string) => {
     setSelectedBrandId(brandId);
     if (brandId === "") return; 
-
     const brand = savedBrands.find(b => b.id === brandId);
     if (brand) {
-        // JAVÍTÁS: A helyes oszlopnevekből töltjük be az adatot
         setFormData(prev => ({
             ...prev,
-            brand: brand.brand_name,           // brand_name a táblából
-            audience: brand.target_audience    // target_audience a táblából
+            brand: brand.brand_name,
+            audience: brand.target_audience
         }));
     }
   };
 
-  // Carousel logika
   useEffect(() => {
     if (selectedPost && viewMode === 'visual') {
       let generatedSlides: string[] = [];
-
       if (selectedPost.slides && selectedPost.slides.length > 0) {
         generatedSlides = selectedPost.slides;
       } else {
         generatedSlides = [selectedPost.title, "Részletek a leírásban..."];
       }
-      
       const lastSlide = generatedSlides[generatedSlides.length - 1];
       if (!lastSlide.includes('@')) {
          generatedSlides.push(`Kövess minket!\n@${formData.brand || 'Márka'}`);
       }
-      
       setSlides(generatedSlides);
       setCurrentSlide(0);
       setSlideImages(new Array(generatedSlides.length).fill(null));
     }
   }, [selectedPost, viewMode, formData.brand]);
 
-  // Képkezelés
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -211,6 +232,42 @@ export default function ContentMatrix() {
     }
   };
 
+  const handleRegenerateSingle = async (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const postToRegenerate = matrixData[index];
+    if (!postToRegenerate) return;
+
+    const newData = [...matrixData];
+    newData[index] = { ...postToRegenerate, isRegenerating: true };
+    setMatrixData(newData);
+
+    try {
+        const res = await fetch('/api/matrix/regenerate-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                brand: formData.brand,
+                audience: formData.audience,
+                topic: formData.topic,
+                tone: formData.tone,
+                day: postToRegenerate.day,
+                platform: postToRegenerate.platform,
+                currentPost: postToRegenerate
+            }),
+        });
+        const newPost = await res.json();
+        const updatedData = [...matrixData];
+        updatedData[index] = { ...newPost, isRegenerating: false };
+        setMatrixData(updatedData);
+    } catch (error) {
+        console.error(error);
+        alert("Nem sikerült frissíteni a posztot.");
+        const errorData = [...matrixData];
+        errorData[index] = { ...postToRegenerate, isRegenerating: false };
+        setMatrixData(errorData);
+    }
+  };
+
   const handleCopy = () => {
     if (selectedPost) {
       navigator.clipboard.writeText(selectedPost.content || selectedPost.outline);
@@ -250,50 +307,6 @@ export default function ContentMatrix() {
     }
   };
 
-  // --- EGYETLEN POSZT ÚJRAGENERÁLÁSA (MAGIC REMIX) ---
-  const handleRegenerateSingle = async (index: number, e: React.MouseEvent) => {
-    e.stopPropagation(); // Ne nyissa meg a modalt, amikor a gombra kattintunk
-    
-    const postToRegenerate = matrixData[index];
-    if (!postToRegenerate) return;
-
-    // 1. Töltés állapot bekapcsolása az adott kártyán
-    const newData = [...matrixData];
-    newData[index] = { ...postToRegenerate, isRegenerating: true };
-    setMatrixData(newData);
-
-    try {
-        const res = await fetch('/api/matrix/regenerate-single', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                brand: formData.brand,
-                audience: formData.audience,
-                topic: formData.topic,
-                tone: formData.tone,
-                day: postToRegenerate.day,
-                platform: postToRegenerate.platform,
-                currentPost: postToRegenerate
-            }),
-        });
-
-        const newPost = await res.json();
-
-        // 2. Kicseréljük a régi posztot az újjal
-        const updatedData = [...matrixData];
-        updatedData[index] = { ...newPost, isRegenerating: false };
-        setMatrixData(updatedData);
-
-    } catch (error) {
-        console.error("Remix hiba:", error);
-        alert("Nem sikerült frissíteni a posztot.");
-        // Hiba esetén levesszük a töltést
-        const errorData = [...matrixData];
-        errorData[index] = { ...postToRegenerate, isRegenerating: false };
-        setMatrixData(errorData);
-    }
-  };
-
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-blue-500"/></div>;
 
   return (
@@ -308,18 +321,27 @@ export default function ContentMatrix() {
           <p className="text-slate-400 mt-1">Heti stratégia és kész posztok egy kattintással.</p>
         </div>
         
-        {isPro && (
-          <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-full flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-blue-400" />
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Pro Aktív</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+            {/* ÚJ: ELŐZMÉNYEK GOMB */}
+            <button 
+                onClick={() => { setShowHistory(true); fetchHistory(); }}
+                className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all border border-white/10"
+            >
+                <History className="w-4 h-4 text-slate-400" /> Előzmények
+            </button>
+
+            {isPro && (
+            <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-full flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Pro Aktív</span>
+            </div>
+            )}
+        </div>
       </div>
 
       {/* INPUT CONTAINER */}
       <div className="mb-10 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl space-y-4">
         
-        {/* --- ÜGYFÉL VÁLASZTÓ (Settingsből) --- */}
         {savedBrands.length > 0 && (
             <div className="flex items-center gap-3 bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl animate-in fade-in">
                 <Briefcase className="w-5 h-5 text-blue-500" />
@@ -399,7 +421,6 @@ export default function ContentMatrix() {
               onClick={() => { setSelectedPost(item); setViewMode('text'); }}
               className="group cursor-pointer p-5 rounded-2xl border border-white/5 bg-slate-900 hover:border-blue-500/50 hover:bg-slate-800 transition-all flex flex-col h-full relative overflow-hidden"
             >
-              {/* --- MAGIC REMIX GOMB (JOBB FELSŐ SAROK) --- */}
               <button 
                 onClick={(e) => handleRegenerateSingle(index, e)}
                 disabled={item.isRegenerating}
@@ -413,15 +434,12 @@ export default function ContentMatrix() {
                 <span className="text-blue-400 font-bold uppercase text-[10px] tracking-widest">{item.day}</span>
                 <span className="bg-white/5 text-[10px] px-2 py-1 rounded text-slate-300 font-medium">{item.platform}</span>
               </div>
-              
               <h3 className="text-sm font-bold mb-3 leading-tight text-white group-hover:text-blue-200">
-                {item.isRegenerating ? <span className="animate-pulse">Új verzió írása... ✍️</span> : item.title}
+                 {item.isRegenerating ? <span className="animate-pulse">Új verzió írása... ✍️</span> : item.title}
               </h3>
-              
               <p className="text-xs text-slate-400 line-clamp-4 mb-4">
                  {item.isRegenerating ? "Az AI éppen újragondolja ezt a posztot..." : item.outline}
               </p>
-              
               <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
                 <Edit3 className="w-3 h-3" /> Szerkesztés
               </div>
@@ -434,14 +452,13 @@ export default function ContentMatrix() {
         )}
       </div>
 
-      {/* --- EDIT MODAL (Változatlan, csak a visual mode rész van frissítve) --- */}
+      {/* --- EDIT MODAL --- */}
       {selectedPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPost(null)} />
           
           <div className="relative w-full max-w-4xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
             
-            {/* Header */}
             <div className="flex flex-col md:flex-row items-center justify-between p-6 border-b border-white/5 bg-slate-900 z-10 gap-4">
               <div className="flex-1 min-w-0">
                   <span className="text-blue-500 font-bold uppercase tracking-widest text-xs">{selectedPost.day}</span>
@@ -465,10 +482,8 @@ export default function ContentMatrix() {
               </button>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-950 relative">
               
-              {/* TEXT MODE */}
               {viewMode === 'text' && (
                 <div className="p-8">
                    <div className="mb-6 bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
@@ -483,11 +498,9 @@ export default function ContentMatrix() {
                 </div>
               )}
 
-              {/* VISUAL MODE */}
               {viewMode === 'visual' && (
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   
-                  {/* VEZÉRLŐPULT */}
                   <div className="mb-6 flex gap-4">
                      <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold flex items-center gap-2 transition-all border border-white/10">
                         <Upload className="w-4 h-4" /> 
@@ -501,7 +514,6 @@ export default function ContentMatrix() {
                      )}
                   </div>
 
-                  {/* PREVIEW AREA */}
                   <div className="relative shadow-2xl shadow-blue-900/20 mb-8">
                     <div 
                       ref={carouselRef}
@@ -526,7 +538,6 @@ export default function ContentMatrix() {
                         </>
                       )}
 
-                      {/* Header */}
                       <div className="relative z-10 flex items-center gap-2 mb-6">
                          <div className="w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
                             <Sparkles className="w-4 h-4" style={{ color: '#60a5fa' }} />
@@ -536,21 +547,18 @@ export default function ContentMatrix() {
                          </span>
                       </div>
 
-                      {/* CONTENT */}
                       <div className="relative z-10 flex-1 flex flex-col justify-center">
                         {currentSlide === 0 ? (
                            <h1 className="text-3xl font-black leading-tight drop-shadow-lg" style={{ color: '#ffffff', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
                              {slides[0]}
                            </h1>
                         ) : (
-                           // JAVÍTÁS: Kisebb betűméret (text-lg), hogy kiférjen a hosszabb szöveg
                            <p className="text-lg font-medium leading-relaxed whitespace-pre-wrap drop-shadow-md" style={{ color: '#f8fafc', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
                              {slides[currentSlide]}
                            </p>
                         )}
                       </div>
 
-                      {/* Pagination */}
                       <div className="relative z-10 mt-6 flex justify-between items-center pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
                         <span className="text-xs" style={{ color: '#cbd5e1' }}>Lapozz tovább 👉</span>
                         <div className="flex gap-1">
@@ -569,7 +577,6 @@ export default function ContentMatrix() {
                     </div>
                   </div>
 
-                  {/* CONTROLS */}
                   <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))} disabled={currentSlide === 0} className="p-3 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-30 border border-white/5">
                       <ChevronLeft className="w-6 h-6" />
@@ -582,7 +589,6 @@ export default function ContentMatrix() {
                 </div>
               )}
 
-              {/* AI IMAGE MODE */}
               {viewMode === 'image' && (
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   {!selectedPost.generatedImageUrl && !imageGenerating && (
@@ -615,7 +621,6 @@ export default function ContentMatrix() {
 
             </div>
 
-            {/* Footer */}
             <div className="p-6 border-t border-white/5 bg-slate-900/50 flex justify-end gap-3 z-10">
                {viewMode === 'text' && (
                  <button onClick={handleCopy} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${isCopied ? 'bg-green-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}>
@@ -637,6 +642,52 @@ export default function ContentMatrix() {
           </div>
         </div>
       )}
+
+      {/* --- ÚJ: ELŐZMÉNYEK MODAL --- */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
+            
+            <div className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in fade-in zoom-in">
+                <div className="p-5 border-b border-white/5 bg-slate-900 flex justify-between items-center">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                        <History className="w-5 h-5 text-blue-500" /> Előzmények (Smart Matrix)
+                    </h2>
+                    <button onClick={() => setShowHistory(false)} className="p-2 hover:bg-white/10 rounded-full">
+                        <X className="w-5 h-5 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    {loadingHistory ? (
+                        <div className="text-center py-10"><Loader2 className="animate-spin text-blue-500 mx-auto" /></div>
+                    ) : historyItems.length === 0 ? (
+                        <div className="text-center py-10 text-slate-500">Még nincsenek mentett mátrixaid.</div>
+                    ) : (
+                        historyItems.map((item) => (
+                            <div 
+                                key={item.id} 
+                                onClick={() => loadFromHistory(item)}
+                                className="bg-slate-950 border border-white/5 p-4 rounded-xl hover:border-blue-500/40 cursor-pointer transition-all flex justify-between items-center group"
+                            >
+                                <div>
+                                    <div className="font-bold text-white mb-1">{item.brand_name}</div>
+                                    <div className="text-xs text-slate-500 flex items-center gap-2">
+                                        <Calendar className="w-3 h-3" />
+                                        {new Date(item.created_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                                <button className="bg-slate-800 text-xs px-3 py-1.5 rounded-lg text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    Betöltés
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 }
