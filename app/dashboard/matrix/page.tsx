@@ -75,6 +75,9 @@ export default function ContentMatrix() {
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
+
+        console.log("Betöltött márkák:", brands); // <--- EZT FIGYELD A KONZOLBAN!
+        console.log("Hiba:", error);
         
         if (brands) {
             // Itt konvertáljuk a Supabase választ a TypeScript típusunkra, ha kell
