@@ -12,6 +12,7 @@ interface MatrixItem {
   outline: string;
   content: string;
   generatedImageUrl?: string | null;
+  slides?: string[]; // <--- ÚJ MEZŐ: Az AI által generált dia szövegek
 }
 
 export default function ContentMatrix() {
@@ -19,22 +20,17 @@ export default function ContentMatrix() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   
-  // Modal állapotok
   const [selectedPost, setSelectedPost] = useState<MatrixItem | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   
-  // --- VISUAL MODE ---
-  const [viewMode, setViewMode] = useState<'text' | 'visual' | 'image'> ('text');
+  // JAVÍTVA: 'image' hozzáadva
+  const [viewMode, setViewMode] = useState<'text' | 'visual' | 'image'>('text');
+  
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<string[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
-  
-  // --- ÚJ: DIÁNKÉNTI KÉP TÁROLÁS (Tömb) ---
-  // A kulcs az index lesz, az érték a base64 kép string
   const [slideImages, setSlideImages] = useState<(string | null)[]>([]);
-
-  // AI Image állapotok
   const [imageGenerating, setImageGenerating] = useState(false);
 
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
@@ -65,41 +61,39 @@ export default function ContentMatrix() {
     getUserData();
   }, [supabase]);
 
-  // Carousel logika + Képtömb inicializálása
+  // --- JAVÍTOTT CAROUSEL LOGIKA ---
   useEffect(() => {
     if (selectedPost && viewMode === 'visual') {
-      const generatedSlides = [selectedPost.title];
+      let generatedSlides: string[] = [];
+
+      // A) Ha az AI generált konkrét diaszövegeket (EZ AZ ÚJ MÓDSZER)
+      if (selectedPost.slides && selectedPost.slides.length > 0) {
+        generatedSlides = selectedPost.slides;
+      } 
+      // B) Vészmegoldás: Ha régi a generálás és nincs 'slides', akkor a címből indulunk
+      else {
+        generatedSlides = [selectedPost.title, "Részletek a leírásban..."];
+      }
       
-      const sentences = selectedPost.content.split(/(?<=[.!?])\s+/);
-      let chunk = "";
-      sentences.forEach((sentence) => {
-        if ((chunk + sentence).length < 120) {
-          chunk += sentence + " ";
-        } else {
-          generatedSlides.push(chunk);
-          chunk = sentence + " ";
-        }
-      });
-      if (chunk) generatedSlides.push(chunk);
-      generatedSlides.push(`Kövess minket!\n@${formData.brand || 'Márka'}`);
+      // Záró dia hozzáadása, ha még nincs benne
+      const lastSlide = generatedSlides[generatedSlides.length - 1];
+      if (!lastSlide.includes('@')) {
+         generatedSlides.push(`Kövess minket!\n@${formData.brand || 'Márka'}`);
+      }
       
       setSlides(generatedSlides);
       setCurrentSlide(0);
-      
-      // ÚJ: Létrehozunk egy üres tömböt, ami pont akkora, ahány dia van
       setSlideImages(new Array(generatedSlides.length).fill(null));
     }
   }, [selectedPost, viewMode, formData.brand]);
 
-  // --- ÚJ: KÉPFELTÖLTÉS AZ AKTUÁLIS DIÁHOZ ---
+  // Kép feltöltés / törlés / letöltés / generálás maradhat változatlan...
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Lemásoljuk a jelenlegi tömböt
         const newImages = [...slideImages];
-        // Csak az aktuális dia (currentSlide) helyére tesszük be a képet
         newImages[currentSlide] = reader.result as string;
         setSlideImages(newImages);
       };
@@ -107,7 +101,6 @@ export default function ContentMatrix() {
     }
   };
 
-  // --- ÚJ: KÉP TÖRLÉSE AZ AKTUÁLIS DIÁRÓL ---
   const handleRemoveImage = () => {
     const newImages = [...slideImages];
     newImages[currentSlide] = null;
@@ -138,7 +131,6 @@ export default function ContentMatrix() {
     }
   };
 
-  // AI Generálás (DALL-E)
   const handleGenerateImage = async () => {
     if (!selectedPost) return;
     setImageGenerating(true);
@@ -178,6 +170,14 @@ export default function ContentMatrix() {
     }
   };
 
+  const handleCopy = () => {
+    if (selectedPost) {
+      navigator.clipboard.writeText(selectedPost.content || selectedPost.outline);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
   const isPro = userPlan !== 'free';
   const mockDays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
   
@@ -206,14 +206,6 @@ export default function ContentMatrix() {
       alert("Hiba történt a generálás során.");
     } finally {
       setGenerating(false);
-    }
-  };
-
-  const handleCopy = () => {
-    if (selectedPost) {
-      navigator.clipboard.writeText(selectedPost.content || selectedPost.outline);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
     }
   };
 
@@ -331,6 +323,7 @@ export default function ContentMatrix() {
                   <h3 className="text-xl font-bold text-white truncate">{selectedPost.title}</h3>
               </div>
                
+               {/* VIEW SWITCHER */}
                <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
                   <button onClick={() => setViewMode('text')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'text' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
                     <Edit3 className="w-4 h-4" /> Szöveg
@@ -339,7 +332,7 @@ export default function ContentMatrix() {
                     <ImageIcon className="w-4 h-4" /> Poszt Dizájn
                   </button>
                   <button onClick={() => setViewMode('image')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'image' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-                    <ImageIcon className="w-4 h-4" /> AI Illusztráció
+                    <Sparkles className="w-4 h-4" /> AI Illusztráció
                   </button>
                </div>
                
@@ -366,7 +359,7 @@ export default function ContentMatrix() {
                 </div>
               )}
 
-              {/* VISUAL MODE - KÉP SLIDE-ONKÉNT */}
+              {/* VISUAL MODE */}
               {viewMode === 'visual' && (
                 <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
                   
@@ -374,11 +367,9 @@ export default function ContentMatrix() {
                   <div className="mb-6 flex gap-4">
                      <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold flex items-center gap-2 transition-all border border-white/10">
                         <Upload className="w-4 h-4" /> 
-                        {/* Itt jelezzük a usernek, hogy ez az aktuális diára vonatkozik */}
                         Kép feltöltése erre a diára ({currentSlide + 1}.)
                         <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                      </label>
-                     {/* Ha van kép az AKTUÁLIS dián (slideImages[currentSlide]), akkor megjelenik a törlés */}
                      {slideImages[currentSlide] && (
                         <button onClick={handleRemoveImage} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
                            <Trash2 className="w-4 h-4" /> Törlés
@@ -393,7 +384,6 @@ export default function ContentMatrix() {
                       className="w-[400px] h-[500px] flex flex-col p-8 relative overflow-hidden"
                       style={{ 
                         backgroundColor: '#0f172a', 
-                        // JAVÍTÁS: Itt már a tömbből vesszük ki az aktuális dia képét!
                         backgroundImage: slideImages[currentSlide] ? `url(${slideImages[currentSlide]})` : 'none',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
@@ -401,12 +391,10 @@ export default function ContentMatrix() {
                         border: '1px solid rgba(255, 255, 255, 0.1)'
                       }}
                     >
-                      {/* SÖTÉTÍTŐ RÉTEG (csak ha van kép) */}
                       {slideImages[currentSlide] && (
                         <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} />
                       )}
 
-                      {/* ALAPÉRTELMEZETT DÍSZ (ha nincs kép) */}
                       {!slideImages[currentSlide] && (
                         <>
                           <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10" style={{ background: '#1e3a8a' }}/>
