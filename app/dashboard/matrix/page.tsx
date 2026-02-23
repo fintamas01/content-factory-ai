@@ -5,6 +5,7 @@ import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as Imag
  } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -64,6 +65,8 @@ export default function ContentMatrix() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [isPreview, setIsPreview] = useState(false);
+
+  const [useResearch, setUseResearch] = useState(false);
   
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -376,7 +379,10 @@ export default function ContentMatrix() {
       const res = await fetch('/api/matrix/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          useResearch // ÚJ: Küldjük a kutatás flag-et
+        }),
       });
       const data = await res.json();
       setMatrixData(data.days || []);
@@ -481,6 +487,26 @@ export default function ContentMatrix() {
               <ChevronRight className="w-4 h-4 text-slate-500 rotate-90" />
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+          <div className="flex items-center gap-3">
+             <Globe className={`w-5 h-5 ${useResearch ? 'text-blue-400 animate-pulse' : 'text-slate-500'}`} />
+             <div>
+               <p className="text-xs font-bold uppercase tracking-widest text-white">Deep Research Üzemmód</p>
+               <p className="text-[10px] text-slate-400">Aktuális trendek és adatok keresése a weben a heti tervhez.</p>
+             </div>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setUseResearch(!useResearch)}
+            className={`w-12 h-6 rounded-full relative transition-colors ${useResearch ? 'bg-blue-600' : 'bg-slate-700'}`}
+          >
+            <motion.div 
+              animate={{ x: useResearch ? 26 : 2 }}
+              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-lg"
+            />
+          </button>
         </div>
 
         <button 
