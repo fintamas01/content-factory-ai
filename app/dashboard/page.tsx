@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2
+  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('hu');
-  const [useResearch, setUseResearch] = useState(false); // ÚJ: Deep Research állapot
+  const [useResearch, setUseResearch] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [isPro, setIsPro] = useState(false);
@@ -115,7 +115,7 @@ export default function DashboardPage() {
           content: input, 
           tone, 
           lang, 
-          useResearch, // ÚJ: Küldjük a kutatás igényét
+          useResearch,
           templatePrompt: selectedTemplate.prompt, 
           platforms: selectedPlatforms,
           brandProfile: {
@@ -175,7 +175,6 @@ export default function DashboardPage() {
           <p className="text-slate-500 font-medium">Hozd létre a következő kampányodat másodpercek alatt.</p>
         </div>
         
-        {/* ÚJ: DEEP RESEARCH TOGGLE A HEADERBEN */}
         <button 
           onClick={() => setUseResearch(!useResearch)}
           className={`flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all ${useResearch ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-white/5 border-white/10 text-slate-500'}`}
@@ -314,8 +313,8 @@ export default function DashboardPage() {
             <ResultCard 
               key={key} 
               title={key.replace(/_/g, ' ')} 
-              content={typeof data === 'object' ? data.text : data} 
-              imagePrompt={data.image_prompt} // ÚJ: Kép prompt átadása
+              data={data}
+              brandName={selectedBrand?.brand_name}
               lang={lang}
             />
           ))}
@@ -325,12 +324,17 @@ export default function DashboardPage() {
   );
 }
 
-function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) {
-  const [content, setContent] = useState(initialContent);
+function ResultCard({ title, data, brandName, lang }: any) {
+  const [content, setContent] = useState(data.text || data);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loadingImage, setLoadingImage] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showImagePrompt, setShowImagePrompt] = useState(false); // ÚJ: Kép prompt nézet kapcsoló
+  const [showImagePrompt, setShowImagePrompt] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const initialContent = data.text || data;
 
   const handleMagicEdit = async (action: string) => {
     setLoading(true);
@@ -341,13 +345,37 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: content, action: finalAction, lang }),
       });
-      const data = await res.json();
-      if (data.updatedText) {
-        setContent(data.updatedText);
+      const resData = await res.json();
+      if (resData.updatedText) {
+        setContent(resData.updatedText);
         setCustomPrompt('');
       }
     } catch (e) { console.error(e); }
     setLoading(false);
+  };
+
+  const handleGenerateImage = async () => {
+    setLoadingImage(true);
+    try {
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: data.image_prompt || content, 
+          platform: title, 
+          brandName: brandName 
+        }),
+      });
+      const resData = await res.json();
+      if (resData.imageUrl) setImageUrl(resData.imageUrl);
+    } catch (e) { console.error(e); }
+    setLoadingImage(false);
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (
@@ -367,8 +395,8 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
              <button onClick={() => setContent(initialContent)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-orange-500" title="Visszaállítás">
                <HistoryIcon className="w-4 h-4" />
              </button>
-             <button onClick={() => navigator.clipboard.writeText(content)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-blue-500">
-               <Copy className="w-4 h-4" />
+             <button onClick={handleCopy} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-blue-500">
+               {isCopied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
              </button>
           </div>
         </div>
@@ -379,15 +407,15 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
             <button key={btn.id} onClick={() => handleMagicEdit(btn.id)} disabled={loading} className="text-[9px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-white/5 text-slate-500 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50">{btn.l}</button>
           ))}
           
-          {/* ÚJ: KÉP PROMPT GOMB */}
-          {imagePrompt && (
-            <button 
-              onClick={() => setShowImagePrompt(!showImagePrompt)}
-              className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg transition-all border ${showImagePrompt ? 'bg-purple-600 border-purple-400 text-white' : 'bg-purple-600/10 border-purple-500/20 text-purple-400 hover:bg-purple-600 hover:text-white'}`}
-            >
-              <ImageIcon className="w-3 h-3 inline mr-1" /> Vizuális Terv
-            </button>
-          )}
+          {/* FOTÓ GENERÁLÁSA GOMB */}
+          <button 
+            onClick={handleGenerateImage} 
+            disabled={loadingImage} 
+            className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 ${imageUrl ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'} disabled:opacity-50`}
+          >
+            {loadingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
+            {imageUrl ? 'Újragenerálás' : 'Fotó Generálása'}
+          </button>
         </div>
 
         <div className="flex gap-2 mb-6">
@@ -395,25 +423,43 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
           <button onClick={() => handleMagicEdit('custom')} disabled={!customPrompt || loading} className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors"><Send className="w-4 h-4" /></button>
         </div>
 
-        <div className="flex-grow">
+        <div className="flex-grow space-y-6">
           {loading ? (
             <div className="space-y-2 animate-pulse"><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div></div>
-          ) : showImagePrompt ? (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-5 bg-purple-600/5 border border-purple-500/20 rounded-2xl">
-                <span className="text-[9px] font-black text-purple-500 uppercase block mb-2">AI Image Concept:</span>
-                <p className="text-purple-200/70 text-xs italic leading-relaxed">{imagePrompt}</p>
-                <button className="mt-4 w-full py-2 bg-purple-600 text-white text-[10px] font-black uppercase rounded-lg opacity-50 cursor-not-allowed">✨ Kép Generálása (Hamarosan)</button>
-            </motion.div>
           ) : (
-            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
+            <>
+              <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
+              
+              {/* GENERÁLT KÉP MEGJELENÍTÉSE */}
+              <AnimatePresence>
+                {imageUrl && (
+                  <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="relative group/img rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-black/20">
+                    <img src={imageUrl} alt="AI Generated" className="w-full h-auto object-cover max-h-80" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                      <a href={imageUrl} target="_blank" rel="noopener noreferrer" className="p-3 bg-white text-black rounded-full hover:scale-110 transition-transform shadow-xl">
+                        <Download className="w-5 h-5" />
+                      </a>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              {/* VIZUÁLIS TERV (Ha van prompt, de még nincs kép) */}
+              {!imageUrl && data.image_prompt && (
+                <div className="p-4 bg-purple-600/5 border border-purple-500/10 rounded-2xl">
+                    <span className="text-[9px] font-black text-purple-500 uppercase block mb-1">Visual Concept:</span>
+                    <p className="text-[11px] text-slate-400 italic">"{data.image_prompt}"</p>
+                </div>
+              )}
+            </>
           )}
         </div>
         
-        {/* ÚJ: ÜTEMEZÉS ELŐKÉSZÍTÉSE (SCHEDULER PLACEHOLDER) */}
+        {/* ÜTEMEZÉS ELŐKÉSZÍTÉSE */}
         <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[9px] font-black text-slate-500 uppercase">Ready to post</span>
+                <div className={`w-2 h-2 rounded-full ${imageUrl ? 'bg-green-500 animate-pulse' : 'bg-orange-500'}`} />
+                <span className="text-[9px] font-black text-slate-500 uppercase">{imageUrl ? 'Ready to post' : 'Needs Image'}</span>
              </div>
              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-lg shadow-blue-900/20">
                 🚀 Ütemezés
@@ -425,32 +471,18 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }}
-              onClick={() => setShowModal(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-xl"
-            />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="absolute inset-0 bg-black/90 backdrop-blur-xl" />
             
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative z-10 w-full max-w-sm"
-            >
-              {/* TELEFON KERET (Mockup) */}
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative z-10 w-full max-w-sm">
               <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[14px] rounded-[2.5rem] h-[600px] w-[300px] shadow-xl overflow-hidden">
                 <div className="w-[148px] h-[18px] bg-gray-800 top-0 left-1/2 -translate-x-1/2 absolute rounded-b-[1rem] z-20"></div>
-                <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[124px] rounded-l-lg"></div>
-                <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[17px] top-[178px] rounded-l-lg"></div>
-                <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[17px] top-[142px] rounded-r-lg"></div>
                 
-                {/* TELEFON KIJELZŐ TARTALMA */}
                 <div className="h-full w-full bg-white dark:bg-[#1c1f26] overflow-y-auto pt-8">
                   <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 p-[2px]">
-                      <div className="w-full h-full rounded-full bg-white dark:bg-black" />
+                      <div className="w-full h-full rounded-full bg-white dark:bg-black flex items-center justify-center text-[10px] font-bold text-slate-500">
+                         {brandName?.charAt(0) || 'CF'}
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <div className="h-3 w-24 bg-slate-200 dark:bg-white/10 rounded-full" />
@@ -458,8 +490,12 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
                     </div>
                   </div>
                   
-                  {/* Ha van kép prompt, itt egy placeholder képnek */}
-                  {imagePrompt && (
+                  {/* HA VAN KÉP, ITT MUTATJUK */}
+                  {imageUrl ? (
+                    <div className="w-full aspect-square overflow-hidden bg-slate-900">
+                       <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  ) : data.image_prompt && (
                     <div className="w-full aspect-square bg-slate-800 flex items-center justify-center relative overflow-hidden">
                         <div className="absolute inset-0 opacity-20 bg-gradient-to-br from-blue-500 to-purple-600" />
                         <ImageIcon className="w-12 h-12 text-white/20" />
@@ -468,12 +504,11 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
                   )}
 
                   <div className="p-6">
-                    <p className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-medium animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <p className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-medium">
                       {content}
                     </p>
                   </div>
                   
-                  {/* Alsó interakciós sáv imitáció */}
                   <div className="mt-4 px-6 flex justify-between opacity-30 pb-10">
                     <div className="h-4 w-4 rounded bg-slate-400" />
                     <div className="h-4 w-4 rounded bg-slate-400" />
@@ -482,11 +517,7 @@ function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) 
                 </div>
               </div>
               
-              {/* BEZÁRÁS GOMB A MODAL ALATT */}
-              <button 
-                onClick={() => setShowModal(false)}
-                className="mt-8 mx-auto block px-6 py-2 bg-white/10 text-white rounded-full text-sm font-bold hover:bg-white/20 transition-all border border-white/10"
-              >
+              <button onClick={() => setShowModal(false)} className="mt-8 mx-auto block px-6 py-2 bg-white/10 text-white rounded-full text-sm font-bold hover:bg-white/20 transition-all border border-white/10">
                 Bezárás
               </button>
             </motion.div>
