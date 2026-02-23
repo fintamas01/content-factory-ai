@@ -9,7 +9,7 @@ export async function POST(req: Request) {
 
     const enhancedPrompt = `A professional, high-quality social media ${platform} image for a brand named ${brandName}. 
     Visual concept: ${prompt}. 
-    Style: modern, clean, high resolution, no text in the image, photorealistic.`;
+    Style: PHOTOREALISTIC, modern, clean, high resolution, no text in the image, photorealistic.`;
 
     const response = await openai.images.generate({
       model: "dall-e-3",
