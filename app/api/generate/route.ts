@@ -9,13 +9,27 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// --- SEGÉDFÜGGVÉNY A KERESÉSHEZ (Deep Research) ---
-// Ide majd beillesztheted a Tavily vagy Serper API kulcsodat
+// --- VALÓDI DEEP RESEARCH FUNKCIÓ ---
 async function performDeepResearch(query: string) {
-  // Ez egy placeholder - ha nincs API-d, a GPT-nek adjuk át a feladatot, 
-  // de ideális esetben itt egy külső keresőt hívunk meg.
-  console.log("Keresés folyamatban:", query);
-  return ""; // Visszatér a talált extra információkkal
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: process.env.TAVILY_API_KEY,
+        query: query,
+        search_depth: "advanced",
+        max_results: 5
+      })
+    });
+    
+    const data = await response.json();
+    // Összefűzzük a találatokat egy szöveggé a GPT-nek
+    return data.results.map((r: any) => `Cím: ${r.title}\nForrás: ${r.url}\nTartalom: ${r.content}`).join("\n\n");
+  } catch (error) {
+    console.error("Keresési hiba:", error);
+    return "Nem sikerült friss adatokat találni.";
+  }
 }
 
 export async function POST(req: Request) {
