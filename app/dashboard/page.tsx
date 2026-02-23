@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X
+  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X,
+  Wand2, Smile, Briefcase
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -329,7 +330,6 @@ function ResultCard({ title, data, brandName, lang }: any) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showImagePrompt, setShowImagePrompt] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -378,54 +378,97 @@ function ResultCard({ title, data, brandName, lang }: any) {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  const editButtons = [
+    { id: 'shorten', label: 'Rövidebb', icon: <Wand2 className="w-4 h-4" /> },
+    { id: 'emoji', label: 'Emojik', icon: <Smile className="w-4 h-4" /> },
+    { id: 'professional', label: 'Profi', icon: <Briefcase className="w-4 h-4" /> },
+  ];
+
   return (
     <>
       <div className="relative h-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-white/10 rounded-[40px] p-8 transition-all hover:border-blue-500/50 flex flex-col group shadow-sm">
+        
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-black tracking-[0.3em] text-blue-600 uppercase">{title}</span>
             <button 
               onClick={() => setShowModal(true)}
-              className="text-[9px] font-black uppercase px-3 py-1 bg-blue-600/10 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20"
+              className="text-[9px] font-black uppercase px-3 py-1 bg-blue-600/10 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20 flex items-center gap-1"
             >
               📱 Live Preview
             </button>
           </div>
-          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-             <button onClick={() => setContent(initialContent)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-orange-500" title="Visszaállítás">
-               <HistoryIcon className="w-4 h-4" />
+          <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+             <button onClick={() => setContent(initialContent)} className="p-2.5 bg-slate-100 dark:bg-white/5 rounded-xl hover:text-orange-500 transition-colors" title="Visszaállítás">
+               <HistoryIcon className="w-5 h-5" />
              </button>
-             <button onClick={handleCopy} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg hover:text-blue-500">
-               {isCopied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+             <button onClick={handleCopy} className="p-2.5 bg-slate-100 dark:bg-white/5 rounded-xl hover:text-blue-500 transition-colors">
+               {isCopied ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
              </button>
           </div>
         </div>
 
-        {/* SZERKESZTŐ INTERFÉSZ */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[{id:'shorten', l:'✂️ Rövidebb'}, {id:'emoji', l:'✨ Emojik'}, {id:'professional', l:'💼 Profi'}].map(btn => (
-            <button key={btn.id} onClick={() => handleMagicEdit(btn.id)} disabled={loading} className="text-[9px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-white/5 text-slate-500 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50">{btn.l}</button>
+        {/* SZERKESZTŐ GOMBOK - GRID ELRENDEZÉS */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {editButtons.map(btn => (
+            <motion.button 
+              key={btn.id} 
+              onClick={() => handleMagicEdit(btn.id)} 
+              disabled={loading}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-xs transition-all disabled:opacity-50 hover:bg-blue-600/10 hover:text-blue-600 hover:border-blue-600/30 border border-transparent"
+            >
+              {btn.icon} {btn.label}
+            </motion.button>
           ))}
           
-          {/* FOTÓ GENERÁLÁSA GOMB */}
-          <button 
+          {/* KÉP GENERÁLÁSA GOMB - KIEMELT */}
+          <motion.button 
             onClick={handleGenerateImage} 
-            disabled={loadingImage} 
-            className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 ${imageUrl ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'} disabled:opacity-50`}
+            disabled={loadingImage}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className={`col-span-2 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-lg ${
+              imageUrl 
+                ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700 shadow-orange-500/20' 
+                : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-green-500/20'
+            } disabled:opacity-50`}
           >
-            {loadingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
-            {imageUrl ? 'Újragenerálás' : 'Fotó Generálása'}
-          </button>
+            {loadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+            {imageUrl ? 'Új Vizuál Generálása' : 'Fotó Generálása'}
+          </motion.button>
         </div>
 
-        <div className="flex gap-2 mb-6">
-          <input type="text" value={customPrompt} onChange={(e)=>setCustomPrompt(e.target.value)} placeholder="Saját kérés..." className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-2 text-[11px] outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white" />
-          <button onClick={() => handleMagicEdit('custom')} disabled={!customPrompt || loading} className="p-2 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors"><Send className="w-4 h-4" /></button>
+        {/* SAJÁT KÉRÉS INPUT */}
+        <div className="flex gap-3 mb-6">
+          <input 
+            type="text" 
+            value={customPrompt} 
+            onChange={(e)=>setCustomPrompt(e.target.value)} 
+            placeholder="✨ Saját kérés (pl. 'legyen viccesebb')..." 
+            className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/10 rounded-xl px-4 py-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-800 dark:text-white placeholder-slate-400" 
+          />
+          <motion.button 
+            onClick={() => handleMagicEdit('custom')} 
+            disabled={!customPrompt || loading}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-3 bg-blue-600 text-white rounded-xl disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-md"
+          >
+            <Send className="w-5 h-5" />
+          </motion.button>
         </div>
 
+        {/* TARTALOM ÉS KÉP */}
         <div className="flex-grow space-y-6">
           {loading ? (
-            <div className="space-y-2 animate-pulse"><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div></div>
+            <div className="space-y-3 animate-pulse">
+              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded-lg w-full"></div>
+              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded-lg w-5/6"></div>
+              <div className="h-4 bg-slate-200 dark:bg-white/5 rounded-lg w-4/6"></div>
+            </div>
           ) : (
             <>
               <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
@@ -433,11 +476,11 @@ function ResultCard({ title, data, brandName, lang }: any) {
               {/* GENERÁLT KÉP MEGJELENÍTÉSE */}
               <AnimatePresence>
                 {imageUrl && (
-                  <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="relative group/img rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-black/20">
-                    <img src={imageUrl} alt="AI Generated" className="w-full h-auto object-cover max-h-80" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                      <a href={imageUrl} target="_blank" rel="noopener noreferrer" className="p-3 bg-white text-black rounded-full hover:scale-110 transition-transform shadow-xl">
-                        <Download className="w-5 h-5" />
+                  <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="relative group/img rounded-3xl overflow-hidden border border-white/10 shadow-2xl shadow-blue-900/10 bg-black/20">
+                    <img src={imageUrl} alt="AI Generated" className="w-full h-auto object-cover max-h-96" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-sm">
+                      <a href={imageUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-full hover:scale-105 transition-transform shadow-xl font-bold text-xs">
+                        <Download className="w-4 h-4" /> Letöltés
                       </a>
                     </div>
                   </motion.div>
@@ -446,28 +489,36 @@ function ResultCard({ title, data, brandName, lang }: any) {
               
               {/* VIZUÁLIS TERV (Ha van prompt, de még nincs kép) */}
               {!imageUrl && data.image_prompt && (
-                <div className="p-4 bg-purple-600/5 border border-purple-500/10 rounded-2xl">
-                    <span className="text-[9px] font-black text-purple-500 uppercase block mb-1">Visual Concept:</span>
-                    <p className="text-[11px] text-slate-400 italic">"{data.image_prompt}"</p>
+                <div className="p-5 bg-purple-600/5 border border-purple-500/10 rounded-2xl flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-black text-purple-500 uppercase block mb-1">AI Visual Concept:</span>
+                      <p className="text-xs text-slate-400 italic leading-relaxed">"{data.image_prompt}"</p>
+                    </div>
                 </div>
               )}
             </>
           )}
         </div>
         
-        {/* ÜTEMEZÉS ELŐKÉSZÍTÉSE */}
-        <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
-             <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${imageUrl ? 'bg-green-500 animate-pulse' : 'bg-orange-500'}`} />
-                <span className="text-[9px] font-black text-slate-500 uppercase">{imageUrl ? 'Ready to post' : 'Needs Image'}</span>
+        {/* ÜTEMEZÉS FOOTER */}
+        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-white/5 flex justify-between items-center">
+             <div className="flex items-center gap-2.5">
+                <div className={`w-2.5 h-2.5 rounded-full ${imageUrl ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-orange-500'}`} />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{imageUrl ? 'Ready to schedule' : 'Waiting for visuals'}</span>
              </div>
-             <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-lg shadow-blue-900/20">
+             <motion.button 
+               whileHover={{ scale: 1.02 }}
+               whileTap={{ scale: 0.98 }}
+               className={`flex items-center gap-2 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all shadow-lg ${imageUrl ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'}`}
+               disabled={!imageUrl}
+             >
                 🚀 Ütemezés
-             </button>
+             </motion.button>
         </div>
       </div>
 
-      {/* LIVE PREVIEW MODAL */}
+      {/* LIVE PREVIEW MODAL (Változatlan) */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
