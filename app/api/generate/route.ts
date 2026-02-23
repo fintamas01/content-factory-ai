@@ -9,10 +9,18 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// --- SEGÉDFÜGGVÉNY A KERESÉSHEZ (Deep Research) ---
+// Ide majd beillesztheted a Tavily vagy Serper API kulcsodat
+async function performDeepResearch(query: string) {
+  // Ez egy placeholder - ha nincs API-d, a GPT-nek adjuk át a feladatot, 
+  // de ideális esetben itt egy külső keresőt hívunk meg.
+  console.log("Keresés folyamatban:", query);
+  return ""; // Visszatér a talált extra információkkal
+}
+
 export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
-
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!,
@@ -27,48 +35,84 @@ export async function POST(req: Request) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Admin ellenőrzés
-    if (!user || user.email !== ADMIN_EMAIL) { // 
+    if (!user || user.email !== ADMIN_EMAIL) {
       return NextResponse.json(
         { error: "Zárt tesztfázis: Csak az adminisztrátor használhatja a rendszert." }, 
         { status: 403 }
       );
     }
 
-    const { content, tone, lang, templatePrompt, platforms, brandProfile } = await req.json();
+    // Új paraméter: useResearch (ezt majd a UI-ról küldjük)
+    const { content, tone, lang, platforms, brandProfile, useResearch } = await req.json();
 
     if (!platforms || platforms.length === 0) {
        return NextResponse.json({ error: "Válassz legalább egy platformot!" }, { status: 400 });
+    }
+
+    // 1. LÉPÉS: DEEP RESEARCH (Ha be van kapcsolva)
+    let extraContext = "";
+    if (useResearch) {
+        // Itt hívnánk meg egy valós keresőt
+        // extraContext = await performDeepResearch(content);
     }
 
     const langMap: { [key: string]: string } = {
         en: 'English', hu: 'Hungarian', de: 'German',
         fr: 'French', es: 'Spanish', it: 'Italian'
     };
+    const targetLang = langMap[lang] || 'Hungarian';
 
-    const targetLang = langMap[lang] || 'English';
+    // 2. LÉPÉS: DINAMIKUS PROMPT ÖSSZEÁLLÍTÁSA
+    // Platform-specifikus instrukciókat adunk hozzá
+    const platformInstructions = platforms.map((p: string) => {
+        if (p === 'LinkedIn') return "- LinkedIn: Szakmai, tekintélyépítő, tartalmazzon bullet pointokat és releváns hashtageket.";
+        if (p === 'Instagram') return "- Instagram: Figyelemfelkeltő 'hook' az elején, emojik, és vizuális leírás (Image Prompt) a képhez.";
+        if (p === 'X (Twitter)') return "- X: Rövid, ütős, max 280 karakter, thread-szerű felépítés ha szükséges.";
+        return `- ${p}: Alkalmazkodj a platform sajátosságaihoz.`;
+    }).join('\n');
 
-    const prompt = `Te egy világszínvonalú marketing stratéga vagy. 
+    const systemPrompt = `Te egy világszínvonalú marketing stratéga és copywriter vagy.
     KIZÁRÓLAG A KÖVETKEZŐ MÁRKASTÍLUSBAN DOLGOZZ:
     - Márka: ${brandProfile.name}
     - Leírás: ${brandProfile.desc}
     - Célközönség: ${brandProfile.audience} 
-    FELADAT:
-    Készíts ${tone} stílusú tartalmat szigorúan ${targetLang} nyelven.
-    Platformok: ${platforms.join(', ')}.
-    Forrás: ${content}
-    Válaszformátum: JSON objektum a megadott platformokkal kulcsként.`;
 
+    STÍLUS: ${tone}
+    NYELV: ${targetLang}
+
+    FELADAT:
+    A megadott forrás tartalom alapján készíts posztokat.
+    ${extraContext ? `KIEGÉSZÍTŐ INFÓK A WEBRŐL: ${extraContext}` : ''}
+
+    PLATFORM SPECIFIKUS ELVÁRÁSOK:
+    ${platformInstructions}
+
+    VÁLASZFORMÁTUM:
+    JSON objektum, ahol a kulcsok a platformok nevei. 
+    Minden platformhoz tartozzon egy 'text' (a poszt szövege) és egy 'image_prompt' (leírás egy AI képgenerátornak).`;
+
+    // 3. LÉPÉS: GENERÁLÁS (gpt-4o a jobb minőségért, ha kutatunk)
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
+      model: useResearch ? "gpt-4o" : "gpt-4o-mini",
+      messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Forrás tartalom: ${content}` }
+      ],
       response_format: { type: "json_object" },
+      temperature: 0.7,
     });
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
 
+    // Mentés az adatbázisba
     await supabase.from('generations').insert([
-      { original_content: content, tone, results: result, user_id: user.id }
+      { 
+        original_content: content, 
+        tone, 
+        results: result, 
+        user_id: user.id,
+        metadata: { research: useResearch, model: useResearch ? "gpt-4o" : "gpt-4o-mini" }
+      }
     ]);
 
     return NextResponse.json(result);

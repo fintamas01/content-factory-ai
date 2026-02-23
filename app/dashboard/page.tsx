@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send 
+  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,11 +30,11 @@ const templates = [
 ];
 
 const allPlatforms = [
-  { id: 'linkedin', label: 'LinkedIn' },
-  { id: 'instagram', label: 'Instagram' },
-  { id: 'x_twitter', label: 'X (Twitter)' },
-  { id: 'newsletter', label: 'Newsletter' },
-  { id: 'tiktok_script', label: 'TikTok Script' },
+  { id: 'LinkedIn', label: 'LinkedIn' },
+  { id: 'Instagram', label: 'Instagram' },
+  { id: 'X (Twitter)', label: 'X (Twitter)' },
+  { id: 'Newsletter', label: 'Newsletter' },
+  { id: 'TikTok Script', label: 'TikTok Script' },
 ];
 
 export default function DashboardPage() {
@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('hu');
+  const [useResearch, setUseResearch] = useState(false); // ÚJ: Deep Research állapot
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [isPro, setIsPro] = useState(false);
@@ -52,11 +53,7 @@ export default function DashboardPage() {
   const [genCount, setGenCount] = useState(0);
   const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [brandProfile, setBrandProfile] = useState({
-    name: '',
-    desc: '',
-    audience: ''
-  });
+  
   const [brands, setBrands] = useState<any[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
 
@@ -71,7 +68,6 @@ export default function DashboardPage() {
         
       if (data) {
         setBrands(data);
-        // Ha még nincs kiválasztva semmi, legyen az első az alapértelmezett
         if (!selectedBrand && data.length > 0) setSelectedBrand(data[0]);
       }
     };
@@ -107,7 +103,7 @@ export default function DashboardPage() {
 
   const generateAll = async () => {
     if (!input || selectedPlatforms.length === 0 || !selectedBrand) {
-      alert("Valassz ki egy markat is");
+      alert("Kérlek adj meg forrást, válassz platformot és márkaprofilt!");
       return;
     }
     setLoading(true);
@@ -119,6 +115,7 @@ export default function DashboardPage() {
           content: input, 
           tone, 
           lang, 
+          useResearch, // ÚJ: Küldjük a kutatás igényét
           templatePrompt: selectedTemplate.prompt, 
           platforms: selectedPlatforms,
           brandProfile: {
@@ -148,10 +145,8 @@ export default function DashboardPage() {
     }
   };
 
-  // 1. Lépés: Hydration védelem
   if (!mounted) return null;
 
-  // 2. Lépés: User adat betöltésének ellenőrzése
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -160,7 +155,6 @@ export default function DashboardPage() {
     );
   }
 
-  // 3. Lépés: Biztonságos admin ellenőrzés
   if (user.email !== adminEmail) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white/5 backdrop-blur-3xl rounded-[40px] border border-white/10 m-8">
@@ -173,12 +167,25 @@ export default function DashboardPage() {
     );
   }
 
-  // 4. Lépés: A tényleges tartalom renderelése
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
-      <header>
-        <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">Neural <span className="text-blue-600">Workspace</span></h1>
-        <p className="text-slate-500 font-medium">Hozd létre a következő kampányodat másodpercek alatt.</p>
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">Neural <span className="text-blue-600">Workspace</span></h1>
+          <p className="text-slate-500 font-medium">Hozd létre a következő kampányodat másodpercek alatt.</p>
+        </div>
+        
+        {/* ÚJ: DEEP RESEARCH TOGGLE A HEADERBEN */}
+        <button 
+          onClick={() => setUseResearch(!useResearch)}
+          className={`flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all ${useResearch ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-white/5 border-white/10 text-slate-500'}`}
+        >
+          <Search className={`w-4 h-4 ${useResearch ? 'animate-pulse' : ''}`} />
+          <span className="text-xs font-black uppercase tracking-widest">Deep Research {useResearch ? 'ON' : 'OFF'}</span>
+          <div className={`w-8 h-4 rounded-full relative transition-colors ${useResearch ? 'bg-blue-500' : 'bg-slate-700'}`}>
+            <motion.div animate={{ x: useResearch ? 16 : 2 }} className="absolute top-1 w-2 h-2 bg-white rounded-full" />
+          </div>
+        </button>
       </header>
 
       {/* Input Section */}
@@ -187,13 +194,20 @@ export default function DashboardPage() {
            <div className="flex items-center gap-3 text-slate-500 uppercase text-[10px] font-black tracking-widest">
               <Type className="w-5 h-5" /> Content Source
            </div>
-           <select
-              value={lang}
-              onChange={(e) => setLang(e.target.value)}
-              className="bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-[10px] font-black uppercase px-4 py-2 rounded-xl outline-none"
-            >
-              {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
-            </select>
+           <div className="flex items-center gap-4">
+             {useResearch && (
+               <span className="flex items-center gap-2 text-[9px] font-black text-blue-500 uppercase animate-pulse">
+                 <Globe className="w-3 h-3" /> Web search enabled
+               </span>
+             )}
+             <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value)}
+                className="bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-[10px] font-black uppercase px-4 py-2 rounded-xl outline-none"
+              >
+                {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+              </select>
+           </div>
         </div>
 
         <div className="relative">
@@ -207,7 +221,7 @@ export default function DashboardPage() {
           )}
           <textarea 
             className="w-full bg-slate-100 dark:bg-black/40 border border-slate-300 dark:border-white/5 rounded-3xl p-8 text-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all min-h-[220px]"
-            placeholder="Illessz be egy linket vagy írj le egy ötletet..."
+            placeholder={useResearch ? "Adj meg egy témát vagy linket, amit az AI alaposan körbejár a weben..." : "Illessz be egy linket vagy írj le egy ötletet..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
@@ -286,7 +300,7 @@ export default function DashboardPage() {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[250%] h-[250%] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,#3b82f6_360deg)] animate-spin" />
               </div>
               <div className="relative z-10 bg-[#020617] py-5 rounded-2xl flex items-center justify-center gap-4 text-white font-black text-lg group-hover:bg-blue-600/10 transition-colors">
-                {loading ? <span className="tracking-[0.2em] animate-pulse text-sm uppercase">Neural Processing...</span> : <span>KAMPÁNY GENERÁLÁSA <Zap className="w-5 h-5 text-blue-500" /></span>}
+                {loading ? <span className="tracking-[0.2em] animate-pulse text-sm uppercase">{useResearch ? 'Deep Analyzing...' : 'Neural Processing...'}</span> : <span>KAMPÁNY GENERÁLÁSA <Zap className="w-5 h-5 text-blue-500" /></span>}
               </div>
             </motion.button>
           </div>
@@ -295,12 +309,13 @@ export default function DashboardPage() {
 
       {/* Results Section */}
       {results && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {Object.entries(results).map(([key, data]: any) => (
             <ResultCard 
               key={key} 
               title={key.replace(/_/g, ' ')} 
-              content={typeof data === 'object' ? data.content : data} 
+              content={typeof data === 'object' ? data.text : data} 
+              imagePrompt={data.image_prompt} // ÚJ: Kép prompt átadása
               lang={lang}
             />
           ))}
@@ -310,9 +325,10 @@ export default function DashboardPage() {
   );
 }
 
-function ResultCard({ title, content: initialContent, lang }: any) {
+function ResultCard({ title, content: initialContent, imagePrompt, lang }: any) {
   const [content, setContent] = useState(initialContent);
-  const [showModal, setShowModal] = useState(false); // Modal állapota
+  const [showModal, setShowModal] = useState(false);
+  const [showImagePrompt, setShowImagePrompt] = useState(false); // ÚJ: Kép prompt nézet kapcsoló
   const [customPrompt, setCustomPrompt] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -362,6 +378,16 @@ function ResultCard({ title, content: initialContent, lang }: any) {
           {[{id:'shorten', l:'✂️ Rövidebb'}, {id:'emoji', l:'✨ Emojik'}, {id:'professional', l:'💼 Profi'}].map(btn => (
             <button key={btn.id} onClick={() => handleMagicEdit(btn.id)} disabled={loading} className="text-[9px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-white/5 text-slate-500 rounded-lg hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50">{btn.l}</button>
           ))}
+          
+          {/* ÚJ: KÉP PROMPT GOMB */}
+          {imagePrompt && (
+            <button 
+              onClick={() => setShowImagePrompt(!showImagePrompt)}
+              className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg transition-all border ${showImagePrompt ? 'bg-purple-600 border-purple-400 text-white' : 'bg-purple-600/10 border-purple-500/20 text-purple-400 hover:bg-purple-600 hover:text-white'}`}
+            >
+              <ImageIcon className="w-3 h-3 inline mr-1" /> Vizuális Terv
+            </button>
+          )}
         </div>
 
         <div className="flex gap-2 mb-6">
@@ -372,9 +398,26 @@ function ResultCard({ title, content: initialContent, lang }: any) {
         <div className="flex-grow">
           {loading ? (
             <div className="space-y-2 animate-pulse"><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-full"></div><div className="h-4 bg-slate-200 dark:bg-white/5 rounded w-5/6"></div></div>
+          ) : showImagePrompt ? (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-5 bg-purple-600/5 border border-purple-500/20 rounded-2xl">
+                <span className="text-[9px] font-black text-purple-500 uppercase block mb-2">AI Image Concept:</span>
+                <p className="text-purple-200/70 text-xs italic leading-relaxed">{imagePrompt}</p>
+                <button className="mt-4 w-full py-2 bg-purple-600 text-white text-[10px] font-black uppercase rounded-lg opacity-50 cursor-not-allowed">✨ Kép Generálása (Hamarosan)</button>
+            </motion.div>
           ) : (
             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium whitespace-pre-wrap">{content}</p>
           )}
+        </div>
+        
+        {/* ÚJ: ÜTEMEZÉS ELŐKÉSZÍTÉSE (SCHEDULER PLACEHOLDER) */}
+        <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
+             <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[9px] font-black text-slate-500 uppercase">Ready to post</span>
+             </div>
+             <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-lg shadow-blue-900/20">
+                🚀 Ütemezés
+             </button>
         </div>
       </div>
 
@@ -415,6 +458,15 @@ function ResultCard({ title, content: initialContent, lang }: any) {
                     </div>
                   </div>
                   
+                  {/* Ha van kép prompt, itt egy placeholder képnek */}
+                  {imagePrompt && (
+                    <div className="w-full aspect-square bg-slate-800 flex items-center justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-20 bg-gradient-to-br from-blue-500 to-purple-600" />
+                        <ImageIcon className="w-12 h-12 text-white/20" />
+                        <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 rounded text-[8px] text-white/70 font-bold uppercase tracking-widest">AI Visualization</div>
+                    </div>
+                  )}
+
                   <div className="p-6">
                     <p className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-medium animate-in fade-in slide-in-from-bottom-4 duration-700">
                       {content}
@@ -422,7 +474,7 @@ function ResultCard({ title, content: initialContent, lang }: any) {
                   </div>
                   
                   {/* Alsó interakciós sáv imitáció */}
-                  <div className="mt-4 px-6 flex justify-between opacity-30">
+                  <div className="mt-4 px-6 flex justify-between opacity-30 pb-10">
                     <div className="h-4 w-4 rounded bg-slate-400" />
                     <div className="h-4 w-4 rounded bg-slate-400" />
                     <div className="h-4 w-4 rounded bg-slate-400" />

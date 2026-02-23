@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import OpenAI from 'openai';
-import { PLAN_LIMITS } from '@/app/lib/plan-limits';
+import { PLAN_LIMITS } from '@/lib/plan-limits';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
