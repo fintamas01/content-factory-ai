@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X,
-  Wand2, Smile, Briefcase, Eye, Layout, Edit3
+  Wand2, Smile, Briefcase, Eye, Layout, Edit3, Target
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -343,6 +343,8 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   const [isScheduling, setIsScheduling] = useState(false);
   const [showScheduler, setShowScheduler] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentResult, setAgentResult] = useState<{ score: number, critique: string, suggestions: string[] } | null>(null);
 
   const initialContent = data.text || data;
 
@@ -364,6 +366,31 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       console.log("✅ Sikeresen mentve az előzményekbe!");
     } catch (e) {
       console.error("❌ Hiba az előzmény mentésekor:", e);
+    }
+  };
+
+  const handleAgentAnalysis = async () => {
+    setAgentLoading(true);
+    try {
+      const res = await fetch('/api/agent-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content,
+          platform: title,
+          brandName: brandName
+        })
+      });
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error);
+      
+      setAgentResult(data);
+    } catch (error) {
+      console.error(error);
+      alert("Hiba történt az elemzés során. Lehet, hogy a poszt túl rövid.");
+    } finally {
+      setAgentLoading(false);
     }
   };
 
@@ -652,6 +679,58 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                             </button>
                           </div>
+                        </div>
+
+                        <div className="space-y-4 pt-6 border-t border-slate-100 dark:border-white/5">
+                          <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block flex items-center gap-2">
+                            <Globe className="w-3 h-3" /> Valós idejű Webes Elemzés
+                          </span>
+                          
+                          {!agentResult ? (
+                            <button 
+                              onClick={handleAgentAnalysis} 
+                              disabled={agentLoading} 
+                              className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs transition-all shadow-lg shadow-indigo-600/20"
+                            >
+                              {agentLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 text-yellow-300" />}
+                              {agentLoading ? "A web átkutatása folyamatban..." : "Viral Score Elemzés (Élő Adatok)"}
+                            </button>
+                          ) : (
+                            <div className="bg-slate-100 dark:bg-[#151b2b] border border-slate-200 dark:border-white/10 rounded-3xl p-6 space-y-5 relative overflow-hidden shadow-inner">
+                               {/* Színes sáv a pontszám alapján */}
+                               <div className={`absolute top-0 left-0 w-1.5 h-full ${agentResult.score >= 80 ? 'bg-green-500' : agentResult.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                               
+                               <div className="flex items-center justify-between">
+                                 <span className="font-black uppercase text-xs text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                   <Target className="w-4 h-4" /> Viral Score
+                                 </span>
+                                 <div className={`px-4 py-1.5 rounded-full font-black text-xl shadow-lg ${agentResult.score >= 80 ? 'bg-green-500/10 text-green-500' : agentResult.score >= 60 ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>
+                                    {agentResult.score}/100
+                                 </div>
+                               </div>
+                               
+                               <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed italic border-l-2 border-slate-300 dark:border-slate-700 pl-4">
+                                 "{agentResult.critique}"
+                               </p>
+                               
+                               <div className="space-y-3">
+                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Adatalapú Javaslatok:</span>
+                                 {agentResult.suggestions.map((sugg: string, idx: number) => (
+                                   <div key={idx} className="flex gap-3 text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-black/40 p-3.5 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5">
+                                     <CheckCircle2 className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
+                                     <span className="leading-relaxed font-medium">{sugg}</span>
+                                   </div>
+                                 ))}
+                               </div>
+                               
+                               <button 
+                                 onClick={() => setAgentResult(null)} 
+                                 className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                               >
+                                 Újraelemzés
+                               </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
