@@ -394,6 +394,36 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
     }
   };
 
+  const handleAutoImprove = async () => {
+    if (!agentResult) return;
+    setAgentLoading(true);
+    
+    try {
+      const res = await fetch('/api/improve-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content,
+          critique: agentResult.critique,
+          suggestions: agentResult.suggestions
+        })
+      });
+      
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      setContent(data.updatedText); // Kicseréljük a szöveget a feljavítottra
+      setAgentResult(null); // Eltüntetjük a kártyát, hogy újra lehessen elemezni
+      alert("✨ A poszt sikeresen feljavítva az AI javaslatai alapján!");
+      
+    } catch (error) {
+      console.error(error);
+      alert("Hiba történt a poszt feljavításakor.");
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
   const handleImmediatePost = async () => {
     // Biztonsági ellenőrzés: csak akkor engedjük posztolni, ha már van generált kép
     if (!imageUrl) {
@@ -723,12 +753,24 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                                  ))}
                                </div>
                                
-                               <button 
-                                 onClick={() => setAgentResult(null)} 
-                                 className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                               >
-                                 Újraelemzés
-                               </button>
+                               <div className="flex flex-col gap-2 mt-6">
+                                 <button 
+                                   onClick={handleAutoImprove}
+                                   disabled={agentLoading}
+                                   className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl font-black text-xs uppercase transition-all shadow-lg shadow-green-500/30"
+                                 >
+                                   {agentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                                   ✨ Javítsd fel a javaslatok alapján!
+                                 </button>
+                                 
+                                 <button 
+                                   onClick={() => setAgentResult(null)} 
+                                   disabled={agentLoading}
+                                   className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                                 >
+                                   Elvetés és Újraelemzés
+                                 </button>
+                               </div>
                             </div>
                           )}
                         </div>
