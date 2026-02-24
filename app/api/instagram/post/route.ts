@@ -5,7 +5,6 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { imageUrl, caption } = body;
 
-        // Ellenőrizzük, hogy megkaptuk-e az adatokat a gombnyomásból
         if (!imageUrl || !caption) {
             return NextResponse.json(
                 { error: "Hiányzik a kép URL vagy a poszt szövege." }, 
@@ -13,13 +12,12 @@ export async function POST(req: Request) {
             );
         }
 
-        // Környezeti változók beolvasása (.env.local)
         const IG_BUSINESS_ID = process.env.INSTAGRAM_BUSINESS_ID;
         const ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN;
 
         if (!IG_BUSINESS_ID || !ACCESS_TOKEN) {
             return NextResponse.json(
-                { error: "Szerver hiba: Hiányoznak az Instagram API kulcsok a .env.local fájlból." }, 
+                { error: "Szerver hiba: Hiányoznak az Instagram API kulcsok." }, 
                 { status: 500 }
             );
         }
@@ -36,6 +34,12 @@ export async function POST(req: Request) {
 
         const creationId = containerData.id;
 
+        // --- ÚJ LÉPÉS: VÁRAKOZÁS ---
+        // A Metának kell pár másodperc a kép letöltéséhez és feldolgozásához.
+        console.log(`✅ Konténer kész (ID: ${creationId}). Várakozás a Meta szervereire (4mp)...`);
+        await new Promise(resolve => setTimeout(resolve, 4000)); 
+
+
         // --- 2. LÉPÉS: POSZT ÉLESÍTÉSE ---
         const publishUrl = `https://graph.facebook.com/v19.0/${IG_BUSINESS_ID}/media_publish?creation_id=${creationId}&access_token=${ACCESS_TOKEN}`;
         
@@ -46,7 +50,6 @@ export async function POST(req: Request) {
             throw new Error(`Publikálási hiba: ${publishData.error.message}`);
         }
 
-        // Ha idáig eljutott, a poszt sikeresen kikerült!
         return NextResponse.json({ success: true, postId: publishData.id });
 
     } catch (error: any) {
