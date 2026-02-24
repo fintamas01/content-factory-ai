@@ -341,20 +341,18 @@ function ResultCard({ title, data, brandName, lang }: any) {
   const handleImmediatePost = async () => {
     // Biztonsági ellenőrzés: csak akkor engedjük posztolni, ha már van generált kép
     if (!imageUrl) {
-      alert("Kérlek, először generálj egy vizuált a poszthoz!");
+      alert("Kérlek, először generálj egy fotót!");
       return;
     }
 
     setIsPosting(true);
     try {
-      // ITT A VÁLTOZÁS: Kivettük a fix Unsplash linket, és a React state-ben 
-      // tárolt generált kép linkjét (imageUrl) küldjük el az API-nak!
       const res = await fetch('/api/instagram/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          imageUrl: imageUrl, // <--- Ez most már a DALL-E által generált kép lesz!
-          caption: content    // <--- Ez pedig a te átszerkesztett szöveged
+          imageUrl: imageUrl, // <--- MOST MÁR A DALL-E KÉPET KÜLDI EL!
+          caption: content    // A megszerkesztett szöveg
         }),
       });
 
@@ -364,7 +362,7 @@ function ResultCard({ title, data, brandName, lang }: any) {
         throw new Error(resData.error || "Hiba történt a szerver oldalon.");
       }
 
-      alert("🎉 SIKER! A frissen generált poszt kikerült az Instagramra!");
+      alert("🎉 SIKER! A generált fotó kikerült az Instagramra!");
       setShowResultModal(false); 
       
     } catch (error: any) {
