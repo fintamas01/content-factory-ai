@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
     // Ez a te meglévő, tökéletesen működő posztoló API-d linkje!
     // Ezt fogja az Upstash meghívni a jövőben.
-    const targetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}app/api/instagram/post`;
+    const targetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}api/instagram/post`;
 
     // Elküldjük a feladatot az Upstash QStash-nek
     const response = await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {
