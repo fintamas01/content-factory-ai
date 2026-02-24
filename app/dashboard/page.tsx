@@ -327,6 +327,10 @@ export default function DashboardPage() {
 }
 
 function ResultCard({ title, data, brandName, lang, userId }: any) {
+  const [availableImages, setAvailableImages] = useState<string[]>([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState(data.text || data);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
@@ -414,26 +418,52 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   };
 
   const handleGenerateImage = async () => {
+    if (availableImages.length >= 3) { alert("Maximum 3 képet tárolhatsz! Válassz egyet!"); return; }
     setLoadingImage(true);
     try {
       const res = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: data.image_prompt || content, 
-          platform: title, 
-          brandName: brandName 
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: data.image_prompt || content, platform: title, brandName: brandName }),
       });
       const resData = await res.json();
       if (resData.imageUrl) {
-        setImageUrl(resData.imageUrl);
-
-        console.log("Kép kész, mentés az adatbázisba...");
-        await saveToHistory(resData.imageUrl);
+        setAvailableImages(prev => [...prev, resData.imageUrl]); // Hozzáadás a galériához
       }
     } catch (e) { console.error(e); }
     setLoadingImage(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (availableImages.length >= 3) { alert("Maximum 3 képet adhatsz hozzá!"); return; }
+
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `upload-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      
+      const { error } = await supabase.storage.from('generated-images').upload(fileName, file);
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage.from('generated-images').getPublicUrl(fileName);
+      setAvailableImages(prev => [...prev, publicUrlData.publicUrl]); // Hozzáadás a galériához
+    } catch (error) {
+      console.error(error); alert("Hiba történt a kép feltöltésekor.");
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Input törlése
+    }
+  };
+
+  const handleFinalizeImage = async () => {
+    if (selectedImageIndex === null) return;
+    const finalUrl = availableImages[selectedImageIndex];
+    setImageUrl(finalUrl); // Beállítjuk véglegesnek (ez oldja fel a Live Preview-t és a posztolást)
+    
+    // Most mentjük az adatbázisba!
+    await saveToHistory(finalUrl);
+    alert("✅ Kép sikeresen kiválasztva és a kampány elmentve!");
   };
 
   const handleCopy = () => {
@@ -574,43 +604,83 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                       </div>
                     )}
 
-                    {/* TAB: IMAGE GENERATION */}
+                    {/* TAB: IMAGE GENERATION & UPLOAD */}
                     {activeTab === 'image' && (
                       <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
-                        <button 
-                          onClick={handleGenerateImage} 
-                          disabled={loadingImage}
-                          className={`w-full flex items-center justify-center gap-3 px-6 py-5 rounded-[24px] font-black text-sm transition-all shadow-xl ${imageUrl ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white' : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-[1.02] shadow-green-500/20'}`}
-                        >
-                          {loadingImage ? <Loader2 className="w-6 h-6 animate-spin" /> : <ImageIcon className="w-6 h-6" />}
-                          {imageUrl ? 'Új Vizuál Generálása' : 'AI Fotó Generálása (DALL-E 3)'}
-                        </button>
-
-                        <div className="rounded-[32px] overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-black/20 aspect-square flex items-center justify-center relative group">
-                          {imageUrl ? (
-                            <>
-                              <img src={imageUrl} alt="AI Generated" className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                <a href={imageUrl} target="_blank" rel="noopener noreferrer" className="bg-white text-black px-6 py-3 rounded-2xl font-black text-xs uppercase flex items-center gap-2 shadow-2xl">
-                                  <Download className="w-4 h-4" /> Kép letöltése
-                                </a>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-center p-8">
-                               <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-600/20">
-                                  <ImageIcon className="w-8 h-8 text-blue-500 opacity-40" />
-                               </div>
-                               <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Nincs generált kép</p>
-                            </div>
-                          )}
+                        
+                        {/* Felső gombok: Generálás vagy Feltöltés */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <button 
+                            onClick={handleGenerateImage} 
+                            disabled={loadingImage || availableImages.length >= 3}
+                            className={`flex items-center justify-center gap-2 px-4 py-4 rounded-2xl font-black text-xs transition-all shadow-lg ${availableImages.length >= 3 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] text-white shadow-blue-500/20'}`}
+                          >
+                            {loadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+                            AI Generálás
+                          </button>
+                          
+                          <button 
+                            onClick={() => fileInputRef.current?.click()} 
+                            disabled={uploadingImage || availableImages.length >= 3}
+                            className={`flex items-center justify-center gap-2 px-4 py-4 rounded-2xl font-black text-xs transition-all shadow-lg ${availableImages.length >= 3 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 text-slate-700 dark:text-white hover:text-blue-500'}`}
+                          >
+                            {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+                            Saját Kép Feltöltése
+                          </button>
+                          {/* Rejtett fájlfeltöltő */}
+                          <input type="file" hidden ref={fileInputRef} accept="image/*" onChange={handleFileUpload} />
                         </div>
 
-                        {!imageUrl && data.image_prompt && (
-                          <div className="p-6 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex items-start gap-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Kép galéria (Max 3)</span>
+                          <span className="text-xs font-bold text-slate-400">{availableImages.length} / 3</span>
+                        </div>
+
+                        {/* Kép Galéria Rács (3 hely) */}
+                        <div className="grid grid-cols-3 gap-4">
+                          {[0, 1, 2].map((index) => {
+                            const img = availableImages[index];
+                            return img ? (
+                              <div 
+                                key={index} 
+                                onClick={() => setSelectedImageIndex(index)}
+                                className={`relative aspect-square rounded-2xl overflow-hidden cursor-pointer border-4 transition-all ${selectedImageIndex === index ? 'border-blue-500 scale-105 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'border-transparent hover:border-slate-300'}`}
+                              >
+                                <img src={img} alt={`Gallery ${index}`} className="w-full h-full object-cover" />
+                                {selectedImageIndex === index && (
+                                  <div className="absolute top-2 right-2 bg-blue-500 text-white p-1 rounded-full shadow-lg">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div key={index} className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 flex flex-col items-center justify-center opacity-50">
+                                <ImageIcon className="w-6 h-6 text-slate-300 mb-2" />
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">Üres hely</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Véglegesítés Gomb */}
+                        <AnimatePresence>
+                          {selectedImageIndex !== null && (
+                            <motion.button
+                              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                              onClick={handleFinalizeImage}
+                              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-sm transition-all shadow-lg shadow-green-500/30 mt-6"
+                            >
+                              <CheckCircle2 className="w-5 h-5" /> Ezt a képet választom a poszthoz!
+                            </motion.button>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Promt javaslat, ha még nincs kép */}
+                        {availableImages.length === 0 && data.image_prompt && (
+                          <div className="p-6 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex items-start gap-4 mt-4">
                               <Sparkles className="w-6 h-6 text-purple-500 mt-1" />
                               <div>
-                                <span className="text-[10px] font-black text-purple-500 uppercase block mb-1">Javasolt vizuális koncepció:</span>
+                                <span className="text-[10px] font-black text-purple-500 uppercase block mb-1">AI javasolt koncepciója:</span>
                                 <p className="text-xs text-slate-400 italic leading-relaxed">"{data.image_prompt}"</p>
                               </div>
                           </div>
