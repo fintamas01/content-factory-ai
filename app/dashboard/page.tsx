@@ -340,6 +340,9 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   const [loading, setLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
 
   const initialContent = data.text || data;
 
@@ -396,6 +399,55 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       alert("❌ Sikertelen posztolás:\n" + error.message);
     } finally {
       setIsPosting(false);
+    }
+  };
+
+  const handleSchedulePost = async () => {
+    if (!imageUrl) {
+      alert("Kérlek, először véglegesíts egy képet!");
+      return;
+    }
+    if (!scheduleDate) {
+      alert("Kérlek, válassz egy dátumot és időpontot!");
+      return;
+    }
+
+    // Átalakítjuk a naptár dátumát Unix Timestamp-re (másodpercekre), amit az Upstash kér
+    const scheduledTimeUnix = Math.floor(new Date(scheduleDate).getTime() / 1000);
+    const currentTimeUnix = Math.floor(Date.now() / 1000);
+
+    if (scheduledTimeUnix <= currentTimeUnix) {
+      alert("A kiválasztott időpontnak a jövőben kell lennie!");
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      const res = await fetch('/api/schedule-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          imageUrl: imageUrl, 
+          caption: content,
+          scheduledTime: scheduledTimeUnix
+        }),
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(resData.error || "Hiba történt az ütemezés során.");
+      }
+
+      alert("📅 SIKER! A poszt bekerült az ütemezőbe, és a megadott időpontban kikerül az Instagramra!");
+      setShowScheduler(false);
+      setShowResultModal(false); // Bezárjuk az egész ablakot
+      
+    } catch (error: any) {
+      console.error(error);
+      alert("❌ Sikertelen ütemezés:\n" + error.message);
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -747,27 +799,54 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                   </span>
                 </div>
                 
-                <div className="flex gap-3 w-full md:w-auto">
-                  <button onClick={() => setShowResultModal(false)} className="flex-1 md:flex-none px-8 py-4 bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-white rounded-2xl font-black text-xs uppercase hover:bg-red-500/10 hover:text-red-500 transition-all">
-                    Bezárás
-                  </button>
+                {/* Ha NEM mutatjuk a naptárat, akkor az alap gombok látszanak */}
+                {!showScheduler ? (
+                  <div className="flex gap-3 w-full md:w-auto">
+                    <button onClick={() => setShowResultModal(false)} className="flex-1 md:flex-none px-8 py-4 bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-white rounded-2xl font-black text-xs uppercase hover:bg-red-500/10 hover:text-red-500 transition-all">
+                      Bezárás
+                    </button>
 
-                  <button 
-                    onClick={handleImmediatePost}
-                    disabled={isPosting}
-                    className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${isPosting ? 'bg-indigo-600/50 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}
-                  >
-                    {isPosting ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Posztolás...</>
-                    ) : (
-                      <>⚡ Közzététel Most</>
-                    )}
-                  </button>
+                    <button 
+                      onClick={handleImmediatePost}
+                      disabled={isPosting || !imageUrl}
+                      className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${isPosting ? 'bg-indigo-600/50 text-white cursor-not-allowed' : !imageUrl ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}
+                    >
+                      {isPosting ? <><Loader2 className="w-4 h-4 animate-spin" /> Posztolás...</> : <>⚡ Közzététel Most</>}
+                    </button>
 
-                  <button className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-10 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${imageUrl ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'}`} disabled={!imageUrl}>
-                    🚀 Ütemezés
-                  </button>
-                </div>
+                    <button 
+                      onClick={() => setShowScheduler(true)} 
+                      disabled={!imageUrl}
+                      className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-10 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${imageUrl ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'}`} 
+                    >
+                      🚀 Ütemezés
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto bg-white dark:bg-slate-800 p-3 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+                    <input 
+                      type="datetime-local" 
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="px-5 py-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500"
+                    />
+                    
+                    <button 
+                      onClick={handleSchedulePost}
+                      disabled={isScheduling}
+                      className={`flex items-center justify-center gap-2 px-8 py-3 text-xs font-black uppercase rounded-2xl transition-all text-white ${isScheduling ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/30'}`}
+                    >
+                      {isScheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : "Jóváhagyás"}
+                    </button>
+                    
+                    <button 
+                      onClick={() => setShowScheduler(false)}
+                      className="px-4 py-3 text-slate-400 hover:text-red-500 transition-colors font-bold text-xs uppercase"
+                    >
+                      Mégse
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
