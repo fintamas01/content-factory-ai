@@ -334,8 +334,42 @@ function ResultCard({ title, data, brandName, lang }: any) {
   const [customPrompt, setCustomPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
 
   const initialContent = data.text || data;
+
+  const handleImmediatePost = async () => {
+    setIsPosting(true);
+    try {
+      // JELENLEGI TESZTKÉP: Amíg a saját képgenerálás publikus linkjét nem kötjük be,
+      // egy fix Unsplash tesztképet adunk át az API-nak.
+      const testImageUrl = "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop";
+
+      const res = await fetch('/api/instagram/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          imageUrl: testImageUrl, // Ide jön majd az 'imageUrl' state később
+          caption: content        // A 'content' state tartalmazza a kész poszt szövegét!
+        }),
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(resData.error || "Hiba történt a szerver oldalon.");
+      }
+
+      alert("🎉 SIKER! A poszt azonnal kikerült a Content Factory Instagram oldalára!");
+      setShowResultModal(false); // Opcionális: posztolás után bezárjuk a modalt
+      
+    } catch (error: any) {
+      console.error(error);
+      alert("❌ Sikertelen posztolás:\n" + error.message);
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   const handleMagicEdit = async (action: string) => {
     setLoading(true);
@@ -618,6 +652,19 @@ function ResultCard({ title, data, brandName, lang }: any) {
                   <button onClick={() => setShowResultModal(false)} className="flex-1 md:flex-none px-8 py-4 bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-white rounded-2xl font-black text-xs uppercase hover:bg-red-500/10 hover:text-red-500 transition-all">
                     Bezárás
                   </button>
+
+                  <button 
+                    onClick={handleImmediatePost}
+                    disabled={isPosting}
+                    className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${isPosting ? 'bg-indigo-600/50 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}
+                  >
+                    {isPosting ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Posztolás...</>
+                    ) : (
+                      <>⚡ Közzététel Most</>
+                    )}
+                  </button>
+
                   <button className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-10 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${imageUrl ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'}`} disabled={!imageUrl}>
                     🚀 Ütemezés
                   </button>
