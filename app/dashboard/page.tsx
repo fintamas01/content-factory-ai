@@ -317,6 +317,7 @@ export default function DashboardPage() {
               data={data}
               brandName={selectedBrand?.brand_name}
               lang={lang}
+              userId={user.id}
             />
           ))}
         </motion.div>
@@ -325,7 +326,7 @@ export default function DashboardPage() {
   );
 }
 
-function ResultCard({ title, data, brandName, lang }: any) {
+function ResultCard({ title, data, brandName, lang, userId }: any) {
   const [content, setContent] = useState(data.text || data);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadingImage, setLoadingImage] = useState(false);
@@ -337,6 +338,27 @@ function ResultCard({ title, data, brandName, lang }: any) {
   const [isPosting, setIsPosting] = useState(false);
 
   const initialContent = data.text || data;
+
+  const saveToHistory = async (currentImageUrl: string) => {
+    try {
+      const { error } = await supabase
+        .from('generated_posts')
+        .insert([
+          {
+            user_id: userId,
+            brand_name: brandName,
+            platform: title,
+            content: content,      // Az aktuálisan megszerkesztett szöveg
+            image_url: currentImageUrl // A Supabase Storage-ból kapott végleges link
+          }
+        ]);
+
+      if (error) throw error;
+      console.log("✅ Sikeresen mentve az előzményekbe!");
+    } catch (e) {
+      console.error("❌ Hiba az előzmény mentésekor:", e);
+    }
+  };
 
   const handleImmediatePost = async () => {
     // Biztonsági ellenőrzés: csak akkor engedjük posztolni, ha már van generált kép
@@ -404,7 +426,12 @@ function ResultCard({ title, data, brandName, lang }: any) {
         }),
       });
       const resData = await res.json();
-      if (resData.imageUrl) setImageUrl(resData.imageUrl);
+      if (resData.imageUrl) {
+        setImageUrl(resData.imageUrl);
+
+        console.log("Kép kész, mentés az adatbázisba...");
+        await saveToHistory(resData.imageUrl);
+      }
     } catch (e) { console.error(e); }
     setLoadingImage(false);
   };
