@@ -339,18 +339,22 @@ function ResultCard({ title, data, brandName, lang }: any) {
   const initialContent = data.text || data;
 
   const handleImmediatePost = async () => {
+    // Biztonsági ellenőrzés: csak akkor engedjük posztolni, ha már van generált kép
+    if (!imageUrl) {
+      alert("Kérlek, először generálj egy vizuált a poszthoz!");
+      return;
+    }
+
     setIsPosting(true);
     try {
-      // JELENLEGI TESZTKÉP: Amíg a saját képgenerálás publikus linkjét nem kötjük be,
-      // egy fix Unsplash tesztképet adunk át az API-nak.
-      const testImageUrl = "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop";
-
+      // ITT A VÁLTOZÁS: Kivettük a fix Unsplash linket, és a React state-ben 
+      // tárolt generált kép linkjét (imageUrl) küldjük el az API-nak!
       const res = await fetch('/api/instagram/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          imageUrl: testImageUrl, // Ide jön majd az 'imageUrl' state később
-          caption: content        // A 'content' state tartalmazza a kész poszt szövegét!
+          imageUrl: imageUrl, // <--- Ez most már a DALL-E által generált kép lesz!
+          caption: content    // <--- Ez pedig a te átszerkesztett szöveged
         }),
       });
 
@@ -360,8 +364,8 @@ function ResultCard({ title, data, brandName, lang }: any) {
         throw new Error(resData.error || "Hiba történt a szerver oldalon.");
       }
 
-      alert("🎉 SIKER! A poszt azonnal kikerült a Content Factory Instagram oldalára!");
-      setShowResultModal(false); // Opcionális: posztolás után bezárjuk a modalt
+      alert("🎉 SIKER! A frissen generált poszt kikerült az Instagramra!");
+      setShowResultModal(false); 
       
     } catch (error: any) {
       console.error(error);
