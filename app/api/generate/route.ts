@@ -210,7 +210,12 @@ Minden platformhoz tartozzon egy 'text' és egy 'image_prompt'.`;
         .join("\n\n");
 
       if (combined.trim().length > 0) {
-        await saveBrandMemory(user.id, combined);
+        await saveBrandMemory(user.id, combined, {
+          platforms,
+          tone,
+          lang,
+          model: useResearch ? "gpt-4o" : "gpt-4o-mini",
+        });
       }
     } catch (e) {
       console.error("Brand memory mentés hiba:", e);
