@@ -127,8 +127,18 @@ export default function DashboardPage() {
         }),
       });
       const data = await res.json();
-      if (data.error) alert(data.error);
-      else setResults(data);
+
+      if (data.error) {
+        alert(data.error);
+      } else {
+        const { __agent, ...platformResults } = data; // <-- itt kivesszük
+        setResults(platformResults);                  // csak platformok mennek a UI-ba
+
+        // opcionális: ha később ki akarod írni a score-t
+        if (__agent) {
+          console.log("Agent score:", __agent.score);
+        }
+      }
     } catch (e) {
       console.error("Error:", e);
     }
