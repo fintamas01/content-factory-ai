@@ -33,6 +33,18 @@ function useImage(url: string | null) {
   return img;
 }
 
+// ✅ token -> valós szín feloldása, kompatibilis "fill" és "color" mezőkkel
+function resolveColor(
+  raw: any,
+  colors: { primary: string; secondary: string; accent: string }
+) {
+  const v = raw ?? "";
+  if (v === "primary") return colors.primary;
+  if (v === "secondary") return colors.secondary;
+  if (v === "accent") return colors.accent;
+  return v; // hex/rgb/rgba stb.
+}
+
 const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
   { template, colors, logoUrl },
   ref
@@ -40,7 +52,6 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
   const stageRef = useRef<any>(null);
   const logoImg = useImage(logoUrl);
 
-  // ✅ forwardRef: parent eléri a stageRef-et
   useEffect(() => {
     if (!ref) return;
     if (typeof ref === "function") ref(stageRef.current);
@@ -53,21 +64,15 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
   return (
     <Stage width={W} height={H} ref={stageRef}>
       <Layer>
-        {/* háttér */}
+        {/* Alap háttér (ha nincs bg layer, akkor is legyen valami) */}
         <Rect x={0} y={0} width={W} height={H} fill={colors.primary} />
 
-        {/* secondary block (ha van a template-ben ilyen rect) */}
-        {/* Template layer-ek */}
         {template.layers.map((l: any) => {
+          // ✅ template-ekben nálad "color" van, de támogatjuk a "fill"-t is:
+          const rawColor = l.fill ?? l.color;
+
           if (l.type === "rect") {
-            const fill =
-              l.fill === "primary"
-                ? colors.primary
-                : l.fill === "secondary"
-                ? colors.secondary
-                : l.fill === "accent"
-                ? colors.accent
-                : l.fill;
+            const fill = resolveColor(rawColor, colors);
 
             return (
               <Rect
@@ -84,14 +89,7 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
           }
 
           if (l.type === "text") {
-            const fill =
-              l.fill === "primary"
-                ? colors.primary
-                : l.fill === "secondary"
-                ? colors.secondary
-                : l.fill === "accent"
-                ? colors.accent
-                : l.fill;
+            const fill = resolveColor(rawColor, colors);
 
             return (
               <Text
@@ -110,7 +108,6 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
             );
           }
 
-          // logo placeholder
           if (l.type === "logo") {
             if (!logoImg) return null;
             return (
