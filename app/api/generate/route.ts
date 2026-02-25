@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       // FONTOS: ANON (nem ANNON)
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!,
       {
         cookies: {
           // Supabase SSR ajánlott minta App Routerhez
