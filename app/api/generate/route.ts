@@ -52,9 +52,7 @@ export async function POST(req: Request) {
 
     // ✅ támogatjuk az ANON és ANNON env neveket is
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnon =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
+    const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
 
     if (!supabaseUrl || !supabaseAnon) {
       console.error("Supabase env hiányzik!", {
