@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Stage, Layer, Rect, Text } from "react-konva";
+import { Stage, Layer, Rect, Text, Image as KonvaImage } from "react-konva";
+import useImage from "use-image";
 import type { PosterTemplate, PosterLayer } from "@/lib/poster/templates/ig-post-1";
 
 type Props = {
@@ -11,9 +12,31 @@ type Props = {
     secondary: string;
     accent: string;
   };
+  logoUrl?: string | null;
 };
 
-export default function PosterCanvas({ template, colors }: Props) {
+function LogoLayer({ x, y, width, height, url }: { x: number; y: number; width: number; height: number; url?: string | null }) {
+  const [img] = useImage(url ?? "", "anonymous");
+
+  if (url && img) {
+    return <KonvaImage x={x} y={y} width={width} height={height} image={img} />;
+  }
+
+  // placeholder
+  return (
+    <Rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      fill={"rgba(255,255,255,0.06)"}
+      stroke={"rgba(255,255,255,0.18)"}
+      cornerRadius={20}
+    />
+  );
+}
+
+export default function PosterCanvas({ template, colors, logoUrl }: Props) {
   const layers = useMemo(() => {
     return template.layers.map((l: PosterLayer) => {
       if (l.type === "rect" && l.id === "bg") return { ...l, color: colors.primary };
@@ -62,15 +85,13 @@ export default function PosterCanvas({ template, colors }: Props) {
 
               if (l.type === "logo") {
                 return (
-                  <Rect
+                  <LogoLayer
                     key={l.id}
                     x={l.x}
                     y={l.y}
                     width={l.width}
                     height={l.height}
-                    fill={"rgba(255,255,255,0.06)"}
-                    stroke={"rgba(255,255,255,0.18)"}
-                    cornerRadius={20}
+                    url={logoUrl}
                   />
                 );
               }
