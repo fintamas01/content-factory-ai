@@ -7,9 +7,7 @@ export async function POST(req: Request) {
     const cookieStore = await cookies();
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnon =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
+    const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
 
     if (!supabaseUrl || !supabaseAnon) {
       return NextResponse.json(
