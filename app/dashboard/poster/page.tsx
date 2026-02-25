@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import PosterCanvas from "@/app/components/poster/PosterCanvas";
 import { IG_POST_1 } from "@/lib/poster/templates/ig-post-1";
+
 
 export default function PosterStudioPage() {
   const [primary, setPrimary] = useState("#0B1220");
@@ -19,6 +20,8 @@ export default function PosterStudioPage() {
 
   // ✅ template state (copy-val frissül)
   const [template, setTemplate] = useState(IG_POST_1);
+
+  const stageRef = useRef<any>(null);
 
   const brandProfile = useMemo(
     () => ({
@@ -57,6 +60,24 @@ export default function PosterStudioPage() {
       setUploading(false);
     }
   };
+
+  const handleExportPng = () => {
+    const stage = stageRef.current;
+    if (!stage) {
+        alert("Stage még nem elérhető.");
+        return;
+    }
+
+    // ✅ pixelRatio: 2 = szebb export (élesebb)
+    const dataUrl = stage.toDataURL({ pixelRatio: 2 });
+
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `poster-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    };
 
   const applyCopyToTemplate = (headline: string, sub: string, cta: string) => {
     setTemplate((prev) => ({
@@ -208,12 +229,19 @@ export default function PosterStudioPage() {
           <div className="w-full overflow-auto">
             <div className="origin-top-left scale-[0.45] sm:scale-[0.6] md:scale-[0.7] lg:scale-[0.55] xl:scale-[0.65]">
               <PosterCanvas
+                ref={stageRef}
                 template={template}
                 colors={{ primary, secondary, accent }}
                 logoUrl={logoUrl}
               />
             </div>
           </div>
+          <button
+            onClick={handleExportPng}
+            className="rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2 border border-white/10"
+            >
+            Letöltés PNG
+            </button>
         </div>
       </div>
     </div>

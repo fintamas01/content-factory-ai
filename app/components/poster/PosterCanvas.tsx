@@ -1,106 +1,136 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { forwardRef, useEffect, useRef } from "react";
 import { Stage, Layer, Rect, Text, Image as KonvaImage } from "react-konva";
-import useImage from "use-image";
-import type { PosterTemplate, PosterLayer } from "@/lib/poster/templates/ig-post-1";
+
+type PosterTemplate = {
+  id: string;
+  width: number;
+  height: number;
+  layers: any[];
+};
 
 type Props = {
   template: PosterTemplate;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  logoUrl?: string | null;
+  colors: { primary: string; secondary: string; accent: string };
+  logoUrl: string | null;
 };
 
-function LogoLayer({ x, y, width, height, url }: { x: number; y: number; width: number; height: number; url?: string | null }) {
-  const [img] = useImage(url ?? "", "anonymous");
+function useImage(url: string | null) {
+  const [img, setImg] = React.useState<HTMLImageElement | null>(null);
 
-  if (url && img) {
-    return <KonvaImage x={x} y={y} width={width} height={height} image={img} />;
-  }
+  useEffect(() => {
+    if (!url) {
+      setImg(null);
+      return;
+    }
+    const image = new window.Image();
+    image.crossOrigin = "anonymous"; // ✅ fontos exporthoz
+    image.src = url;
+    image.onload = () => setImg(image);
+  }, [url]);
 
-  // placeholder
-  return (
-    <Rect
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      fill={"rgba(255,255,255,0.06)"}
-      stroke={"rgba(255,255,255,0.18)"}
-      cornerRadius={20}
-    />
-  );
+  return img;
 }
 
-export default function PosterCanvas({ template, colors, logoUrl }: Props) {
-  const layers = useMemo(() => {
-    return template.layers.map((l: PosterLayer) => {
-      if (l.type === "rect" && l.id === "bg") return { ...l, color: colors.primary };
-      if (l.type === "rect" && l.id === "card") return { ...l, color: colors.secondary };
-      if (l.type === "text" && l.id === "cta") return { ...l, color: colors.accent };
-      return l;
-    });
-  }, [template.layers, colors]);
+const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
+  { template, colors, logoUrl },
+  ref
+) {
+  const stageRef = useRef<any>(null);
+  const logoImg = useImage(logoUrl);
+
+  // ✅ forwardRef: parent eléri a stageRef-et
+  useEffect(() => {
+    if (!ref) return;
+    if (typeof ref === "function") ref(stageRef.current);
+    else (ref as any).current = stageRef.current;
+  }, [ref]);
+
+  const W = template.width;
+  const H = template.height;
 
   return (
-    <div className="w-full flex justify-center">
-      <div className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-        <Stage width={template.width} height={template.height}>
-          <Layer>
-            {layers.map((l) => {
-              if (l.type === "rect") {
-                return (
-                  <Rect
-                    key={l.id}
-                    x={l.x}
-                    y={l.y}
-                    width={l.width}
-                    height={l.height}
-                    fill={l.color}
-                    cornerRadius={l.cornerRadius ?? 0}
-                    opacity={l.opacity ?? 1}
-                  />
-                );
-              }
+    <Stage width={W} height={H} ref={stageRef}>
+      <Layer>
+        {/* háttér */}
+        <Rect x={0} y={0} width={W} height={H} fill={colors.primary} />
 
-              if (l.type === "text") {
-                return (
-                  <Text
-                    key={l.id}
-                    x={l.x}
-                    y={l.y}
-                    width={l.width}
-                    text={l.text}
-                    fontSize={l.fontSize}
-                    fontStyle={l.fontStyle ?? "normal"}
-                    fill={l.color}
-                    lineHeight={l.lineHeight ?? 1.2}
-                  />
-                );
-              }
+        {/* secondary block (ha van a template-ben ilyen rect) */}
+        {/* Template layer-ek */}
+        {template.layers.map((l: any) => {
+          if (l.type === "rect") {
+            const fill =
+              l.fill === "primary"
+                ? colors.primary
+                : l.fill === "secondary"
+                ? colors.secondary
+                : l.fill === "accent"
+                ? colors.accent
+                : l.fill;
 
-              if (l.type === "logo") {
-                return (
-                  <LogoLayer
-                    key={l.id}
-                    x={l.x}
-                    y={l.y}
-                    width={l.width}
-                    height={l.height}
-                    url={logoUrl}
-                  />
-                );
-              }
+            return (
+              <Rect
+                key={l.id}
+                x={l.x}
+                y={l.y}
+                width={l.width}
+                height={l.height}
+                fill={fill}
+                opacity={l.opacity ?? 1}
+                cornerRadius={l.cornerRadius ?? 0}
+              />
+            );
+          }
 
-              return null;
-            })}
-          </Layer>
-        </Stage>
-      </div>
-    </div>
+          if (l.type === "text") {
+            const fill =
+              l.fill === "primary"
+                ? colors.primary
+                : l.fill === "secondary"
+                ? colors.secondary
+                : l.fill === "accent"
+                ? colors.accent
+                : l.fill;
+
+            return (
+              <Text
+                key={l.id}
+                x={l.x}
+                y={l.y}
+                width={l.width}
+                text={l.text}
+                fontSize={l.fontSize}
+                fontStyle={l.fontStyle ?? "normal"}
+                fontFamily={l.fontFamily ?? "Inter"}
+                fill={fill}
+                opacity={l.opacity ?? 1}
+                lineHeight={l.lineHeight ?? 1.2}
+              />
+            );
+          }
+
+          // logo placeholder
+          if (l.type === "logo") {
+            if (!logoImg) return null;
+            return (
+              <KonvaImage
+                key={l.id}
+                image={logoImg}
+                x={l.x}
+                y={l.y}
+                width={l.width}
+                height={l.height}
+                opacity={l.opacity ?? 1}
+              />
+            );
+          }
+
+          return null;
+        })}
+      </Layer>
+    </Stage>
   );
-}
+});
+
+export default PosterCanvas;
