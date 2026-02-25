@@ -110,22 +110,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1) BRAND TWIN MEMÓRIA LEKÉRÉS (RAG)
     let memoryBlock = "Nincs korábbi memória.";
     try {
-      const memory = await getBrandMemory(user.id, content, {
-        threshold: 0.75,
-        count: 5,
-      });
+      const blocks: string[] = [];
 
-      if (memory?.length) {
-        memoryBlock = memory
-          .map(
-            (m: any) =>
-              `- (${Number(m.similarity).toFixed(2)}) ${String(m.content).slice(0, 1200)}`
-          )
-          .join("\n");
+      for (const p of platforms as string[]) {
+        const memory = await getBrandMemory(user.id, content, {
+          threshold: 0.72,
+          count: 5,
+          platform: p,
+        });
+
+        if (memory?.length) {
+          blocks.push(
+            `[${p} MEMÓRIA]\n` +
+              memory
+                .map((m: any) => `- (w:${Number(m.weight).toFixed(2)}) ${m.content}`)
+                .join("\n")
+          );
+        }
       }
+
+      memoryBlock = blocks.length ? blocks.join("\n\n") : "Nincs korábbi memória.";
     } catch (e) {
       console.error("Brand memory lekérés hiba:", e);
     }
@@ -302,24 +308,26 @@ Feladat: írd újra a posztokat úgy, hogy a score minél közelebb legyen 100-h
       console.error("Generations insert hiba:", insertErr);
     }
 
-    // 6) Brand Memory mentés (final output)
+    // 6) Brand Memory mentés (FINAL output) - PLATFORMONKÉNT KÜLÖN
     try {
-      const combined = (platforms as string[])
-        .map((p: string) => {
-          const post = result?.[p];
-          if (!post) return "";
-          return `PLATFORM: ${p}\nTEXT: ${post.text}\nIMAGE_PROMPT: ${post.image_prompt}`;
-        })
-        .filter(Boolean)
-        .join("\n\n");
+      for (const p of platforms as string[]) {
+        const post = result?.[p];
+        if (!post) continue;
 
-      if (combined.trim().length > 0) {
-        await saveBrandMemory(user.id, combined, {
-          platforms,
+        const perPlatformContent =
+          `PLATFORM: ${p}\n` +
+          `TEXT: ${post.text}\n` +
+          `IMAGE_PROMPT: ${post.image_prompt}`;
+
+        await saveBrandMemory(user.id, perPlatformContent, {
+          platform: p, // <-- EZ A KULCS: platform-specifikus scope
           tone,
           lang,
           model,
           critique_score: critique?.score,
+          // opcionális extra:
+          platforms,
+          source: "generate",
         });
       }
     } catch (e) {

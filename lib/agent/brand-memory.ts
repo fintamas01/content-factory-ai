@@ -83,32 +83,21 @@ export async function saveBrandMemory(
   if (error) throw error;
 }
 
-/**
- * Lekér releváns memóriákat szemantikusan.
- * - threshold finomhangolható (0.70–0.85 tipikusan)
- * - count: 3–8 jó
- */
 export async function getBrandMemory(
   userId: string,
   query: string,
-  opts?: {
-    threshold?: number;
-    count?: number;
-  }
+  opts?: { threshold?: number; count?: number; platform?: string }
 ) {
-  const cleanedQuery = clampTextForEmbedding(query, 2000).trim();
-  if (!cleanedQuery) return [];
+  const queryEmbedding = await embedText(query);
 
-  const queryEmbedding = await embedText(cleanedQuery);
-
-  const { data, error } = await supabaseAdmin.rpc("match_brand_memory", {
+  const { data, error } = await supabaseAdmin.rpc("match_brand_memory_v2", {
     query_embedding: queryEmbedding,
-    match_threshold: opts?.threshold ?? 0.75,
+    match_threshold: opts?.threshold ?? 0.72,
     match_count: opts?.count ?? 5,
     p_user_id: userId,
+    p_platform: opts?.platform ?? null,
   });
 
   if (error) throw error;
-
   return data ?? [];
 }
