@@ -97,8 +97,10 @@ export default function PosterTemplatesPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filtered.map((t, idx) => {
-          const locked = idx >= unlockedCount;
+        {filtered.map((t) => {
+          // ✅ LOCK FIX: a teljes listában elfoglalt index alapján
+          const globalIndex = POSTER_TEMPLATES.findIndex((x) => x.id === t.id);
+          const locked = globalIndex >= unlockedCount;
 
           return (
             <div
