@@ -24,7 +24,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (pathname === '/') return null;
+  if (pathname === '/' || pathname === '/maintenance') return null;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

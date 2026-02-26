@@ -1,7 +1,17 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const ALLOWED_EMAIL = 'fintatamas68@gmail.com'
+
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  if (pathname === '/maintenance') {
+    return NextResponse.next({
+      request: { headers: request.headers },
+    })
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -38,7 +48,12 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const isAllowed = user?.email?.toLowerCase() === ALLOWED_EMAIL.toLowerCase()
+  if (!isAllowed) {
+    return NextResponse.redirect(new URL('/maintenance', request.url))
+  }
 
   return response
 }
