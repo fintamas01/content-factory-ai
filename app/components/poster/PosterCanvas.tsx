@@ -19,10 +19,14 @@ type Props = {
   template: PosterTemplate;
   colors: { primary: string; secondary: string; accent: string };
   logoUrl: string | null;
+
+  // ✅ ÚJ: háttérkép URL (signed/public)
+  bgImageUrl?: string | null;
+
   brandFonts?: BrandFonts | null;
 };
 
-function useImage(url: string | null) {
+function useImage(url: string | null | undefined) {
   const [img, setImg] = React.useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
@@ -30,10 +34,12 @@ function useImage(url: string | null) {
       setImg(null);
       return;
     }
+
     const image = new window.Image();
-    image.crossOrigin = "anonymous"; // ✅ fontos exporthoz
+    image.crossOrigin = "anonymous"; // ✅ exporthoz fontos
     image.src = url;
     image.onload = () => setImg(image);
+    image.onerror = () => setImg(null);
   }, [url]);
 
   return img;
@@ -56,7 +62,6 @@ function sanitizeFontFamily(input?: string | null) {
 
   const v = String(input).trim();
 
-  // canvas/konva számára értelmetlen vagy veszélyes értékek
   const bannedExact = new Set([
     "inherit",
     "initial",
@@ -69,7 +74,6 @@ function sanitizeFontFamily(input?: string | null) {
 
   if (bannedExact.has(v.toLowerCase())) return null;
 
-  // gyakori "icon font" vagy irreleváns családok – ha ezekből jön, inkább dobjuk
   const bannedContains = [
     "icon",
     "icons",
@@ -102,12 +106,40 @@ function resolveFontFamily(layer: any, brandFonts?: BrandFonts | null) {
   return candidate || "Inter";
 }
 
+// ✅ cover/contain számolás
+function computeFitRect(params: {
+  imgW: number;
+  imgH: number;
+  boxX: number;
+  boxY: number;
+  boxW: number;
+  boxH: number;
+  fit: "cover" | "contain";
+}) {
+  const { imgW, imgH, boxX, boxY, boxW, boxH, fit } = params;
+
+  const scaleX = boxW / imgW;
+  const scaleY = boxH / imgH;
+
+  const scale = fit === "cover" ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+
+  const x = boxX + (boxW - drawW) / 2;
+  const y = boxY + (boxH - drawH) / 2;
+
+  return { x, y, width: drawW, height: drawH };
+}
+
 const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
-  { template, colors, logoUrl, brandFonts },
+  { template, colors, logoUrl, bgImageUrl, brandFonts },
   ref
 ) {
   const stageRef = useRef<any>(null);
+
   const logoImg = useImage(logoUrl);
+  const bgImg = useImage(bgImageUrl);
 
   useEffect(() => {
     if (!ref) return;
@@ -121,11 +153,40 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
   return (
     <Stage width={W} height={H} ref={stageRef}>
       <Layer>
-        {/* Alap háttér (ha nincs bg layer, akkor is legyen valami) */}
+        {/* Fallback háttér */}
         <Rect x={0} y={0} width={W} height={H} fill={colors.primary} />
 
         {template.layers.map((l: any) => {
           const rawColor = l.fill ?? l.color;
+
+          // ✅ ÚJ: image layer (háttérkép)
+          if (l.type === "image") {
+            if (!bgImg) return null;
+
+            const fit: "cover" | "contain" = l.fit === "contain" ? "contain" : "cover";
+
+            const rect = computeFitRect({
+              imgW: bgImg.naturalWidth || bgImg.width,
+              imgH: bgImg.naturalHeight || bgImg.height,
+              boxX: l.x,
+              boxY: l.y,
+              boxW: l.width,
+              boxH: l.height,
+              fit,
+            });
+
+            return (
+              <KonvaImage
+                key={l.id}
+                image={bgImg}
+                x={rect.x}
+                y={rect.y}
+                width={rect.width}
+                height={rect.height}
+                opacity={l.opacity ?? 1}
+              />
+            );
+          }
 
           if (l.type === "rect") {
             const fill = resolveColor(rawColor, colors);
