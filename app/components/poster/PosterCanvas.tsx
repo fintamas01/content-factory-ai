@@ -10,10 +10,16 @@ type PosterTemplate = {
   layers: any[];
 };
 
+type BrandFonts = {
+  headline?: string | null;
+  body?: string | null;
+};
+
 type Props = {
   template: PosterTemplate;
   colors: { primary: string; secondary: string; accent: string };
   logoUrl: string | null;
+  brandFonts?: BrandFonts | null;
 };
 
 function useImage(url: string | null) {
@@ -45,8 +51,22 @@ function resolveColor(
   return v; // hex/rgb/rgba stb.
 }
 
+function resolveFontFamily(layer: any, brandFonts?: BrandFonts | null) {
+  // 1) ha a layer explicit fontFamily-t ad, az nyer
+  if (layer?.fontFamily) return layer.fontFamily;
+
+  // 2) külön headline/body fallback
+  const isHeadline =
+    layer?.id === "headline" ||
+    layer?.role === "headline" ||
+    layer?.variant === "headline";
+
+  const candidate = isHeadline ? brandFonts?.headline : brandFonts?.body;
+  return candidate || "Inter";
+}
+
 const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
-  { template, colors, logoUrl },
+  { template, colors, logoUrl, brandFonts },
   ref
 ) {
   const stageRef = useRef<any>(null);
@@ -68,12 +88,10 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
         <Rect x={0} y={0} width={W} height={H} fill={colors.primary} />
 
         {template.layers.map((l: any) => {
-          // ✅ template-ekben nálad "color" van, de támogatjuk a "fill"-t is:
           const rawColor = l.fill ?? l.color;
 
           if (l.type === "rect") {
             const fill = resolveColor(rawColor, colors);
-
             return (
               <Rect
                 key={l.id}
@@ -90,6 +108,7 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
 
           if (l.type === "text") {
             const fill = resolveColor(rawColor, colors);
+            const fontFamily = resolveFontFamily(l, brandFonts);
 
             return (
               <Text
@@ -100,7 +119,7 @@ const PosterCanvas = forwardRef<any, Props>(function PosterCanvas(
                 text={l.text}
                 fontSize={l.fontSize}
                 fontStyle={l.fontStyle ?? "normal"}
-                fontFamily={l.fontFamily ?? "Inter"}
+                fontFamily={fontFamily}
                 fill={fill}
                 opacity={l.opacity ?? 1}
                 lineHeight={l.lineHeight ?? 1.2}

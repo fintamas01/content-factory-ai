@@ -1,39 +1,150 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import PosterCanvas from "@/app/components/poster/PosterCanvas";
 import { IG_POST_1 } from "@/lib/poster/templates/ig-post-1";
+import { createBrowserClient } from "@supabase/ssr";
 
+type BrandProfileRow = {
+  id: string;
+  user_id: string;
+  brand_name: string | null;
+  description: string | null;
+  target_audience: string | null;
+  website?: string | null;
+  palette?: any; // { primary, secondary, accent }
+  fonts?: any; // { headline, body }
+  logo_url?: string | null;
+};
 
 export default function PosterStudioPage() {
+  const supabase = useMemo(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anon =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!;
+    return createBrowserClient(url, anon);
+  }, []);
+
+  // --- Brand state ---
+  const [brands, setBrands] = useState<BrandProfileRow[]>([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("");
+
+  const selectedBrand = useMemo(() => {
+    return brands.find((b) => b.id === selectedBrandId) ?? null;
+  }, [brands, selectedBrandId]);
+
+  // --- Colors (defaults) ---
   const [primary, setPrimary] = useState("#0B1220");
   const [secondary, setSecondary] = useState("#0F1B33");
   const [accent, setAccent] = useState("#7AA2FF");
 
+  // --- Brand fonts coming from DB ---
+  const brandFonts = useMemo(() => {
+    const f = (selectedBrand?.fonts ?? null) as any;
+    if (!f) return null;
+    return {
+      headline: f.headline ?? null,
+      body: f.body ?? null,
+    };
+  }, [selectedBrand?.id]);
+
+  // --- Logo upload ---
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // ✅ új: AI mezők
+  // --- AI fields ---
   const [description, setDescription] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [generating, setGenerating] = useState(false);
 
-  // ✅ template state (copy-val frissül)
+  // --- Template state (copy-val frissül) ---
   const [template, setTemplate] = useState(IG_POST_1);
 
   const stageRef = useRef<any>(null);
 
-  const brandProfile = useMemo(
-    () => ({
+  // ✅ brandProfile az AI-hoz: mindig a kiválasztott brandből, fallback: ContentFactory
+  const brandProfile = useMemo(() => {
+    if (selectedBrand) {
+      return {
+        name: selectedBrand.brand_name ?? "Brand",
+        desc: selectedBrand.description ?? "",
+        audience: selectedBrand.target_audience ?? "",
+      };
+    }
+    return {
       name: "ContentFactory",
       desc: "AI alapú tartalomgyártó és marketing rendszer",
       audience: "Marketingesek, KKV-k, ügynökségek",
-    }),
-    []
-  );
+    };
+  }, [selectedBrand?.id]);
 
   const tone = "szakmai";
   const lang = "hu";
+
+  // --- 1) Load brands ---
+  useEffect(() => {
+    const loadBrands = async () => {
+      try {
+        setBrandsLoading(true);
+
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
+
+        if (userErr) console.error("auth.getUser error:", userErr);
+        if (!user) {
+          setBrands([]);
+          setSelectedBrandId("");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("brand_profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("brand_profiles select error:", error);
+          setBrands([]);
+          setSelectedBrandId("");
+          return;
+        }
+
+        const rows = (data ?? []) as BrandProfileRow[];
+        setBrands(rows);
+
+        // auto-select first if none selected
+        if (!selectedBrandId && rows.length > 0) {
+          setSelectedBrandId(rows[0].id);
+        }
+      } finally {
+        setBrandsLoading(false);
+      }
+    };
+
+    loadBrands();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- 2) When brand changes -> apply palette + (optional) brand logo_url as default ---
+  useEffect(() => {
+    if (!selectedBrand) return;
+
+    const p = selectedBrand.palette ?? {};
+    if (p.primary) setPrimary(p.primary);
+    if (p.secondary) setSecondary(p.secondary);
+    if (p.accent) setAccent(p.accent);
+
+    // Ha szeretnéd, hogy brand logo_url automatikusan beálljon (opcionális):
+    // (de te mondtad: kezdetben csak upload - ezért ezt kikommentelem)
+    // if (selectedBrand.logo_url) setLogoUrl(selectedBrand.logo_url);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBrand?.id]);
 
   const handleLogoUpload = async (file: File) => {
     setUploading(true);
@@ -64,11 +175,10 @@ export default function PosterStudioPage() {
   const handleExportPng = () => {
     const stage = stageRef.current;
     if (!stage) {
-        alert("Stage még nem elérhető.");
-        return;
+      alert("Stage még nem elérhető.");
+      return;
     }
 
-    // ✅ pixelRatio: 2 = szebb export (élesebb)
     const dataUrl = stage.toDataURL({ pixelRatio: 2 });
 
     const a = document.createElement("a");
@@ -77,7 +187,7 @@ export default function PosterStudioPage() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    };
+  };
 
   const applyCopyToTemplate = (headline: string, sub: string, cta: string) => {
     setTemplate((prev) => ({
@@ -132,7 +242,7 @@ export default function PosterStudioPage() {
       <div>
         <h1 className="text-2xl font-semibold text-white">Poster Studio</h1>
         <p className="text-white/60">
-          Template → színek → logo → AI autofill → (következő: export)
+          Template → brand (színek + fontok) → logo → AI autofill → export
         </p>
       </div>
 
@@ -140,6 +250,50 @@ export default function PosterStudioPage() {
         {/* Controls */}
         <div className="col-span-12 lg:col-span-4 rounded-2xl border border-white/10 bg-white/5 p-5 space-y-5">
           <div className="text-white font-medium">Brand beállítások</div>
+
+          {/* ✅ Brand selector */}
+          <div className="space-y-2">
+            <div className="text-white/80 text-sm">Márka kiválasztása</div>
+
+            <select
+              value={selectedBrandId}
+              onChange={(e) => setSelectedBrandId(e.target.value)}
+              className="w-full rounded-2xl bg-black/30 border border-white/10 p-3 text-white/90 focus:outline-none"
+              disabled={brandsLoading}
+            >
+              {brandsLoading ? (
+                <option value="">Betöltés…</option>
+              ) : brands.length === 0 ? (
+                <option value="">Nincs márka (Settings-ben adj hozzá)</option>
+              ) : (
+                brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.brand_name ?? "Névtelen márka"}
+                    {b.website ? ` — ${b.website}` : ""}
+                  </option>
+                ))
+              )}
+            </select>
+
+            {selectedBrand && (
+              <div className="text-white/40 text-xs leading-5">
+                <div>
+                  <span className="text-white/60">Leírás:</span>{" "}
+                  {selectedBrand.description ? selectedBrand.description : "—"}
+                </div>
+                <div>
+                  <span className="text-white/60">Célközönség:</span>{" "}
+                  {selectedBrand.target_audience ? selectedBrand.target_audience : "—"}
+                </div>
+                <div>
+                  <span className="text-white/60">Fontok:</span>{" "}
+                  {brandFonts?.headline || "—"} / {brandFonts?.body || "—"}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-3 border-t border-white/10" />
 
           <div className="space-y-2">
             <div className="text-white/80 text-sm">Logo</div>
@@ -154,6 +308,11 @@ export default function PosterStudioPage() {
               disabled={uploading}
             />
             {uploading && <div className="text-white/50 text-sm">Feltöltés…</div>}
+            {logoUrl && (
+              <div className="text-white/40 text-xs break-all">
+                Feltöltött logo URL: {logoUrl}
+              </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-white/10" />
@@ -224,6 +383,13 @@ export default function PosterStudioPage() {
             <div className="text-white font-medium">
               Preview (Instagram Post 1080×1080)
             </div>
+
+            <button
+              onClick={handleExportPng}
+              className="rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2 border border-white/10"
+            >
+              Letöltés PNG
+            </button>
           </div>
 
           <div className="w-full overflow-auto">
@@ -233,15 +399,10 @@ export default function PosterStudioPage() {
                 template={template}
                 colors={{ primary, secondary, accent }}
                 logoUrl={logoUrl}
+                brandFonts={brandFonts}
               />
             </div>
           </div>
-          <button
-            onClick={handleExportPng}
-            className="rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2 border border-white/10"
-            >
-            Letöltés PNG
-            </button>
         </div>
       </div>
     </div>
