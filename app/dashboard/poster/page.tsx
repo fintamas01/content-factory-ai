@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PosterCanvas from "@/app/components/poster/PosterCanvas";
 import { getTemplateById } from "@/lib/poster/templates/registry";
@@ -19,7 +19,7 @@ type BrandProfileRow = {
   logo_url?: string | null;
 };
 
-export default function PosterStudioPage() {
+function PosterStudioContent() {
   const supabase = useMemo(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anon =
@@ -567,5 +567,21 @@ export default function PosterStudioPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function PosterStudioFallback() {
+  return (
+    <div className="p-6 flex items-center justify-center min-h-[200px]">
+      <div className="text-white/60">Loading Poster Studio…</div>
+    </div>
+  );
+}
+
+export default function PosterStudioPage() {
+  return (
+    <Suspense fallback={<PosterStudioFallback />}>
+      <PosterStudioContent />
+    </Suspense>
   );
 }
