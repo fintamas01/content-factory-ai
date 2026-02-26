@@ -51,17 +51,54 @@ function resolveColor(
   return v; // hex/rgb/rgba stb.
 }
 
-function resolveFontFamily(layer: any, brandFonts?: BrandFonts | null) {
-  // 1) ha a layer explicit fontFamily-t ad, az nyer
-  if (layer?.fontFamily) return layer.fontFamily;
+function sanitizeFontFamily(input?: string | null) {
+  if (!input) return null;
 
-  // 2) külön headline/body fallback
+  const v = String(input).trim();
+
+  // canvas/konva számára értelmetlen vagy veszélyes értékek
+  const bannedExact = new Set([
+    "inherit",
+    "initial",
+    "unset",
+    "revert",
+    "revert-layer",
+    "default",
+    "auto",
+  ]);
+
+  if (bannedExact.has(v.toLowerCase())) return null;
+
+  // gyakori "icon font" vagy irreleváns családok – ha ezekből jön, inkább dobjuk
+  const bannedContains = [
+    "icon",
+    "icons",
+    "fi-icons",
+    "fontawesome",
+    "material icons",
+  ];
+
+  const lower = v.toLowerCase();
+  if (bannedContains.some((x) => lower.includes(x))) return null;
+
+  return v;
+}
+
+function resolveFontFamily(layer: any, brandFonts?: BrandFonts | null) {
+  // 1) layer fontFamily (ha valid)
+  const layerFont = sanitizeFontFamily(layer?.fontFamily);
+  if (layerFont) return layerFont;
+
+  // 2) headline/body alapján brand font
   const isHeadline =
     layer?.id === "headline" ||
     layer?.role === "headline" ||
     layer?.variant === "headline";
 
-  const candidate = isHeadline ? brandFonts?.headline : brandFonts?.body;
+  const candidateRaw = isHeadline ? brandFonts?.headline : brandFonts?.body;
+  const candidate = sanitizeFontFamily(candidateRaw);
+
+  // 3) fallback
   return candidate || "Inter";
 }
 
