@@ -8,6 +8,7 @@ import { IG_POST_7 } from "@/lib/poster/templates/ig-post-7";
 import { IG_POST_8 } from "@/lib/poster/templates/ig-post-8";
 import { IG_POST_9 } from "@/lib/poster/templates/ig-post-9";
 import { IG_POST_10 } from "@/lib/poster/templates/ig-post-10";
+import { EVENT_CAREER_FAIR } from "@/lib/poster/templates/event-career-fair";
 
 export type PosterTemplate = typeof IG_POST_1;
 
@@ -22,6 +23,7 @@ export const POSTER_TEMPLATES = [
   IG_POST_8,
   IG_POST_9,
   IG_POST_10,
+  EVENT_CAREER_FAIR,
 ] as const;
 
 export function getTemplateById(id?: string | null) {

@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import PosterCanvas from "@/app/components/poster/PosterCanvas";
-import { IG_POST_1 } from "@/lib/poster/templates/ig-post-1";
+import { getTemplateById } from "@/lib/poster/templates/registry";
 import { createBrowserClient } from "@supabase/ssr";
+import Link from "next/link";
 
 type BrandProfileRow = {
   id: string;
@@ -63,8 +65,27 @@ export default function PosterStudioPage() {
   const [linkUrl, setLinkUrl] = useState("");
   const [generating, setGenerating] = useState(false);
 
-  // --- Template state (copy-val frissül) ---
-  const [template, setTemplate] = useState(IG_POST_1);
+  // --- Template: from URL ?template= or default ---
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get("template");
+  const [template, setTemplate] = useState(() => getTemplateById(templateId));
+  useEffect(() => {
+    setTemplate(getTemplateById(templateId));
+  }, [templateId]);
+
+  // Event / career-fair: 3 circular photo slots
+  const [photo1Url, setPhoto1Url] = useState<string | null>(null);
+  const [photo2Url, setPhoto2Url] = useState<string | null>(null);
+  const [photo3Url, setPhoto3Url] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState<string | null>(null); // "photo1" | "photo2" | "photo3"
+
+  const hasPhotoSlots = useMemo(
+    () =>
+      template.layers?.some(
+        (l: any) => l.type === "image" && ["photo1", "photo2", "photo3"].includes(l.srcKey)
+      ),
+    [template]
+  );
 
   const stageRef = useRef<any>(null);
 
@@ -175,30 +196,47 @@ export default function PosterStudioPage() {
     }
   };
 
-  // ✅ ÚJ: háttérkép upload
+  // Háttérkép upload
   const handleBgUpload = async (file: File) => {
     setBgUploading(true);
     try {
       const form = new FormData();
       form.append("file", file);
-
-      const res = await fetch("/api/poster/upload-image", {
-        method: "POST",
-        body: form,
-      });
-
+      const res = await fetch("/api/poster/upload-image", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
         alert(data?.error || "Upload hiba");
         return;
       }
-
       setBgImageUrl(data.url);
     } catch (e) {
       console.error(e);
       alert("Upload hiba");
     } finally {
       setBgUploading(false);
+    }
+  };
+
+  // Event template: 3 kör alakú fotó slot feltöltése
+  const handlePhotoUpload = async (slot: "photo1" | "photo2" | "photo3", file: File) => {
+    setPhotoUploading(slot);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/poster/upload-image", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data?.error || "Upload hiba");
+        return;
+      }
+      if (slot === "photo1") setPhoto1Url(data.url);
+      if (slot === "photo2") setPhoto2Url(data.url);
+      if (slot === "photo3") setPhoto3Url(data.url);
+    } catch (e) {
+      console.error(e);
+      alert("Upload hiba");
+    } finally {
+      setPhotoUploading(null);
     }
   };
 
@@ -269,11 +307,19 @@ export default function PosterStudioPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Poster Studio</h1>
-        <p className="text-white/60">
-          Template → brand (színek + fontok) → képek (bg + logo) → AI autofill → export
-        </p>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Poster Studio</h1>
+          <p className="text-white/60">
+            Template → brand (színek + fontok) → képek (bg + logo) → AI autofill → export
+          </p>
+        </div>
+        <Link
+          href="/dashboard/poster/templates"
+          className="rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2 border border-white/10"
+        >
+          Templates
+        </Link>
       </div>
 
       <div className="grid grid-cols-12 gap-6">
@@ -353,6 +399,47 @@ export default function PosterStudioPage() {
               </div>
             )}
           </div>
+
+          {/* Event / career-fair: 3 kör alakú fotó */}
+          {hasPhotoSlots && (
+            <>
+              <div className="pt-3 border-t border-white/10" />
+              <div className="text-white/80 text-sm font-medium">Kör alakú fotók (event sablon)</div>
+              {(["photo1", "photo2", "photo3"] as const).map((slot) => (
+                <div key={slot} className="space-y-1">
+                  <div className="text-white/60 text-xs">
+                    {slot === "photo1" ? "Fotó 1" : slot === "photo2" ? "Fotó 2" : "Fotó 3"}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handlePhotoUpload(slot, f);
+                    }}
+                    className="block w-full text-sm text-white/70 file:mr-2 file:rounded-xl file:border-0 file:bg-teal-600 file:px-3 file:py-1.5 file:text-white file:font-semibold hover:file:bg-teal-500"
+                    disabled={photoUploading !== null}
+                  />
+                  {photoUploading === slot && (
+                    <div className="text-white/50 text-xs">Feltöltés…</div>
+                  )}
+                  {(slot === "photo1" ? photo1Url : slot === "photo2" ? photo2Url : photo3Url) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (slot === "photo1") setPhoto1Url(null);
+                        if (slot === "photo2") setPhoto2Url(null);
+                        if (slot === "photo3") setPhoto3Url(null);
+                      }}
+                      className="text-xs text-white/60 hover:text-white/90"
+                    >
+                      Törlés
+                    </button>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
 
           <div className="pt-3 border-t border-white/10" />
 
@@ -470,6 +557,9 @@ export default function PosterStudioPage() {
                 colors={{ primary, secondary, accent }}
                 logoUrl={logoUrl}
                 bgImageUrl={bgImageUrl}
+                photo1Url={photo1Url}
+                photo2Url={photo2Url}
+                photo3Url={photo3Url}
                 brandFonts={brandFonts}
               />
             </div>

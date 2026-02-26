@@ -50,8 +50,36 @@ export type PosterImageLayer = {
    */
   srcKey?: "bg" | string;
 
-  // opcionális: kerekítés
+  // opcionális: kerekítés vagy kör kivágás
   cornerRadius?: number;
+  /** "circle" => képet körbe vágja (pl. event plakátok) */
+  clip?: "circle";
+};
+
+/** Gradient háttér (pl. event / career fair stílus) */
+export type PosterGradientLayer = {
+  id: string;
+  type: "gradient";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** 0 = bal→jobb, 90 = fent→lent */
+  angle?: number;
+  colorStops: Array<{ offset: number; color: "primary" | "secondary" | "accent" | string }>;
+  opacity?: number;
+};
+
+/** Dekoratív ellipszis / blob (pl. hullámok, formák) */
+export type PosterEllipseLayer = {
+  id: string;
+  type: "ellipse";
+  x: number;
+  y: number;
+  radiusX: number;
+  radiusY: number;
+  color: "primary" | "secondary" | "accent" | string;
+  opacity?: number;
 };
 
 export type PosterLogoLayer = {
@@ -68,7 +96,9 @@ export type PosterLayer =
   | PosterRectLayer
   | PosterTextLayer
   | PosterLogoLayer
-  | PosterImageLayer;
+  | PosterImageLayer
+  | PosterGradientLayer
+  | PosterEllipseLayer;
 
 export type PosterTemplate = {
   id: string;
