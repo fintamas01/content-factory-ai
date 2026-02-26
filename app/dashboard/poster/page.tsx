@@ -2,8 +2,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import PosterCanvas from "@/app/components/poster/PosterCanvas";
-import { IG_POST_1 } from "@/lib/poster/templates/ig-post-1";
 import { createBrowserClient } from "@supabase/ssr";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getTemplateById } from "@/lib/poster/templates/registry";
 
 type BrandProfileRow = {
   id: string;
@@ -18,6 +19,10 @@ type BrandProfileRow = {
 };
 
 export default function PosterStudioPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get("template"); // ✅ gallery -> studio
+
   const supabase = useMemo(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anon =
@@ -48,7 +53,7 @@ export default function PosterStudioPage() {
       headline: f.headline ?? null,
       body: f.body ?? null,
     };
-  }, [selectedBrand?.id]);
+  }, [selectedBrand]);
 
   // --- Logo upload ---
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -59,10 +64,15 @@ export default function PosterStudioPage() {
   const [linkUrl, setLinkUrl] = useState("");
   const [generating, setGenerating] = useState(false);
 
-  // --- Template state (copy-val frissül) ---
-  const [template, setTemplate] = useState(IG_POST_1);
+  // --- Template state (URL param alapján) ---
+  const [template, setTemplate] = useState(() => getTemplateById(templateId));
 
   const stageRef = useRef<any>(null);
+
+  // ✅ ha változik a ?template=, betöltjük az új template-et
+  useEffect(() => {
+    setTemplate(getTemplateById(templateId));
+  }, [templateId]);
 
   // ✅ brandProfile az AI-hoz: mindig a kiválasztott brandből, fallback: ContentFactory
   const brandProfile = useMemo(() => {
@@ -78,7 +88,7 @@ export default function PosterStudioPage() {
       desc: "AI alapú tartalomgyártó és marketing rendszer",
       audience: "Marketingesek, KKV-k, ügynökségek",
     };
-  }, [selectedBrand?.id]);
+  }, [selectedBrand]);
 
   const tone = "szakmai";
   const lang = "hu";
@@ -190,7 +200,7 @@ export default function PosterStudioPage() {
   };
 
   const applyCopyToTemplate = (headline: string, sub: string, cta: string) => {
-    setTemplate((prev) => ({
+    setTemplate((prev: any) => ({
       ...prev,
       layers: prev.layers.map((l: any) => {
         if (l.type !== "text") return l;
@@ -239,11 +249,21 @@ export default function PosterStudioPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Poster Studio</h1>
-        <p className="text-white/60">
-          Template → brand (színek + fontok) → logo → AI autofill → export
-        </p>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Poster Studio</h1>
+          <p className="text-white/60">
+            Template → brand (színek + fontok) → logo → AI autofill → export
+          </p>
+        </div>
+
+        {/* ✅ Template Gallery gomb */}
+        <button
+          onClick={() => router.push("/dashboard/poster/templates")}
+          className="rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2 border border-white/10"
+        >
+          Templates
+        </button>
       </div>
 
       <div className="grid grid-cols-12 gap-6">
@@ -283,7 +303,9 @@ export default function PosterStudioPage() {
                 </div>
                 <div>
                   <span className="text-white/60">Célközönség:</span>{" "}
-                  {selectedBrand.target_audience ? selectedBrand.target_audience : "—"}
+                  {selectedBrand.target_audience
+                    ? selectedBrand.target_audience
+                    : "—"}
                 </div>
                 <div>
                   <span className="text-white/60">Fontok:</span>{" "}
