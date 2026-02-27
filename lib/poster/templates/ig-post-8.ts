@@ -7,15 +7,62 @@ export const IG_POST_8: PosterTemplate = {
   width: 1080,
   height: 1080,
   layers: [
-    { id: "bg", type: "rect", x: 0, y: 0, width: 1080, height: 1080, color: "primary" },
+    // Gradient background
+    {
+      id: "bg",
+      type: "gradient",
+      x: 0,
+      y: 0,
+      width: 1080,
+      height: 1080,
+      angle: 120,
+      colorStops: [
+        { offset: 0, color: "primary" },
+        { offset: 0.5, color: "secondary" },
+        { offset: 1, color: "primary" },
+      ],
+      opacity: 1,
+    },
+
+    // Decorative blob between the two blocks
+    {
+      id: "blob-center",
+      type: "ellipse",
+      x: 880,
+      y: 400,
+      radiusX: 260,
+      radiusY: 180,
+      color: "accent",
+      opacity: 0.16,
+    },
 
     // Top block
-    { id: "top", type: "rect", x: 90, y: 110, width: 900, height: 520, color: "secondary", cornerRadius: 40, opacity: 0.9 },
+    {
+      id: "top",
+      type: "rect",
+      x: 90,
+      y: 110,
+      width: 900,
+      height: 520,
+      color: "secondary",
+      cornerRadius: 40,
+      opacity: 0.9,
+    },
 
     // Bottom block
-    { id: "bottom", type: "rect", x: 90, y: 670, width: 900, height: 300, color: "secondary", cornerRadius: 40, opacity: 0.75 },
+    {
+      id: "bottom",
+      type: "rect",
+      x: 90,
+      y: 670,
+      width: 900,
+      height: 300,
+      color: "secondary",
+      cornerRadius: 40,
+      opacity: 0.78,
+    },
 
-    { id: "logo", type: "logo", x: 130, y: 150, width: 120, height: 120 },
+    { id: "logo", type: "logo", x: 130, y: 150, width: 120, height: 120, opacity: 1 },
 
     { id: "headline", type: "text", x: 130, y: 320, width: 820, text: "AI Agent-ek 2026-ban", fontSize: 70, fontStyle: "bold", color: "#EAF0FF", lineHeight: 1.05 },
 

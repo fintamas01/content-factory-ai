@@ -7,12 +7,58 @@ export const IG_POST_3: PosterTemplate = {
   width: 1080,
   height: 1080,
   layers: [
-    { id: "bg", type: "rect", x: 0, y: 0, width: 1080, height: 1080, color: "primary" },
+    // Gradient background (minimal, centered composition)
+    {
+      id: "bg",
+      type: "gradient",
+      x: 0,
+      y: 0,
+      width: 1080,
+      height: 1080,
+      angle: 90,
+      colorStops: [
+        { offset: 0, color: "primary" },
+        { offset: 1, color: "secondary" },
+      ],
+      opacity: 1,
+    },
+
+    // Subtle decorative blobs to frame the centered card
+    {
+      id: "blob-left",
+      type: "ellipse",
+      x: 180,
+      y: 260,
+      radiusX: 260,
+      radiusY: 180,
+      color: "accent",
+      opacity: 0.12,
+    },
+    {
+      id: "blob-right",
+      type: "ellipse",
+      x: 900,
+      y: 860,
+      radiusX: 260,
+      radiusY: 180,
+      color: "accent",
+      opacity: 0.1,
+    },
 
     // Center card
-    { id: "card", type: "rect", x: 120, y: 160, width: 840, height: 760, color: "secondary", cornerRadius: 40, opacity: 0.88 },
+    {
+      id: "card",
+      type: "rect",
+      x: 120,
+      y: 160,
+      width: 840,
+      height: 760,
+      color: "secondary",
+      cornerRadius: 40,
+      opacity: 0.9,
+    },
 
-    { id: "logo", type: "logo", x: 470, y: 220, width: 140, height: 140 },
+    { id: "logo", type: "logo", x: 470, y: 220, width: 140, height: 140, opacity: 1 },
 
     { id: "headline", type: "text", x: 170, y: 410, width: 740, text: "AI Agent-ek 2026-ban", fontSize: 64, fontStyle: "bold", color: "#EAF0FF", lineHeight: 1.1 },
 
