@@ -110,16 +110,21 @@ export default function PosterTemplatesPage() {
               {/* Preview */}
               <div className="p-4">
                 <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
-                  <div className="origin-top-left scale-[0.22] sm:scale-[0.25] md:scale-[0.28]">
-                    <PosterCanvas
-                      template={t}
-                      colors={{
-                        primary: "#0B1220",
-                        secondary: "#0F1B33",
-                        accent: "#7AA2FF",
-                      }}
-                      logoUrl={null}
-                    />
+                  <div
+                    className="relative w-full"
+                    style={{ aspectRatio: `${t.width} / ${t.height}` }}
+                  >
+                    <div className="absolute inset-0">
+                      <PosterCanvas
+                        template={t}
+                        colors={{
+                          primary: "#0B1220",
+                          secondary: "#0F1B33",
+                          accent: "#7AA2FF",
+                        }}
+                        logoUrl={null}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

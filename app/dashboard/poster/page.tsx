@@ -581,40 +581,7 @@ function PosterStudioFallback() {
 export default function PosterStudioPage() {
   return (
     <Suspense fallback={<PosterStudioFallback />}>
-      {/* Refactored layout: Remove excessive vertical space, use aspectRatio style, keep everything compact */}
-      <div className="w-full max-w-xl mx-auto">
-        {/* Preview */}
-        <div
-          className="w-full relative bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex items-center justify-center"
-          style={{
-            aspectRatio: `${1080} / ${1080}`, // Or dynamically: `${template.width} / ${template.height}`
-          }}
-        >
-          <div className="w-full h-full flex items-center justify-center">
-            <PosterCanvas
-              // @ts-ignore Needed if you reference template here, otherwise supply correct width/height dynamically if accessible
-              template={getTemplateById("ig-post-10")}
-              colors={{ primary: "#0B1220", secondary: "#0F1B33", accent: "#7AA2FF" }}
-              brandFonts={null}
-              logoUrl={null}
-              bgImageUrl={null}
-              photo1Url={null}
-              photo2Url={null}
-              photo3Url={null}
-            />
-          </div>
-        </div>
-        {/* Compact bottom info section */}
-        <div className="flex items-center justify-between bg-white/5 border-t border-white/10 rounded-b-2xl px-4 py-2 mt-0">
-          <div>
-            <div className="text-white font-semibold text-sm">Simple Product Banner (IG Post)</div>
-            <div className="text-xs text-white/60">Instagram Post</div>
-          </div>
-          <button className="px-3 py-1 bg-primary/90 text-white text-xs rounded-lg font-semibold hover:bg-primary/80">
-            Use
-          </button>
-        </div>
-      </div>
+      <PosterStudioContent />
     </Suspense>
   );
 }
