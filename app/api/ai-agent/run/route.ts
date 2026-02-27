@@ -1,3 +1,4 @@
+// app/api/ai-agent/run/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
@@ -11,12 +12,23 @@ function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
+function toUrl(input: string) {
+  const s = input.trim();
+  if (!s) throw new Error("Empty url");
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  return `https://${s}`;
+}
+
 function toHostname(inputUrl: string) {
   try {
-    const u = new URL(inputUrl.startsWith("http") ? inputUrl : `https://${inputUrl}`);
+    const u = new URL(toUrl(inputUrl));
     return u.hostname.replace(/^www\./, "");
   } catch {
-    return inputUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+    return inputUrl
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .split("/")[0]
+      .trim();
   }
 }
 
@@ -27,6 +39,15 @@ function isSameDomain(url: string, domain: string) {
   } catch {
     return false;
   }
+}
+
+function normalizeWhitespace(s: string) {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function truncate(s: string, max = 4000) {
+  const t = s.trim();
+  return t.length > max ? t.slice(0, max) + "…" : t;
 }
 
 type TavilyResult = {
@@ -44,44 +65,449 @@ type WebContext = {
   offDomain: Array<{ url: string; title: string; text: string }>;
 };
 
-type HtmlSignals = {
-  ok: boolean;
-  status: number;
+type OnDomainPage = {
   url: string;
   title: string | null;
   metaDescription: string | null;
-  extractedText: string;
-
-  // Signals
-  canonical: string | null;
-  hreflangs: string[];
+  headings: { h1: string[]; h2: string[]; h3: string[] };
   hasJsonLd: boolean;
-  jsonLdTypes: string[];
+  hasSchemaOrgMicrodata: boolean;
   hasOpenGraph: boolean;
   hasTwitterCard: boolean;
-
-  wordCount: number;
-  textLength: number;
-
-  hasEmail: boolean;
-  hasPhone: boolean;
-  hasAddressHints: boolean;
-  hasGeoHints: boolean;
+  extractedText: string; // compact combined text
+  rawTextLength: number;
+  foundEmails: string[];
+  foundPhones: string[];
+  foundAddressesLike: string[];
+  foundCityOrRegionLike: string[];
+  socialLinks: string[];
 };
 
-type ScoreBreakdown = {
-  total: number; // 0-100
-  parts: Record<
-    | "structuredData"
-    | "meta"
-    | "headings"
-    | "contact"
-    | "geo"
-    | "social"
-    | "textVolume",
-    { score: number; max: number; notes: string[] }
-  >;
+type CrawlContext = {
+  targetDomain: string;
+  seedUrl: string;
+  pages: OnDomainPage[];
+  pageCount: number;
 };
+
+type ScorePartKey =
+  | "meta"
+  | "structuredData"
+  | "headings"
+  | "contact"
+  | "geo"
+  | "social"
+  | "textVolume";
+
+type ScorePart = {
+  score: number;
+  max: number;
+  notes: string[];
+};
+
+type ScoreParts = Record<ScorePartKey, ScorePart>;
+
+const SCORE_KEYS: ScorePartKey[] = [
+  "meta",
+  "structuredData",
+  "headings",
+  "contact",
+  "geo",
+  "social",
+  "textVolume",
+];
+
+function emptyPart(max = 0): ScorePart {
+  return { score: 0, max, notes: [] };
+}
+
+function normalizeScoreParts(input?: Partial<ScoreParts>): ScoreParts {
+  const base: ScoreParts = {
+    meta: emptyPart(),
+    structuredData: emptyPart(),
+    headings: emptyPart(),
+    contact: emptyPart(),
+    geo: emptyPart(),
+    social: emptyPart(),
+    textVolume: emptyPart(),
+  };
+
+  if (!input) return base;
+  for (const k of SCORE_KEYS) {
+    const v = input[k];
+    if (v) base[k] = v;
+  }
+  return base;
+}
+
+function sumScore(parts: ScoreParts) {
+  const total = SCORE_KEYS.reduce((acc, k) => acc + (parts[k]?.score ?? 0), 0);
+  const max = SCORE_KEYS.reduce((acc, k) => acc + (parts[k]?.max ?? 0), 0);
+  const pct = max > 0 ? Math.round((total / max) * 100) : 0;
+  return { total, max, pct };
+}
+
+function extractEmails(text: string) {
+  const m = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi);
+  return Array.from(new Set((m ?? []).map((x) => x.toLowerCase()))).slice(0, 10);
+}
+
+function extractPhones(text: string) {
+  // best-effort: EU-ish + digits with separators
+  const m = text.match(/(\+\d{1,3}\s?)?(\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}/g);
+  const cleaned = (m ?? [])
+    .map((x) => normalizeWhitespace(x))
+    .filter((x) => x.replace(/\D/g, "").length >= 8)
+    .slice(0, 12);
+  return Array.from(new Set(cleaned));
+}
+
+function extractSocialLinks($: cheerio.CheerioAPI, baseUrl: string) {
+  const socials: string[] = [];
+  const socialHosts = [
+    "facebook.com",
+    "instagram.com",
+    "tiktok.com",
+    "linkedin.com",
+    "youtube.com",
+    "twitter.com",
+    "x.com",
+    "threads.net",
+  ];
+
+  $("a[href]").each((_, el) => {
+    const href = ($(el).attr("href") ?? "").trim();
+    if (!href) return;
+    let abs = href;
+    try {
+      abs = new URL(href, baseUrl).toString();
+    } catch {
+      return;
+    }
+    try {
+      const h = new URL(abs).hostname.replace(/^www\./, "");
+      if (socialHosts.some((sh) => h === sh || h.endsWith(`.${sh}`))) {
+        socials.push(abs);
+      }
+    } catch {
+      // ignore
+    }
+  });
+
+  return Array.from(new Set(socials)).slice(0, 12);
+}
+
+function pickInternalLinks($: cheerio.CheerioAPI, baseUrl: string, targetDomain: string) {
+  const links: string[] = [];
+
+  $("a[href]").each((_, el) => {
+    const href = ($(el).attr("href") ?? "").trim();
+    if (!href) return;
+
+    // skip anchors, mailto, tel, etc.
+    if (href.startsWith("#")) return;
+    if (href.startsWith("mailto:")) return;
+    if (href.startsWith("tel:")) return;
+    if (href.startsWith("javascript:")) return;
+
+    let abs = "";
+    try {
+      abs = new URL(href, baseUrl).toString();
+    } catch {
+      return;
+    }
+    if (!isSameDomain(abs, targetDomain)) return;
+
+    // skip obvious assets
+    if (/\.(jpg|jpeg|png|webp|svg|pdf|zip|rar|mp4|mp3)$/i.test(abs)) return;
+
+    // normalize trailing slash for dedupe
+    abs = abs.replace(/\/$/, "");
+    links.push(abs);
+  });
+
+  return Array.from(new Set(links));
+}
+
+async function fetchHtml(url: string) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; ContentFactoryBot/1.0)",
+      Accept: "text/html,application/xhtml+xml",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return {
+      ok: false as const,
+      status: res.status,
+      url,
+      html: "",
+      error: `Fetch failed: ${res.status}`,
+    };
+  }
+
+  const html = await res.text();
+  return { ok: true as const, status: 200, url, html, error: null as string | null };
+}
+
+function parseOnDomainPage(url: string, html: string): OnDomainPage {
+  const $ = cheerio.load(html);
+
+  const title = normalizeWhitespace($("title").first().text() || "") || null;
+
+  const metaDescription =
+    normalizeWhitespace($('meta[name="description"]').attr("content") || "") || null;
+
+  const hasOpenGraph = $('meta[property^="og:"]').length > 0;
+  const hasTwitterCard = $('meta[name^="twitter:"]').length > 0;
+
+  // Structured data signals
+  const hasJsonLd = $('script[type="application/ld+json"]').length > 0;
+  const hasSchemaOrgMicrodata =
+    $('[itemscope]').length > 0 || /https?:\/\/schema\.org/i.test(html);
+
+  // Headings
+  const h1 = $("h1")
+    .slice(0, 6)
+    .map((_, el) => normalizeWhitespace($(el).text()))
+    .get()
+    .filter(Boolean);
+
+  const h2 = $("h2")
+    .slice(0, 10)
+    .map((_, el) => normalizeWhitespace($(el).text()))
+    .get()
+    .filter(Boolean);
+
+  const h3 = $("h3")
+    .slice(0, 10)
+    .map((_, el) => normalizeWhitespace($(el).text()))
+    .get()
+    .filter(Boolean);
+
+  // Remove noise
+  $("script,noscript,style,svg").remove();
+
+  // Try main content containers commonly used in WP
+  const mainCandidates = ["main", "#content", ".site-content", ".entry-content", ".elementor", "body"];
+
+  let bestText = "";
+  for (const sel of mainCandidates) {
+    const t = normalizeWhitespace($(sel).text());
+    if (t && t.length > bestText.length) bestText = t;
+  }
+
+  const extractedText = truncate(
+    [
+      title ? `TITLE: ${title}` : "",
+      metaDescription ? `META_DESCRIPTION: ${metaDescription}` : "",
+      h1.length ? `H1: ${h1.join(" | ")}` : "",
+      h2.length ? `H2: ${h2.join(" | ")}` : "",
+      h3.length ? `H3: ${h3.join(" | ")}` : "",
+      bestText ? `BODY_TEXT: ${bestText}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    5000
+  );
+
+  const foundEmails = extractEmails(bestText);
+  const foundPhones = extractPhones(bestText);
+
+  // Very light heuristics for address/city/region presence (best-effort, language-agnostic)
+  const addressLike = bestText
+    .split(".")
+    .map((s) => normalizeWhitespace(s))
+    .filter((s) => /utca|strada|street|nr\.|no\.|bl\.|ap\.|jud|county|romania|magyarország|ország/i.test(s))
+    .slice(0, 6);
+
+  const cityRegionLike = bestText
+    .split(".")
+    .map((s) => normalizeWhitespace(s))
+    .filter((s) => /sepsi|târgu|maros|kolozsvár|cluj|bucharest|budapest|satumar|szatmár|românia|romania/i.test(s))
+    .slice(0, 6);
+
+  const socialLinks = extractSocialLinks($, url);
+
+  return {
+    url,
+    title,
+    metaDescription,
+    headings: { h1, h2, h3 },
+    hasJsonLd,
+    hasSchemaOrgMicrodata,
+    hasOpenGraph,
+    hasTwitterCard,
+    extractedText,
+    rawTextLength: bestText.length,
+    foundEmails,
+    foundPhones,
+    foundAddressesLike: addressLike,
+    foundCityOrRegionLike: cityRegionLike,
+    socialLinks,
+  };
+}
+
+async function crawlOnDomain(seedUrl: string, targetDomain: string, maxPages: number): Promise<CrawlContext> {
+  const seed = toUrl(seedUrl);
+  const seen = new Set<string>();
+  const queue: string[] = [seed.replace(/\/$/, "")];
+  const pages: OnDomainPage[] = [];
+
+  while (queue.length && pages.length < maxPages) {
+    const url = queue.shift()!;
+    if (seen.has(url)) continue;
+    seen.add(url);
+
+    const fetched = await fetchHtml(url);
+    if (!fetched.ok) continue;
+
+    const page = parseOnDomainPage(url, fetched.html);
+    pages.push(page);
+
+    // discover a few more internal links from this page
+    try {
+      const $ = cheerio.load(fetched.html);
+      const links = pickInternalLinks($, url, targetDomain);
+      for (const l of links.slice(0, 25)) {
+        if (!seen.has(l)) queue.push(l);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    targetDomain,
+    seedUrl: seed,
+    pages,
+    pageCount: pages.length,
+  };
+}
+
+function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
+  // We score based on presence across crawled pages (not just homepage)
+  const parts = normalizeScoreParts();
+  parts.meta.max = 20;
+  parts.structuredData.max = 20;
+  parts.headings.max = 15;
+  parts.contact.max = 15;
+  parts.geo.max = 10;
+  parts.social.max = 10;
+  parts.textVolume.max = 10;
+
+  const pages = crawl.pages;
+
+  const anyTitle = pages.some((p) => (p.title ?? "").length > 0);
+  const anyMetaDesc = pages.some((p) => (p.metaDescription ?? "").length > 0);
+  const anyOg = pages.some((p) => p.hasOpenGraph);
+  const anyTw = pages.some((p) => p.hasTwitterCard);
+
+  let metaScore = 0;
+  if (anyTitle) metaScore += 8;
+  else parts.meta.notes.push("Missing <title> on sampled pages.");
+
+  if (anyMetaDesc) metaScore += 8;
+  else parts.meta.notes.push("Missing meta description on sampled pages.");
+
+  if (anyOg) metaScore += 2;
+  else parts.meta.notes.push("No Open Graph meta tags detected.");
+
+  if (anyTw) metaScore += 2;
+  else parts.meta.notes.push("No Twitter Card meta tags detected.");
+
+  parts.meta.score = metaScore;
+
+  const anyJsonLd = pages.some((p) => p.hasJsonLd);
+  const anyMicrodata = pages.some((p) => p.hasSchemaOrgMicrodata);
+
+  let sdScore = 0;
+  if (anyJsonLd) sdScore += 12;
+  else parts.structuredData.notes.push("No JSON-LD (application/ld+json) detected.");
+
+  if (anyMicrodata) sdScore += 8;
+  else parts.structuredData.notes.push("No schema.org microdata/itemscope detected.");
+
+  parts.structuredData.score = sdScore;
+
+  const anyH1 = pages.some((p) => p.headings.h1.length > 0);
+  const anyH2 = pages.some((p) => p.headings.h2.length > 0);
+
+  let headingScore = 0;
+  if (anyH1) headingScore += 8;
+  else parts.headings.notes.push("No H1 detected on sampled pages.");
+
+  if (anyH2) headingScore += 7;
+  else parts.headings.notes.push("No H2 headings detected (weak content structure).");
+
+  parts.headings.score = headingScore;
+
+  const emails = Array.from(new Set(pages.flatMap((p) => p.foundEmails)));
+  const phones = Array.from(new Set(pages.flatMap((p) => p.foundPhones)));
+
+  let contactScore = 0;
+  if (emails.length > 0) contactScore += 7;
+  else parts.contact.notes.push("No email detected on sampled pages.");
+
+  if (phones.length > 0) contactScore += 6;
+  else parts.contact.notes.push("No phone number detected on sampled pages.");
+
+  // Contact page hint: URL contains keywords
+  const hasContactPage = pages.some((p) => /kapcsolat|contact|impressum|about/i.test(p.url));
+  if (hasContactPage) contactScore += 2;
+  else parts.contact.notes.push("No obvious contact/about page found in sampled URLs.");
+
+  parts.contact.score = Math.min(parts.contact.max, contactScore);
+
+  const addressLike = Array.from(new Set(pages.flatMap((p) => p.foundAddressesLike))).filter(Boolean);
+  const cityLike = Array.from(new Set(pages.flatMap((p) => p.foundCityOrRegionLike))).filter(Boolean);
+
+  let geoScore = 0;
+  if (addressLike.length > 0) geoScore += 6;
+  else parts.geo.notes.push("No address-like text detected (street/number/county).");
+
+  if (cityLike.length > 0) geoScore += 4;
+  else parts.geo.notes.push("No city/region hints detected in text.");
+
+  parts.geo.score = geoScore;
+
+  const socialLinks = Array.from(new Set(pages.flatMap((p) => p.socialLinks)));
+
+  let socialScore = 0;
+  if (socialLinks.length >= 1) socialScore += 6;
+  else parts.social.notes.push("No social profile links detected.");
+
+  if (socialLinks.length >= 3) socialScore += 4;
+  else parts.social.notes.push("Add more official social links (FB/IG/LinkedIn) in footer/header.");
+
+  parts.social.score = Math.min(parts.social.max, socialScore);
+
+  const totalText = pages.reduce((acc, p) => acc + (p.rawTextLength || 0), 0);
+  const avgText = pages.length ? Math.round(totalText / pages.length) : 0;
+
+  let tvScore = 0;
+  if (avgText >= 2500) tvScore = 10;
+  else if (avgText >= 1500) tvScore = 7;
+  else if (avgText >= 800) tvScore = 4;
+  else {
+    tvScore = 1;
+    parts.textVolume.notes.push("Very low on-page text volume; add clearer service descriptions & sections.");
+  }
+  parts.textVolume.score = tvScore;
+
+  return parts;
+}
+
+function buildEvidenceFromCrawl(crawl: CrawlContext) {
+  // Provide short quotes from on-domain extracted text so the model can cite evidence
+  return crawl.pages.slice(0, 6).map((p) => ({
+    url: p.url,
+    quote: truncate(p.extractedText.replace(/^BODY_TEXT:\s*/i, ""), 500),
+  }));
+}
 
 export async function POST(req: Request) {
   try {
@@ -94,12 +520,17 @@ export async function POST(req: Request) {
       platform = "web",
       brandName,
       notes,
+      // optional knobs (safe defaults)
+      crawl = true,
+      maxPages = 5,
     }: {
       goal: AgentGoal;
       url?: string;
       platform?: Platform;
       brandName?: string;
       notes?: string;
+      crawl?: boolean;
+      maxPages?: number;
     } = body;
 
     if (!goal) return badRequest("Missing 'goal'.");
@@ -107,23 +538,11 @@ export async function POST(req: Request) {
 
     const targetDomain = url ? toHostname(url) : "";
 
-    // 1) Rövid keresőkifejezés generálás (geo_auditnál)
+    // 1) Search query (geo_audit only)
     const searchQuery =
-      goal === "geo_audit"
-        ? await generateSearchQuery({ url: url!, brandName, platform })
-        : null;
+      goal === "geo_audit" ? await generateSearchQuery({ url: url!, brandName, platform }) : null;
 
-    // 2a) On-domain HTML context (direct fetch) – GEO-nál ez a legmegbízhatóbb
-    let onDomainHtml: HtmlSignals | null = null;
-
-    if (goal === "geo_audit" && url) {
-        const pages = await crawlSite(url, 5); // 1 homepage + 4 internal
-        if (pages.length > 0) {
-            onDomainHtml = combineHtmlSignals(pages);
-        }
-    }
-
-    // 2b) Web context (Tavily) – geo_auditnál: találatok, answer NINCS
+    // 2) Web context (Tavily) – structured (no "answer")
     const webContext: WebContext | null =
       goal === "geo_audit"
         ? await fetchWebContextTavily({
@@ -132,13 +551,19 @@ export async function POST(req: Request) {
           })
         : null;
 
-    // ✅ 2c) Determinisztikus GEO score (nem LLM)
-    const scoreBreakdown: ScoreBreakdown | null =
-      goal === "geo_audit" && onDomainHtml
-        ? computeGeoScore(onDomainHtml)
+    // 3) On-domain crawl context (this is what makes it “profibb” / stabilabb)
+    const crawlContext: CrawlContext | null =
+      goal === "geo_audit" && crawl
+        ? await crawlOnDomain(toUrl(url!), targetDomain, Math.max(1, Math.min(10, maxPages ?? 5)))
         : null;
 
-    // 3) Elemzés + teendők JSON-ban (domain-lock + evidence)
+    // 4) Local scoring (deterministic) from on-domain crawl
+    const scoreParts =
+      goal === "geo_audit" && crawlContext ? buildScorePartsFromCrawl(crawlContext) : normalizeScoreParts();
+
+    const scoreSummary = sumScore(scoreParts);
+
+    // 5) LLM analysis (domain-locked + evidence)
     const result = await runAgentAnalysis({
       goal,
       url,
@@ -147,8 +572,9 @@ export async function POST(req: Request) {
       notes,
       targetDomain,
       webContext,
-      onDomainHtml,
-      scoreBreakdown,
+      crawlContext,
+      scoreParts,
+      scoreSummary,
     });
 
     return NextResponse.json(
@@ -159,6 +585,7 @@ export async function POST(req: Request) {
         brandName: brandName ?? null,
         searchQuery,
         webContextUsed: Boolean(webContext),
+        crawlUsed: Boolean(crawlContext),
         result,
       },
       { status: 200 }
@@ -190,10 +617,7 @@ Return ONLY the query. No quotes. No punctuation.
   return (r.choices[0]?.message?.content ?? "").trim().replace(/^["']|["']$/g, "");
 }
 
-async function fetchWebContextTavily(args: {
-  query: string;
-  targetDomain: string;
-}): Promise<WebContext> {
+async function fetchWebContextTavily(args: { query: string; targetDomain: string }): Promise<WebContext> {
   const key = process.env.TAVILY_API_KEY;
   if (!key) throw new Error("Missing TAVILY_API_KEY in environment.");
 
@@ -204,7 +628,7 @@ async function fetchWebContextTavily(args: {
       api_key: key,
       query: args.query,
       search_depth: "basic",
-      include_answer: false, // ✅ IMPORTANT
+      include_answer: false, // ✅ avoid Tavily "answer" hallucinations
       max_results: 8,
     }),
   });
@@ -221,17 +645,14 @@ async function fetchWebContextTavily(args: {
   const offDomain: Array<{ url: string; title: string; text: string }> = [];
 
   for (const r of results) {
-    const url = (r.url ?? "").trim();
-    if (!url) continue;
+    const u = (r.url ?? "").trim();
+    if (!u) continue;
 
     const title = (r.title ?? "").trim() || "Untitled";
     const text = (r.content ?? r.snippet ?? r.title ?? "").trim();
 
-    if (isSameDomain(url, args.targetDomain)) {
-      onDomain.push({ url, title, text });
-    } else {
-      offDomain.push({ url, title, text });
-    }
+    if (isSameDomain(u, args.targetDomain)) onDomain.push({ url: u, title, text });
+    else offDomain.push({ url: u, title, text });
   }
 
   return {
@@ -250,8 +671,9 @@ async function runAgentAnalysis(args: {
   notes?: string;
   targetDomain: string;
   webContext?: WebContext | null;
-  onDomainHtml?: HtmlSignals | null;
-  scoreBreakdown?: ScoreBreakdown | null;
+  crawlContext?: CrawlContext | null;
+  scoreParts: ScoreParts;
+  scoreSummary: { total: number; max: number; pct: number };
 }) {
   const system = `
 You are an AI Agent that outputs STRICT JSON.
@@ -259,13 +681,10 @@ No markdown. No extra text. Only JSON.
 
 CRITICAL ACCURACY RULES:
 - Do NOT invent facts (numbers, dates, installs, awards, company size, etc).
-- Prefer OnDomainHtmlContext as PRIMARY source for on-domain facts.
-- You may ONLY state factual claims about the website/company if they are supported by EVIDENCE from:
-  (1) OnDomainHtmlContext.extractedText (direct fetch), OR
-  (2) provided webContext.onDomain items.
-- You may use webContext.offDomain only for "external mentions / reputation" and those claims must also include EVIDENCE.
+- You may ONLY state factual claims about the website/company if they are supported by EVIDENCE provided.
+- Prefer ON-DOMAIN evidence from crawlContext.pages and webContext.onDomain.
+- Use webContext.offDomain only for external mentions, and cite evidence too.
 - If you are unsure, write "unknown" or omit the claim.
-- For geo_audit findings, include evidence[] where possible: [{ url, quote }].
 `.trim();
 
   const goalSpec =
@@ -274,18 +693,18 @@ CRITICAL ACCURACY RULES:
 Goal: GEO Audit (AI discoverability audit).
 
 Return JSON with keys:
-- summary: 2-4 sentences (NO unverified facts)
-- score: number 0-100 (MUST equal the provided deterministicScore below)
+- summary: 2-4 sentences (no unverified facts; focus on what is missing / what to improve)
+- score: number 0-100 (use provided scoreSummary.pct as base; you may adjust +-5 ONLY if justified)
+- scoreParts: object with keys meta, structuredData, headings, contact, geo, social, textVolume each {score,max,notes[]}
 - findings: array of { area, issue, impact, fix, evidence?: [{url, quote}] }
-- missingInfo: array of strings
+- missingInfo: array of strings (what AI/bots can't easily find)
 - quickWins: array of { title, steps[] }
 - copySuggestions: array of { section, exampleText }
-- scoreBreakdown: include the provided scoreBreakdown unchanged
-- signals: include the provided OnDomainHtmlContext signals summary
 
-IMPORTANT:
-- The score is deterministic and already computed. DO NOT change it.
-`
+EVIDENCE REQUIREMENTS:
+- For any concrete claim, attach evidence in the relevant finding (url + short quote).
+- If no evidence exists, do not claim it.
+`.trim()
       : args.goal === "content_plan"
       ? `
 Goal: Content Plan.
@@ -295,7 +714,9 @@ Return JSON with keys:
 - contentPillars: array
 - 14dayPlan: array of { day, platform, hook, outline[] }
 - reusableTemplates: array
-`
+
+Avoid inventing company facts. If brand specifics are unknown, keep it generic but useful.
+`.trim()
       : `
 Goal: Brand Voice.
 
@@ -304,9 +725,11 @@ Return JSON with keys:
 - do: array
 - dont: array
 - exampleCaptions: array of { platform, caption }
-`;
 
-  const deterministicScore = args.scoreBreakdown?.total ?? null;
+Avoid inventing company facts. If brand specifics are unknown, infer from notes only.
+`.trim();
+
+  const evidence = args.crawlContext ? buildEvidenceFromCrawl(args.crawlContext) : [];
 
   const user = `
 Input:
@@ -317,15 +740,14 @@ platform=${args.platform}
 brandName=${args.brandName ?? ""}
 notes=${args.notes ?? ""}
 
-deterministicScore: ${deterministicScore}
+Scoring (deterministic, computed from on-domain crawl):
+scoreSummary=${JSON.stringify(args.scoreSummary)}
+scoreParts=${JSON.stringify(args.scoreParts, null, 2)}
 
-scoreBreakdown (deterministic):
-${args.scoreBreakdown ? JSON.stringify(args.scoreBreakdown, null, 2) : "null"}
+On-domain crawl evidence (quotes):
+${JSON.stringify(evidence, null, 2)}
 
-OnDomainHtmlContext (direct fetch):
-${args.onDomainHtml ? JSON.stringify(args.onDomainHtml, null, 2) : "null"}
-
-webContext (structured):
+Tavily webContext (structured):
 ${args.webContext ? JSON.stringify(args.webContext, null, 2) : "null"}
 `.trim();
 
@@ -343,379 +765,22 @@ ${args.webContext ? JSON.stringify(args.webContext, null, 2) : "null"}
   try {
     const parsed = JSON.parse(raw);
 
-    // ✅ Safety: enforce deterministic score if present
-    if (args.goal === "geo_audit" && args.scoreBreakdown) {
-      parsed.score = args.scoreBreakdown.total;
-      parsed.scoreBreakdown = args.scoreBreakdown;
-      // keep a smaller signals object too
-      if (args.onDomainHtml) {
-        parsed.signals = {
-          canonical: args.onDomainHtml.canonical,
-          hreflangs: args.onDomainHtml.hreflangs,
-          hasJsonLd: args.onDomainHtml.hasJsonLd,
-          jsonLdTypes: args.onDomainHtml.jsonLdTypes,
-          hasOpenGraph: args.onDomainHtml.hasOpenGraph,
-          hasTwitterCard: args.onDomainHtml.hasTwitterCard,
-          wordCount: args.onDomainHtml.wordCount,
-          hasEmail: args.onDomainHtml.hasEmail,
-          hasPhone: args.onDomainHtml.hasPhone,
-          hasAddressHints: args.onDomainHtml.hasAddressHints,
-          hasGeoHints: args.onDomainHtml.hasGeoHints,
-        };
-      }
+    // Hard safety: for geo_audit always include scoreParts we computed if missing
+    if (args.goal === "geo_audit") {
+      if (!parsed.scoreParts) parsed.scoreParts = args.scoreParts;
+      if (typeof parsed.score !== "number") parsed.score = args.scoreSummary.pct;
     }
 
     return parsed;
   } catch {
+    // If the model fails JSON, return raw + our deterministic score so UI still works
+    if (args.goal === "geo_audit") {
+      return {
+        raw,
+        score: args.scoreSummary.pct,
+        scoreParts: args.scoreParts,
+      };
+    }
     return { raw };
   }
 }
-
-function normalizeWhitespace(s: string) {
-  return s.replace(/\s+/g, " ").trim();
-}
-
-function truncate(s: string, max = 4000) {
-  const t = s.trim();
-  return t.length > max ? t.slice(0, max) + "…" : t;
-}
-
-function extractJsonLdTypesFromHtml($: cheerio.CheerioAPI) {
-  const types: string[] = [];
-  $('script[type="application/ld+json"]').each((_, el) => {
-    const txt = $(el).text().trim();
-    if (!txt) return;
-    try {
-      const data = JSON.parse(txt);
-      const arr = Array.isArray(data) ? data : [data];
-      for (const item of arr) {
-        if (!item) continue;
-        const t = (item["@type"] ?? item.type) as any;
-        if (Array.isArray(t)) t.forEach((x) => x && types.push(String(x)));
-        else if (t) types.push(String(t));
-        // Graph case
-        if (item["@graph"] && Array.isArray(item["@graph"])) {
-          for (const g of item["@graph"]) {
-            const gt = (g?.["@type"] ?? g?.type) as any;
-            if (Array.isArray(gt)) gt.forEach((x) => x && types.push(String(x)));
-            else if (gt) types.push(String(gt));
-          }
-        }
-      }
-    } catch {
-      // ignore invalid json-ld blocks
-    }
-  });
-  return Array.from(new Set(types.map((x) => x.trim()).filter(Boolean)));
-}
-
-function detectEmail(text: string) {
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text);
-}
-
-function detectPhone(text: string) {
-  // laza, nem tökéletes: +40 / 07xx / (0xx) + számcsoportok
-  return /(\+\d{1,3}\s?)?(\(?0?\d{2,4}\)?[\s.-]?)\d{3}[\s.-]?\d{3,4}/.test(text);
-}
-
-function detectAddressHints(text: string) {
-  const t = text.toLowerCase();
-  const hints = ["utca", "strada", "street", "boulevard", "blvd", "nr.", "no.", "zip", "iranyitoszam", "cod poștal", "post code", "udvarter", "udvartér"];
-  return hints.some((h) => t.includes(h));
-}
-
-function detectGeoHints(text: string) {
-  const t = text.toLowerCase();
-  // ország + tipikus “város/megye” jelleg
-  const hints = ["romania", "românia", "szatmár", "satu mare", "sepsi", "sepsiszentgyörgy", "târgu mureș", "marosvásárhely", "cluj", "kolozsvár", "budapest", "hungary", "magyarország", "europe", "eu"];
-  return hints.some((h) => t.includes(h));
-}
-
-async function fetchOnDomainHtmlContext(url: string): Promise<HtmlSignals> {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; ContentFactoryBot/1.0; +https://futuretechapps.ro)",
-      Accept: "text/html,application/xhtml+xml",
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    return {
-      ok: false,
-      status: res.status,
-      url,
-      title: null,
-      metaDescription: null,
-      extractedText: "",
-      canonical: null,
-      hreflangs: [],
-      hasJsonLd: false,
-      jsonLdTypes: [],
-      hasOpenGraph: false,
-      hasTwitterCard: false,
-      wordCount: 0,
-      textLength: 0,
-      hasEmail: false,
-      hasPhone: false,
-      hasAddressHints: false,
-      hasGeoHints: false,
-    };
-  }
-
-  const html = await res.text();
-  const $raw = cheerio.load(html);
-
-  const canonical = normalizeWhitespace($raw('link[rel="canonical"]').attr("href") || "") || null;
-
-  const hreflangs = $raw('link[rel="alternate"][hreflang]')
-    .map((_, el) => String($raw(el).attr("hreflang") || "").trim())
-    .get()
-    .filter(Boolean);
-
-  const jsonLdTypes = extractJsonLdTypesFromHtml($raw);
-  const hasJsonLd = $raw('script[type="application/ld+json"]').length > 0;
-
-  const hasOpenGraph =
-    $raw('meta[property="og:title"]').length > 0 ||
-    $raw('meta[property="og:description"]').length > 0 ||
-    $raw('meta[property="og:image"]').length > 0;
-
-  const hasTwitterCard = $raw('meta[name="twitter:card"]').length > 0;
-
-  // Now parse cleaned text for content signals
-  const $ = cheerio.load(html);
-  $("script,noscript,style,svg").remove();
-
-  const title = normalizeWhitespace($("title").first().text() || "");
-  const metaDescription = normalizeWhitespace(
-    $('meta[name="description"]').attr("content") || ""
-  );
-
-  const h1 = normalizeWhitespace($("h1").first().text() || "");
-  const h2s = $("h2")
-    .slice(0, 6)
-    .map((_, el) => normalizeWhitespace($(el).text()))
-    .get()
-    .filter(Boolean);
-
-  const mainCandidates = ["main", "#content", ".site-content", ".entry-content", ".elementor", "body"];
-
-  let bodyText = "";
-  for (const sel of mainCandidates) {
-    const t = normalizeWhitespace($(sel).text());
-    if (t && t.length > bodyText.length) bodyText = t;
-  }
-
-  const combinedText = [title, metaDescription, h1, h2s.join(" "), bodyText].filter(Boolean).join(" ");
-  const words = combinedText
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  const wordCount = words.length;
-  const textLength = combinedText.length;
-
-  const hasEmail = detectEmail(combinedText);
-  const hasPhone = detectPhone(combinedText);
-  const hasAddressHints = detectAddressHints(combinedText);
-  const hasGeoHints = detectGeoHints(combinedText);
-
-  const extractedText = truncate(
-    [
-      title ? `TITLE: ${title}` : "",
-      metaDescription ? `META_DESCRIPTION: ${metaDescription}` : "",
-      h1 ? `H1: ${h1}` : "",
-      h2s.length ? `H2: ${h2s.join(" | ")}` : "",
-      bodyText ? `BODY_TEXT: ${bodyText}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    5000
-  );
-
-  return {
-    ok: true,
-    status: 200,
-    url,
-    title: title || null,
-    metaDescription: metaDescription || null,
-    extractedText,
-    canonical,
-    hreflangs,
-    hasJsonLd,
-    jsonLdTypes,
-    hasOpenGraph,
-    hasTwitterCard,
-    wordCount,
-    textLength,
-    hasEmail,
-    hasPhone,
-    hasAddressHints,
-    hasGeoHints,
-  };
-}
-
-function computeGeoScore(sig: HtmlSignals): ScoreBreakdown {
-  const parts: ScoreBreakdown["parts"] = {
-    structuredData: { score: 0, max: 20, notes: [] },
-    meta: { score: 0, max: 15, notes: [] },
-    headings: { score: 0, max: 10, notes: [] },
-    contact: { score: 0, max: 15, notes: [] },
-    geo: { score: 0, max: 15, notes: [] },
-    social: { score: 0, max: 10, notes: [] },
-    textVolume: { score: 0, max: 15, notes: [] },
-  };
-
-  // 1) Structured data (20)
-  if (sig.hasJsonLd) {
-    parts.structuredData.score += 12;
-    parts.structuredData.notes.push("JSON-LD detected.");
-    if (sig.jsonLdTypes.length > 0) {
-      parts.structuredData.score += 8;
-      parts.structuredData.notes.push(`Types: ${sig.jsonLdTypes.slice(0, 6).join(", ")}`);
-    } else {
-      parts.structuredData.notes.push("JSON-LD present but types not detected.");
-    }
-  } else {
-    parts.structuredData.notes.push("No JSON-LD schema found.");
-  }
-
-  // 2) Meta (15)
-  const hasTitle = Boolean(sig.title && sig.title.trim().length >= 10);
-  const hasDesc = Boolean(sig.metaDescription && sig.metaDescription.trim().length >= 50);
-  if (hasTitle) parts.meta.score += 7;
-  else parts.meta.notes.push("Title missing/too short.");
-  if (hasDesc) parts.meta.score += 8;
-  else parts.meta.notes.push("Meta description missing/too short.");
-
-  // 3) Headings (10) — ebből itt csak a kinyert textből következtetünk (H1/H2 jelenlét a kimenetben van)
-  // Mivel a sig.extractedText tartalmazza a H1/H2-t, egyszerűen nézzük meg a marker-eket:
-  const hasH1 = /(^|\n)H1:\s*\S+/m.test(sig.extractedText);
-  const hasH2 = /(^|\n)H2:\s*\S+/m.test(sig.extractedText);
-  if (hasH1) parts.headings.score += 6;
-  else parts.headings.notes.push("No H1 detected.");
-  if (hasH2) parts.headings.score += 4;
-  else parts.headings.notes.push("No H2 detected (or too little structure).");
-
-  // 4) Contact (15)
-  if (sig.hasEmail) parts.contact.score += 6;
-  else parts.contact.notes.push("No email detected.");
-  if (sig.hasPhone) parts.contact.score += 6;
-  else parts.contact.notes.push("No phone detected.");
-  if (sig.hasAddressHints) parts.contact.score += 3;
-  else parts.contact.notes.push("No address hints detected.");
-
-  // 5) Geo (15)
-  // geoHints = ország/város/regió említések; addressHints = utcás/cím jelleg
-  if (sig.hasGeoHints) parts.geo.score += 8;
-  else parts.geo.notes.push("No clear geo/location hints detected.");
-  if (sig.hasAddressHints) parts.geo.score += 7;
-  else parts.geo.notes.push("No structured address-like text detected.");
-
-  // 6) Social previews (10)
-  if (sig.hasOpenGraph) parts.social.score += 6;
-  else parts.social.notes.push("OpenGraph tags missing.");
-  if (sig.hasTwitterCard) parts.social.score += 4;
-  else parts.social.notes.push("Twitter card missing.");
-
-  // 7) Text volume (15)
-  // egyszerű küszöbök
-  if (sig.wordCount >= 600) {
-    parts.textVolume.score += 15;
-    parts.textVolume.notes.push(`Good text volume (${sig.wordCount} words).`);
-  } else if (sig.wordCount >= 300) {
-    parts.textVolume.score += 10;
-    parts.textVolume.notes.push(`Medium text volume (${sig.wordCount} words).`);
-  } else if (sig.wordCount >= 120) {
-    parts.textVolume.score += 6;
-    parts.textVolume.notes.push(`Low text volume (${sig.wordCount} words).`);
-  } else {
-    parts.textVolume.score += 2;
-    parts.textVolume.notes.push(`Very low text volume (${sig.wordCount} words).`);
-  }
-
-  const total =
-    parts.structuredData.score +
-    parts.meta.score +
-    parts.headings.score +
-    parts.contact.score +
-    parts.geo.score +
-    parts.social.score +
-    parts.textVolume.score;
-
-  return { total: Math.max(0, Math.min(100, total)), parts };
-}
-
-async function crawlSite(startUrl: string, maxPages = 5): Promise<HtmlSignals[]> {
-    const visited = new Set<string>();
-    const queue: string[] = [startUrl];
-    const results: HtmlSignals[] = [];
-    const domain = toHostname(startUrl);
-  
-    while (queue.length > 0 && results.length < maxPages) {
-      const current = queue.shift()!;
-      if (visited.has(current)) continue;
-      visited.add(current);
-  
-      try {
-        const page = await fetchOnDomainHtmlContext(current);
-        if (page.ok) {
-          results.push(page);
-  
-          // extract internal links from HTML
-          const html = await fetch(current).then(r => r.text()).catch(() => null);
-          if (!html) continue;
-  
-          const $ = cheerio.load(html);
-          $("a[href]").each((_, el) => {
-            const href = ($(el).attr("href") || "").trim();
-            if (!href) return;
-  
-            let full: string | null = null;
-  
-            if (href.startsWith("http")) full = href;
-            else if (href.startsWith("/")) full = new URL(href, startUrl).toString();
-  
-            if (!full) return;
-  
-            if (isSameDomain(full, domain) && !visited.has(full)) {
-              queue.push(full.split("#")[0]);
-            }
-          });
-        }
-      } catch {
-        continue;
-      }
-    }
-  
-    return results;
-  }
-
-  function combineHtmlSignals(pages: HtmlSignals[]): HtmlSignals {
-    const base = pages[0];
-  
-    const combinedText = pages.map(p => p.extractedText).join("\n");
-  
-    const combinedWords = combinedText
-      .replace(/[^\p{L}\p{N}\s]/gu, " ")
-      .split(/\s+/)
-      .filter(Boolean);
-  
-    return {
-      ...base,
-      extractedText: combinedText,
-      wordCount: combinedWords.length,
-      textLength: combinedText.length,
-      hasJsonLd: pages.some(p => p.hasJsonLd),
-      jsonLdTypes: Array.from(new Set(pages.flatMap(p => p.jsonLdTypes))),
-      hasOpenGraph: pages.some(p => p.hasOpenGraph),
-      hasTwitterCard: pages.some(p => p.hasTwitterCard),
-      hasEmail: pages.some(p => p.hasEmail),
-      hasPhone: pages.some(p => p.hasPhone),
-      hasAddressHints: pages.some(p => p.hasAddressHints),
-      hasGeoHints: pages.some(p => p.hasGeoHints),
-    };
-  }
