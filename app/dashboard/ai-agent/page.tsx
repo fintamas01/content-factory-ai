@@ -32,7 +32,7 @@ function CopyButton({ text }: { text: string }) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
-      // fallback: do nothing
+      // ignore
     }
   }
 
@@ -65,7 +65,11 @@ function Card({
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       {(title || right) && (
         <div className="flex items-start justify-between gap-3 mb-3">
-          {title ? <div className="text-white font-semibold">{title}</div> : <div />}
+          {title ? (
+            <div className="text-white font-semibold">{title}</div>
+          ) : (
+            <div />
+          )}
           {right}
         </div>
       )}
@@ -82,13 +86,7 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function KV({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <div className="text-[11px] uppercase tracking-widest text-white/40">
@@ -99,6 +97,11 @@ function KV({
   );
 }
 
+/**
+ * ✅ IMPORTANT:
+ * - The API will ALWAYS return JSON.
+ * - This component renders that JSON as a nice report instead of raw <pre>.
+ */
 function GeoAuditReport({ data }: { data: AgentResponse }) {
   const r = data?.result;
 
@@ -126,14 +129,18 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
       <Card
         title="Overview"
         right={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {score !== null && (
               <Badge>
                 Score: <span className="ml-1 text-blue-200">{score}/100</span>
               </Badge>
             )}
             {data.searchQuery ? <Badge>Query: {data.searchQuery}</Badge> : null}
-            {data.webContextUsed ? <Badge>Web context: ON</Badge> : <Badge>Web context: OFF</Badge>}
+            {data.webContextUsed ? (
+              <Badge>Web context: ON</Badge>
+            ) : (
+              <Badge>Web context: OFF</Badge>
+            )}
           </div>
         }
       >
@@ -143,32 +150,45 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
           <KV label="URL" value={data.url ?? "—"} />
         </div>
 
-        {summary && <p className="mt-4 text-white/70 text-sm leading-relaxed">{summary}</p>}
+        {summary && (
+          <p className="mt-4 text-white/70 text-sm leading-relaxed">
+            {summary}
+          </p>
+        )}
       </Card>
 
       {findings.length > 0 && (
         <Card title="Findings">
           <div className="space-y-3">
             {findings.map((f: any, idx: number) => (
-              <div key={idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <div className="text-white font-semibold">{f?.area ?? "Area"}</div>
+              <div
+                key={idx}
+                className="rounded-xl border border-white/10 bg-black/20 p-3"
+              >
+                <div className="text-white font-semibold">
+                  {f?.area ?? "Area"}
+                </div>
                 <div className="mt-2 space-y-1 text-sm text-white/70">
                   {f?.issue && (
                     <div>
-                      <span className="text-white/80 font-semibold">Issue:</span>{" "}
-                      {f.issue}
+                      <span className="text-white/80 font-semibold">
+                        Issue:
+                      </span>{" "}
+                      {String(f.issue)}
                     </div>
                   )}
                   {f?.impact && (
                     <div>
-                      <span className="text-white/80 font-semibold">Impact:</span>{" "}
-                      {f.impact}
+                      <span className="text-white/80 font-semibold">
+                        Impact:
+                      </span>{" "}
+                      {String(f.impact)}
                     </div>
                   )}
                   {f?.fix && (
                     <div>
                       <span className="text-white/80 font-semibold">Fix:</span>{" "}
-                      {f.fix}
+                      {String(f.fix)}
                     </div>
                   )}
                 </div>
@@ -192,8 +212,13 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
         <Card title="Quick wins (actionable)">
           <div className="space-y-3">
             {quickWins.map((q: any, i: number) => (
-              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <div className="text-white font-semibold">{q?.title ?? `Quick win ${i + 1}`}</div>
+              <div
+                key={i}
+                className="rounded-xl border border-white/10 bg-black/20 p-3"
+              >
+                <div className="text-white font-semibold">
+                  {q?.title ?? `Quick win ${i + 1}`}
+                </div>
                 {Array.isArray(q?.steps) && q.steps.length > 0 && (
                   <ul className="list-disc pl-5 text-white/70 text-sm mt-2 space-y-1">
                     {q.steps.map((s: any, j: number) => (
@@ -208,11 +233,19 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
       )}
 
       {copySuggestions.length > 0 && (
-        <Card title="Copy suggestions" right={<CopyButton text={JSON.stringify(copySuggestions, null, 2)} />}>
+        <Card
+          title="Copy suggestions"
+          right={<CopyButton text={JSON.stringify(copySuggestions, null, 2)} />}
+        >
           <div className="space-y-3">
             {copySuggestions.map((c: any, i: number) => (
-              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <div className="text-white font-semibold">{c?.section ?? `Section ${i + 1}`}</div>
+              <div
+                key={i}
+                className="rounded-xl border border-white/10 bg-black/20 p-3"
+              >
+                <div className="text-white font-semibold">
+                  {c?.section ?? `Section ${i + 1}`}
+                </div>
                 {c?.exampleText && (
                   <div className="text-white/70 text-sm mt-2 whitespace-pre-wrap">
                     {String(c.exampleText)}
@@ -263,7 +296,11 @@ function ContentPlanReport({ data }: { data: AgentResponse }) {
           <KV label="Platform" value={data.platform} />
           <KV label="Goal" value={data.goal} />
         </div>
-        {summary && <p className="mt-4 text-white/70 text-sm leading-relaxed">{summary}</p>}
+        {summary && (
+          <p className="mt-4 text-white/70 text-sm leading-relaxed">
+            {summary}
+          </p>
+        )}
       </Card>
 
       {pillars.length > 0 && (
@@ -277,16 +314,26 @@ function ContentPlanReport({ data }: { data: AgentResponse }) {
       )}
 
       {plan.length > 0 && (
-        <Card title="14-day plan" right={<CopyButton text={JSON.stringify(plan, null, 2)} />}>
+        <Card
+          title="14-day plan"
+          right={<CopyButton text={JSON.stringify(plan, null, 2)} />}
+        >
           <div className="space-y-3">
             {plan.map((p: any, i: number) => (
-              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div
+                key={i}
+                className="rounded-xl border border-white/10 bg-black/20 p-3"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-white font-semibold">
                     Day {p?.day ?? i + 1} • {p?.platform ?? data.platform}
                   </div>
                 </div>
-                {p?.hook && <div className="text-white/70 text-sm mt-2"><b>Hook:</b> {String(p.hook)}</div>}
+                {p?.hook && (
+                  <div className="text-white/70 text-sm mt-2">
+                    <b>Hook:</b> {String(p.hook)}
+                  </div>
+                )}
                 {Array.isArray(p?.outline) && p.outline.length > 0 && (
                   <ul className="list-disc pl-5 text-white/70 text-sm mt-2 space-y-1">
                     {p.outline.map((s: any, j: number) => (
@@ -371,10 +418,16 @@ function BrandVoiceReport({ data }: { data: AgentResponse }) {
       )}
 
       {examples.length > 0 && (
-        <Card title="Example captions" right={<CopyButton text={JSON.stringify(examples, null, 2)} />}>
+        <Card
+          title="Example captions"
+          right={<CopyButton text={JSON.stringify(examples, null, 2)} />}
+        >
           <div className="space-y-3">
             {examples.map((ex: any, i: number) => (
-              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div
+                key={i}
+                className="rounded-xl border border-white/10 bg-black/20 p-3"
+              >
                 <div className="text-white font-semibold">
                   {String(ex?.platform ?? data.platform)}
                 </div>
