@@ -420,7 +420,7 @@ function detectPhone(text: string) {
 
 function detectAddressHints(text: string) {
   const t = text.toLowerCase();
-  const hints = ["utca", "strada", "street", "boulevard", "blvd", "nr.", "no.", "zip", "iranyitoszam", "cod poștal", "post code", "udvarter"];
+  const hints = ["utca", "strada", "street", "boulevard", "blvd", "nr.", "no.", "zip", "iranyitoszam", "cod poștal", "post code", "udvarter", "udvartér"];
   return hints.some((h) => t.includes(h));
 }
 
