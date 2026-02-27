@@ -114,8 +114,14 @@ export async function POST(req: Request) {
         : null;
 
     // 2a) On-domain HTML context (direct fetch) – GEO-nál ez a legmegbízhatóbb
-    const onDomainHtml: HtmlSignals | null =
-      goal === "geo_audit" && url ? await fetchOnDomainHtmlContext(url) : null;
+    let onDomainHtml: HtmlSignals | null = null;
+
+    if (goal === "geo_audit" && url) {
+        const pages = await crawlSite(url, 5); // 1 homepage + 4 internal
+        if (pages.length > 0) {
+            onDomainHtml = combineHtmlSignals(pages);
+        }
+    }
 
     // 2b) Web context (Tavily) – geo_auditnál: találatok, answer NINCS
     const webContext: WebContext | null =
@@ -642,3 +648,74 @@ function computeGeoScore(sig: HtmlSignals): ScoreBreakdown {
 
   return { total: Math.max(0, Math.min(100, total)), parts };
 }
+
+async function crawlSite(startUrl: string, maxPages = 5): Promise<HtmlSignals[]> {
+    const visited = new Set<string>();
+    const queue: string[] = [startUrl];
+    const results: HtmlSignals[] = [];
+    const domain = toHostname(startUrl);
+  
+    while (queue.length > 0 && results.length < maxPages) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+  
+      try {
+        const page = await fetchOnDomainHtmlContext(current);
+        if (page.ok) {
+          results.push(page);
+  
+          // extract internal links from HTML
+          const html = await fetch(current).then(r => r.text()).catch(() => null);
+          if (!html) continue;
+  
+          const $ = cheerio.load(html);
+          $("a[href]").each((_, el) => {
+            const href = ($(el).attr("href") || "").trim();
+            if (!href) return;
+  
+            let full: string | null = null;
+  
+            if (href.startsWith("http")) full = href;
+            else if (href.startsWith("/")) full = new URL(href, startUrl).toString();
+  
+            if (!full) return;
+  
+            if (isSameDomain(full, domain) && !visited.has(full)) {
+              queue.push(full.split("#")[0]);
+            }
+          });
+        }
+      } catch {
+        continue;
+      }
+    }
+  
+    return results;
+  }
+
+  function combineHtmlSignals(pages: HtmlSignals[]): HtmlSignals {
+    const base = pages[0];
+  
+    const combinedText = pages.map(p => p.extractedText).join("\n");
+  
+    const combinedWords = combinedText
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+  
+    return {
+      ...base,
+      extractedText: combinedText,
+      wordCount: combinedWords.length,
+      textLength: combinedText.length,
+      hasJsonLd: pages.some(p => p.hasJsonLd),
+      jsonLdTypes: Array.from(new Set(pages.flatMap(p => p.jsonLdTypes))),
+      hasOpenGraph: pages.some(p => p.hasOpenGraph),
+      hasTwitterCard: pages.some(p => p.hasTwitterCard),
+      hasEmail: pages.some(p => p.hasEmail),
+      hasPhone: pages.some(p => p.hasPhone),
+      hasAddressHints: pages.some(p => p.hasAddressHints),
+      hasGeoHints: pages.some(p => p.hasGeoHints),
+    };
+  }
