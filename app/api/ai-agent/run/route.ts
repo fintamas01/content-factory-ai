@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import * as cheerio from "cheerio";
 
 type Platform = "web" | "instagram" | "tiktok" | "linkedin";
 type AgentGoal = "geo_audit" | "content_plan" | "brand_voice";
@@ -74,7 +75,11 @@ export async function POST(req: Request) {
         ? await generateSearchQuery({ url: url!, brandName, platform })
         : null;
 
-    // 2) Web context (Tavily) – geo_auditnál: találatok, answer NINCS
+    // 2a) On-domain HTML context (direct fetch) – GEO-nál ez a legmegbízhatóbb
+    const onDomainHtml =
+      goal === "geo_audit" && url ? await fetchOnDomainHtmlContext(url) : null;
+
+    // 2b) Web context (Tavily) – geo_auditnál: találatok, answer NINCS
     const webContext: WebContext | null =
       goal === "geo_audit"
         ? await fetchWebContextTavily({
@@ -92,6 +97,7 @@ export async function POST(req: Request) {
       notes,
       targetDomain,
       webContext,
+      onDomainHtml,
     });
 
     return NextResponse.json(
@@ -133,7 +139,10 @@ Return ONLY the query. No quotes. No punctuation.
   return (r.choices[0]?.message?.content ?? "").trim().replace(/^["']|["']$/g, "");
 }
 
-async function fetchWebContextTavily(args: { query: string; targetDomain: string }): Promise<WebContext> {
+async function fetchWebContextTavily(args: {
+  query: string;
+  targetDomain: string;
+}): Promise<WebContext> {
   const key = process.env.TAVILY_API_KEY;
   if (!key) throw new Error("Missing TAVILY_API_KEY in environment.");
 
@@ -165,10 +174,10 @@ async function fetchWebContextTavily(args: { query: string; targetDomain: string
     if (!url) continue;
 
     const title = (r.title ?? "").trim() || "Untitled";
-    const text = (r.content ?? r.snippet ?? "").trim();
 
-    // If Tavily didn't provide text, skip — we need something to ground.
-    if (!text) continue;
+    // ✅ Profi fix: NE dobd el akkor sem, ha nincs content/snippet.
+    // A title + URL is hasznos evidence.
+    const text = (r.content ?? r.snippet ?? r.title ?? "").trim();
 
     if (isSameDomain(url, args.targetDomain)) {
       onDomain.push({ url, title, text });
@@ -199,6 +208,7 @@ async function runAgentAnalysis(args: {
   notes?: string;
   targetDomain: string;
   webContext?: WebContext | null;
+  onDomainHtml?: any | null;
 }) {
   const system = `
 You are an AI Agent that outputs STRICT JSON.
@@ -206,8 +216,12 @@ No markdown. No extra text. Only JSON.
 
 CRITICAL ACCURACY RULES:
 - Do NOT invent facts (numbers, dates, installs, awards, company size, etc).
-- You may ONLY state factual claims about the website/company if they are supported by EVIDENCE from the provided webContext.onDomain items (same domain as targetDomain).
+- Prefer OnDomainHtmlContext as PRIMARY source for on-domain facts.
+- You may ONLY state factual claims about the website/company if they are supported by EVIDENCE from:
+  (1) OnDomainHtmlContext.extractedText (direct fetch), OR
+  (2) provided webContext.onDomain items (same domain as targetDomain).
 - You may use webContext.offDomain only for "external mentions / reputation" and those claims must also include EVIDENCE.
+- Only claim "no on-domain content" if OnDomainHtmlContext.ok is false OR extractedText is empty.
 - If you are unsure, write "unknown" or omit the claim.
 - For geo_audit findings, include evidence[] where possible: [{ url, quote }].
 `.trim();
@@ -262,6 +276,9 @@ platform=${args.platform}
 brandName=${args.brandName ?? ""}
 notes=${args.notes ?? ""}
 
+OnDomainHtmlContext (direct fetch):
+${args.onDomainHtml ? JSON.stringify(args.onDomainHtml, null, 2) : "null"}
+
 webContext (structured):
 ${args.webContext ? JSON.stringify(args.webContext, null, 2) : "null"}
 `.trim();
@@ -282,4 +299,97 @@ ${args.webContext ? JSON.stringify(args.webContext, null, 2) : "null"}
   } catch {
     return { raw };
   }
+}
+
+function normalizeWhitespace(s: string) {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function truncate(s: string, max = 4000) {
+  const t = s.trim();
+  return t.length > max ? t.slice(0, max) + "…" : t;
+}
+
+async function fetchOnDomainHtmlContext(url: string) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      // sok WP / WAF jobban engedi így
+      "User-Agent":
+        "Mozilla/5.0 (compatible; ContentFactoryBot/1.0; +https://futuretechapps.ro)",
+      Accept: "text/html,application/xhtml+xml",
+    },
+    // Next.js serveren néha kell:
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      url,
+      title: null,
+      metaDescription: null,
+      extractedText: "",
+      error: `Fetch failed: ${res.status}`,
+    };
+  }
+
+  const html = await res.text();
+  const $ = cheerio.load(html);
+
+  // Remove noisy tags
+  $("script,noscript,style,svg").remove();
+
+  const title = normalizeWhitespace($("title").first().text() || "");
+  const metaDescription = normalizeWhitespace(
+    $('meta[name="description"]').attr("content") || ""
+  );
+
+  // Grab headings + main text (best-effort)
+  const h1 = normalizeWhitespace($("h1").first().text() || "");
+  const h2s = $("h2")
+    .slice(0, 6)
+    .map((_, el) => normalizeWhitespace($(el).text()))
+    .get()
+    .filter(Boolean);
+
+  // Try main content containers commonly used in WP
+  const mainCandidates = [
+    "main",
+    "#content",
+    ".site-content",
+    ".entry-content",
+    ".elementor",
+    "body",
+  ];
+
+  let bodyText = "";
+  for (const sel of mainCandidates) {
+    const t = normalizeWhitespace($(sel).text());
+    if (t && t.length > bodyText.length) bodyText = t;
+  }
+
+  // Keep it compact
+  const extractedText = truncate(
+    [
+      title ? `TITLE: ${title}` : "",
+      metaDescription ? `META_DESCRIPTION: ${metaDescription}` : "",
+      h1 ? `H1: ${h1}` : "",
+      h2s.length ? `H2: ${h2s.join(" | ")}` : "",
+      bodyText ? `BODY_TEXT: ${bodyText}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    5000
+  );
+
+  return {
+    ok: true,
+    status: 200,
+    url,
+    title: title || null,
+    metaDescription: metaDescription || null,
+    extractedText,
+  };
 }
