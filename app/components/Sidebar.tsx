@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, History, CreditCard, Settings, LogOut, Sparkles, LayoutGrid } from 'lucide-react';
+import { LayoutDashboard, History, CreditCard, Settings, LogOut, Sparkles, LayoutGrid, Bot } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import Image from 'next/image';
 
@@ -15,6 +15,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Smart Matrix', href: '/dashboard/matrix' },
   { icon: LayoutGrid, label: 'Poster Studio', href: '/dashboard/poster' },
   { icon: Sparkles, label: 'Brand Voice', href: '/dashboard/brand-voice' },
+  { icon: Bot, label: 'AI Agent', href: '/dashboard/ai-agent' },
   { icon: History, label: 'Archives', href: '/history' },
   { icon: CreditCard, label: 'Billing', href: '/billing' },
   { icon: Settings, label: 'Settings', href: '/settings' },
@@ -46,7 +47,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-4 space-y-2">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link key={item.href} href={item.href}>
               <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm cursor-pointer ${
