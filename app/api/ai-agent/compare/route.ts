@@ -229,11 +229,23 @@ async function fetchHtml(url: string, timeoutMs: number) {
     });
 
     if (!res.ok) {
-      return { ok: false as const, status: res.status, url, html: "", error: `Fetch failed: ${res.status}` };
+      return {
+        ok: false as const,
+        status: res.status,
+        url,
+        html: "",
+        error: `Fetch failed: ${res.status}`,
+      };
     }
 
     const html = await res.text();
-    return { ok: true as const, status: 200, url, html, error: null as string | null };
+    return {
+      ok: true as const,
+      status: 200,
+      url,
+      html,
+      error: null as string | null,
+    };
   } catch (e: any) {
     return {
       ok: false as const,
@@ -252,13 +264,15 @@ function parseOnDomainPage(url: string, html: string): OnDomainPage {
 
   const title = normalizeWhitespace($("title").first().text() || "") || null;
   const metaDescription =
-    normalizeWhitespace($('meta[name="description"]').attr("content") || "") || null;
+    normalizeWhitespace($('meta[name="description"]').attr("content") || "") ||
+    null;
 
   const hasOpenGraph = $('meta[property^="og:"]').length > 0;
   const hasTwitterCard = $('meta[name^="twitter:"]').length > 0;
 
   const hasJsonLd = $('script[type="application/ld+json"]').length > 0;
-  const hasSchemaOrgMicrodata = $('[itemscope]').length > 0 || /https?:\/\/schema\.org/i.test(html);
+  const hasSchemaOrgMicrodata =
+    $('[itemscope]').length > 0 || /https?:\/\/schema\.org/i.test(html);
 
   const h1 = $("h1")
     .slice(0, 6)
@@ -280,7 +294,14 @@ function parseOnDomainPage(url: string, html: string): OnDomainPage {
 
   $("script,noscript,style,svg").remove();
 
-  const mainCandidates = ["main", "#content", ".site-content", ".entry-content", ".elementor", "body"];
+  const mainCandidates = [
+    "main",
+    "#content",
+    ".site-content",
+    ".entry-content",
+    ".elementor",
+    "body",
+  ];
   let bestText = "";
   for (const sel of mainCandidates) {
     const t = normalizeWhitespace($(sel).text());
@@ -308,7 +329,9 @@ function parseOnDomainPage(url: string, html: string): OnDomainPage {
     .split(".")
     .map((s) => normalizeWhitespace(s))
     .filter((s) =>
-      /utca|strada|street|nr\.|no\.|bl\.|ap\.|jud|county|romania|magyarország|ország/i.test(s)
+      /utca|strada|street|nr\.|no\.|bl\.|ap\.|jud|county|romania|magyarország|ország/i.test(
+        s
+      )
     )
     .slice(0, 6);
 
@@ -316,7 +339,9 @@ function parseOnDomainPage(url: string, html: string): OnDomainPage {
     .split(".")
     .map((s) => normalizeWhitespace(s))
     .filter((s) =>
-      /sepsi|târgu|maros|kolozsvár|cluj|bucharest|budapest|szatmár|românia|romania/i.test(s)
+      /sepsi|târgu|maros|kolozsvár|cluj|bucharest|budapest|szatmár|românia|romania/i.test(
+        s
+      )
     )
     .slice(0, 6);
 
@@ -493,14 +518,54 @@ function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
   else if (avgText >= 800) tvScore = 4;
   else {
     tvScore = 1;
-    parts.textVolume.notes.push("Very low on-page text volume; add clearer service descriptions & sections.");
+    parts.textVolume.notes.push(
+      "Very low on-page text volume; add clearer service descriptions & sections."
+    );
   }
   parts.textVolume.score = tvScore;
 
   return parts;
 }
 
+/**
+ * ✅ UI-friendly evidence sample (oldalanként pár kulcsjel + rövid snippet)
+ * Ezt fogod tudni szépen lenyithatóan megjeleníteni a compare UI-ban.
+ */
+function buildPagesSample(crawl: CrawlContext) {
+  return crawl.pages.slice(0, 6).map((p) => {
+    const bodyOnly = (p.extractedText || "").split("BODY_TEXT:")[1] ?? "";
+    const snippet = truncate(normalizeWhitespace(bodyOnly), 700);
+
+    return {
+      url: p.url,
+      title: p.title,
+      metaDescription: p.metaDescription,
+      h1: p.headings.h1.slice(0, 3),
+      h2: p.headings.h2.slice(0, 5),
+      h3: p.headings.h3.slice(0, 5),
+      flags: {
+        hasJsonLd: p.hasJsonLd,
+        hasSchemaOrgMicrodata: p.hasSchemaOrgMicrodata,
+        hasOpenGraph: p.hasOpenGraph,
+        hasTwitterCard: p.hasTwitterCard,
+      },
+      signals: {
+        emails: p.foundEmails,
+        phones: p.foundPhones,
+        socialLinks: p.socialLinks.slice(0, 8),
+        addressLike: p.foundAddressesLike,
+        cityOrRegionLike: p.foundCityOrRegionLike,
+      },
+      text: {
+        rawTextLength: p.rawTextLength,
+        snippet,
+      },
+    };
+  });
+}
+
 function buildEvidence(crawl: CrawlContext) {
+  // LLM-nek továbbra is tömör, de "idézhető" quote
   return crawl.pages.slice(0, 6).map((p) => ({
     url: p.url,
     quote: truncate(p.extractedText.replace(/^BODY_TEXT:\s*/i, ""), 500),
@@ -522,24 +587,47 @@ function deltaParts(a: ScoreParts, b: ScoreParts) {
   return out;
 }
 
+function topDeltaHighlights(delta: Record<string, number>, topN = 3) {
+  const entries = Object.entries(delta).map(([k, v]) => ({ k, v }));
+  const pos = [...entries].filter((x) => x.v > 0).sort((a, b) => b.v - a.v).slice(0, topN);
+  const neg = [...entries].filter((x) => x.v < 0).sort((a, b) => a.v - b.v).slice(0, topN);
+  return { competitorWins: pos, mainWins: neg };
+}
+
 async function buildInsightsLLM(args: {
-  main: { url: string; score: number; scoreParts: ScoreParts; evidence: any[] };
-  competitors: Array<{ url: string; score: number; scoreParts: ScoreParts; evidence: any[] }>;
+  main: { url: string; score: number; scoreParts: ScoreParts; evidence: any[]; pagesSample: any[] };
+  competitors: Array<{ url: string; score: number; scoreParts: ScoreParts; evidence: any[]; pagesSample: any[] }>;
   deltas: Array<{ competitor: string; delta: Record<string, number> }>;
 }) {
-  // If no key, just return null (UI will show null)
   if (!process.env.OPENAI_API_KEY) return null;
 
   const system = `
 You output STRICT JSON only. No markdown.
-Do NOT invent facts. Use evidence quotes if you mention something concrete.
-Return JSON keys: summary, topGaps, quickWins, positioning.
+
+CRITICAL ACCURACY:
+- Do NOT invent facts (addresses, years, team size, awards, etc).
+- If you mention anything concrete about a site, support it with evidence quotes/snippets that are provided.
+- If you are unsure, write "unknown".
+
+Return JSON keys:
+- summary (2-4 sentences)
+- topGaps (array of strings)
+- quickWins (array of strings)
+- positioning (1 short paragraph)
+- perSiteNotes: array of { url, strengths[], weaknesses[], suggestedNextSteps[] }
 `.trim();
+
+  // Deltas highlight: segít, hogy az LLM ne "általánoskodjon"
+  const deltaHighlights = args.deltas.map((d) => ({
+    competitor: d.competitor,
+    ...topDeltaHighlights(d.delta, 3),
+  }));
 
   const user = {
     main: args.main,
     competitors: args.competitors,
     deltas: args.deltas,
+    deltaHighlights,
   };
 
   const r = await openai.chat.completions.create({
@@ -571,14 +659,16 @@ export async function POST(req: Request) {
       typeof body.timeoutMsPerPage === "number" ? body.timeoutMsPerPage : 5000;
 
     if (!mainUrl) return badRequest("Missing 'mainUrl'.");
-    if (!Array.isArray(competitors) || competitors.length === 0) return badRequest("Missing 'competitors'.");
+    if (!Array.isArray(competitors) || competitors.length === 0)
+      return badRequest("Missing 'competitors'.");
 
     const cleanedCompetitors = competitors
       .map((x: any) => String(x ?? "").trim())
       .filter(Boolean)
       .slice(0, 3);
 
-    if (cleanedCompetitors.length === 0) return badRequest("No valid competitors provided (max 3).");
+    if (cleanedCompetitors.length === 0)
+      return badRequest("No valid competitors provided (max 3).");
 
     const sites = [mainUrl, ...cleanedCompetitors];
 
@@ -593,17 +683,26 @@ export async function POST(req: Request) {
       pageCount: number;
       crawlErrors: Array<{ url: string; error: string }>;
       evidence: Array<{ url: string; quote: string }>;
+      pagesSample: any[];
+      crawlStats: {
+        maxPages: number;
+        timeoutMsPerPage: number;
+        errorsCount: number;
+      };
     }> = [];
 
     for (const s of sites) {
       const seed = toUrl(s);
       const domain = toHostname(seed);
 
+      const boundedMaxPages = Math.max(1, Math.min(10, maxPages));
+      const boundedTimeout = Math.max(1500, Math.min(15000, timeoutMsPerPage));
+
       const { crawl, errors } = await crawlOnDomain({
         seedUrl: seed,
         targetDomain: domain,
-        maxPages: Math.max(1, Math.min(10, maxPages)),
-        timeoutMsPerPage: Math.max(1500, Math.min(15000, timeoutMsPerPage)),
+        maxPages: boundedMaxPages,
+        timeoutMsPerPage: boundedTimeout,
       });
 
       const ok = crawl.pageCount > 0;
@@ -621,37 +720,46 @@ export async function POST(req: Request) {
         pageCount: crawl.pageCount,
         crawlErrors: errors.slice(0, 10),
         evidence: ok ? buildEvidence(crawl) : [],
+        pagesSample: ok ? buildPagesSample(crawl) : [],
+        crawlStats: {
+          maxPages: boundedMaxPages,
+          timeoutMsPerPage: boundedTimeout,
+          errorsCount: errors.length,
+        },
       });
     }
 
     const main = siteReports[0];
     const competitorsReports = siteReports.slice(1);
 
-    // Ranking
     const ranking = [...siteReports]
       .map((r) => ({ url: r.url, totalScore: r.score }))
       .sort((a, b) => b.totalScore - a.totalScore);
 
-    // Category matrix
     const categoryMatrix = siteReports.map((r) => ({
       url: r.url,
       categories: categoriesFromScoreParts(r.scoreParts),
     }));
 
-    // Deltas (competitor - main)
     const deltas = competitorsReports.map((c) => ({
       competitor: c.url,
       delta: deltaParts(main.scoreParts, c.scoreParts),
     }));
 
-    // LLM insights (optional)
     const insights = await buildInsightsLLM({
-      main: { url: main.url, score: main.score, scoreParts: main.scoreParts, evidence: main.evidence },
+      main: {
+        url: main.url,
+        score: main.score,
+        scoreParts: main.scoreParts,
+        evidence: main.evidence,
+        pagesSample: main.pagesSample,
+      },
       competitors: competitorsReports.map((c) => ({
         url: c.url,
         score: c.score,
         scoreParts: c.scoreParts,
         evidence: c.evidence,
+        pagesSample: c.pagesSample,
       })),
       deltas,
     });
@@ -668,6 +776,10 @@ export async function POST(req: Request) {
           pageCount: r.pageCount,
           crawlErrors: r.crawlErrors,
           evidence: r.evidence,
+
+          // ✅ NEW (UI-proof)
+          pagesSample: r.pagesSample,
+          crawlStats: r.crawlStats,
         })),
         ranking,
         categoryMatrix,

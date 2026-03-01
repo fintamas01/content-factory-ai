@@ -55,6 +55,29 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
+function MiniTag({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "good" | "bad";
+}) {
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-semibold",
+        tone === "good"
+          ? "bg-emerald-500/10 border-emerald-400/20 text-emerald-200"
+          : tone === "bad"
+          ? "bg-red-500/10 border-red-400/20 text-red-200"
+          : "bg-white/5 border-white/10 text-white/70"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 /**
  * Normalize API response to safe defaults (prevents .map on undefined).
  * If API returns an error payload, we still keep raw.
@@ -83,7 +106,10 @@ function normalizeCompareResult(raw: any): (CompareResult & { raw?: any }) | nul
     ? raw.ranking
         .map((x: any) => ({
           url: typeof x?.url === "string" ? x.url : String(x?.url ?? ""),
-          totalScore: typeof x?.totalScore === "number" ? x.totalScore : Number(x?.totalScore ?? 0),
+          totalScore:
+            typeof x?.totalScore === "number"
+              ? x.totalScore
+              : Number(x?.totalScore ?? 0),
         }))
         .filter((x: any) => x.url)
     : [];
@@ -92,7 +118,9 @@ function normalizeCompareResult(raw: any): (CompareResult & { raw?: any }) | nul
     ? raw.categoryMatrix
         .map((row: any) => ({
           url: typeof row?.url === "string" ? row.url : String(row?.url ?? ""),
-          categories: isRecord(row?.categories) ? (row.categories as Record<string, number>) : {},
+          categories: isRecord(row?.categories)
+            ? (row.categories as Record<string, number>)
+            : {},
         }))
         .filter((x: any) => x.url)
     : [];
@@ -122,6 +150,167 @@ function normalizeCompareResult(raw: any): (CompareResult & { raw?: any }) | nul
   };
 }
 
+function getSiteResult(results: any[], url: string) {
+  return results.find((r) => String(r?.url ?? "") === String(url ?? "")) ?? null;
+}
+
+function renderInsights(insights: any) {
+  if (!insights) {
+    return (
+      <div className="text-white/60 text-sm">
+        Nincs AI insight (insights=null). (Ha nincs OPENAI_API_KEY a szerveren, ez normális.)
+      </div>
+    );
+  }
+
+  // if it's not an object -> show raw
+  if (!isRecord(insights)) {
+    return (
+      <pre className="text-xs text-white/80 whitespace-pre-wrap">
+        {typeof insights === "string" ? insights : safeJsonStringify(insights, 2)}
+      </pre>
+    );
+  }
+
+  const summary = typeof insights.summary === "string" ? insights.summary : "";
+  const topGaps = Array.isArray(insights.topGaps) ? insights.topGaps : [];
+  const quickWins = Array.isArray(insights.quickWins) ? insights.quickWins : [];
+  const positioning =
+    typeof insights.positioning === "string" ? insights.positioning : "";
+
+  const perSiteNotes = Array.isArray(insights.perSiteNotes)
+    ? insights.perSiteNotes
+    : [];
+
+  return (
+    <div className="space-y-4">
+      {(summary || positioning) && (
+        <div className="space-y-2">
+          {summary && (
+            <div className="text-white/80 text-sm leading-relaxed">{summary}</div>
+          )}
+          {positioning && (
+            <div className="text-white/70 text-sm leading-relaxed">
+              <span className="text-white/85 font-semibold">Positioning:</span>{" "}
+              {positioning}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(topGaps.length > 0 || quickWins.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="text-white font-semibold mb-2">Top gaps</div>
+            {topGaps.length === 0 ? (
+              <div className="text-white/60 text-sm">—</div>
+            ) : (
+              <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                {topGaps.map((x: any, i: number) => (
+                  <li key={i}>{String(x)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="text-white font-semibold mb-2">Quick wins</div>
+            {quickWins.length === 0 ? (
+              <div className="text-white/60 text-sm">—</div>
+            ) : (
+              <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                {quickWins.map((x: any, i: number) => (
+                  <li key={i}>{String(x)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {perSiteNotes.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-white font-semibold">Per-site notes</div>
+          {perSiteNotes.map((n: any, i: number) => {
+            const url = String(n?.url ?? `site-${i + 1}`);
+            const strengths = Array.isArray(n?.strengths) ? n.strengths : [];
+            const weaknesses = Array.isArray(n?.weaknesses) ? n.weaknesses : [];
+            const nextSteps = Array.isArray(n?.suggestedNextSteps)
+              ? n.suggestedNextSteps
+              : [];
+
+            return (
+              <div
+                key={url}
+                className="rounded-xl border border-white/10 bg-black/20 p-3"
+              >
+                <div className="text-white/90 font-semibold">{url}</div>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="text-white/80 font-semibold text-sm mb-2">
+                      Strengths
+                    </div>
+                    {strengths.length === 0 ? (
+                      <div className="text-white/60 text-sm">—</div>
+                    ) : (
+                      <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                        {strengths.map((x: any, j: number) => (
+                          <li key={j}>{String(x)}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="text-white/80 font-semibold text-sm mb-2">
+                      Weaknesses
+                    </div>
+                    {weaknesses.length === 0 ? (
+                      <div className="text-white/60 text-sm">—</div>
+                    ) : (
+                      <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                        {weaknesses.map((x: any, j: number) => (
+                          <li key={j}>{String(x)}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="text-white/80 font-semibold text-sm mb-2">
+                      Suggested next steps
+                    </div>
+                    {nextSteps.length === 0 ? (
+                      <div className="text-white/60 text-sm">—</div>
+                    ) : (
+                      <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                        {nextSteps.map((x: any, j: number) => (
+                          <li key={j}>{String(x)}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* fallback raw */}
+      <details className="rounded-xl border border-white/10 bg-white/5 p-3">
+        <summary className="cursor-pointer text-white/70 font-semibold text-sm">
+          Raw insights JSON
+        </summary>
+        <pre className="mt-2 text-xs text-white/80 whitespace-pre-wrap overflow-auto">
+          {safeJsonStringify(insights, 2)}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
 export default function ComparePage() {
   const [mainUrl, setMainUrl] = useState("futuretechapps.ro");
   const [competitorsText, setCompetitorsText] = useState("");
@@ -149,8 +338,6 @@ export default function ComparePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // NOTE: your API may expect url instead of mainUrl (depending on your route implementation)
-          // Keep as-is because you already used it this way.
           mainUrl: mainUrl.trim(),
           competitors,
         }),
@@ -159,7 +346,6 @@ export default function ComparePage() {
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        // Show server-provided error message if present
         const message =
           (isRecord(json) && (json.error || json.message || json.details)) ||
           "Request failed";
@@ -179,6 +365,7 @@ export default function ComparePage() {
   const categoryMatrix = data?.categoryMatrix ?? [];
   const deltas = data?.deltas ?? [];
   const insights = data?.insights ?? null;
+  const results = Array.isArray(data?.results) ? (data?.results as any[]) : [];
 
   return (
     <div className="p-6 space-y-6">
@@ -227,7 +414,7 @@ export default function ComparePage() {
             {loading ? "Running..." : "Run Compare"}
           </button>
 
-          <div className="text-xs text-white/60 flex items-center gap-2">
+          <div className="text-xs text-white/60 flex items-center gap-2 flex-wrap">
             <Badge>Pages/site: 5</Badge>
             <Badge>Timeout: 5s/page</Badge>
             <Badge>Competitors: {competitors.length}/3</Badge>
@@ -275,7 +462,20 @@ export default function ComparePage() {
                     key={`${row.url}-${idx}`}
                     className="rounded-xl border border-white/10 bg-black/20 p-3"
                   >
-                    <div className="text-white font-semibold mb-2">{row.url}</div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="text-white font-semibold">{row.url}</div>
+                      {(() => {
+                        const site = getSiteResult(results, row.url);
+                        const pageCount = Number(site?.pageCount ?? 0);
+                        const errorsCount = Number(site?.crawlStats?.errorsCount ?? 0);
+                        return (
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
+                            <Badge>Pages: {pageCount}</Badge>
+                            <Badge>Errors: {errorsCount}</Badge>
+                          </div>
+                        );
+                      })()}
+                    </div>
 
                     {row.categories && Object.keys(row.categories).length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-white/80">
@@ -347,11 +547,305 @@ export default function ComparePage() {
             )}
           </Card>
 
-          <Card title="AI insights (strategic)">
-            <pre className="text-xs text-white/80 whitespace-pre-wrap">
-              {safeJsonStringify(insights, 2)}
-            </pre>
+          {/* ✅ NEW: Crawl evidence pages */}
+          <Card
+            title="Crawl evidence (pages)"
+            right={
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Badge>Tip: itt látod, mit “talált” a crawler</Badge>
+              </div>
+            }
+          >
+            {results.length === 0 ? (
+              <div className="text-white/60 text-sm">
+                Nincs results adat. Nézd meg a Debug részt lent.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {results.map((r: any, idx: number) => {
+                  const url = String(r?.url ?? `site-${idx + 1}`);
+                  const ok = Boolean(r?.ok);
+                  const score = Number(r?.score ?? 0);
+                  const pageCount = Number(r?.pageCount ?? 0);
+                  const errorsCount = Number(r?.crawlStats?.errorsCount ?? 0);
+                  const timeout = Number(r?.crawlStats?.timeoutMsPerPage ?? 0);
+                  const maxPages = Number(r?.crawlStats?.maxPages ?? 0);
+
+                  const pagesSample = Array.isArray(r?.pagesSample) ? r.pagesSample : [];
+                  const crawlErrors = Array.isArray(r?.crawlErrors) ? r.crawlErrors : [];
+                  const evidence = Array.isArray(r?.evidence) ? r.evidence : [];
+
+                  return (
+                    <div
+                      key={`${url}-${idx}`}
+                      className="rounded-xl border border-white/10 bg-black/20 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div>
+                          <div className="text-white/90 font-semibold">{url}</div>
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <MiniTag tone={ok ? "good" : "bad"}>
+                              {ok ? "crawl ok" : "crawl failed"}
+                            </MiniTag>
+                            <MiniTag tone="neutral">score: {score}/100</MiniTag>
+                            <MiniTag tone="neutral">pages: {pageCount}/{maxPages || 5}</MiniTag>
+                            <MiniTag tone={errorsCount > 0 ? "bad" : "neutral"}>
+                              errors: {errorsCount}
+                            </MiniTag>
+                            {timeout ? (
+                              <MiniTag tone="neutral">timeout: {timeout}ms</MiniTag>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {r?.error ? (
+                          <div className="text-red-300 text-sm">{String(r.error)}</div>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <details className="rounded-xl border border-white/10 bg-white/5 p-3">
+                          <summary className="cursor-pointer text-white/80 font-semibold text-sm">
+                            Pages sample ({pagesSample.length})
+                          </summary>
+
+                          {pagesSample.length === 0 ? (
+                            <div className="mt-2 text-white/60 text-sm">
+                              Nincs pagesSample (valószínűleg nem került be a response-ba vagy nem volt crawl).
+                            </div>
+                          ) : (
+                            <div className="mt-3 space-y-3">
+                              {pagesSample.map((p: any, j: number) => {
+                                const pUrl = String(p?.url ?? `page-${j + 1}`);
+                                const title = p?.title ? String(p.title) : "";
+                                const meta = p?.metaDescription ? String(p.metaDescription) : "";
+                                const h1 = Array.isArray(p?.h1) ? p.h1 : [];
+                                const h2 = Array.isArray(p?.h2) ? p.h2 : [];
+                                const snippet = p?.text?.snippet ? String(p.text.snippet) : "";
+
+                                const flags = isRecord(p?.flags) ? p.flags : {};
+                                const signals = isRecord(p?.signals) ? p.signals : {};
+
+                                const hasJsonLd = Boolean(flags?.hasJsonLd);
+                                const hasOG = Boolean(flags?.hasOpenGraph);
+                                const hasTW = Boolean(flags?.hasTwitterCard);
+
+                                const emails = Array.isArray(signals?.emails) ? signals.emails : [];
+                                const phones = Array.isArray(signals?.phones) ? signals.phones : [];
+                                const socials = Array.isArray(signals?.socialLinks)
+                                  ? signals.socialLinks
+                                  : [];
+                                const addressLike = Array.isArray(signals?.addressLike)
+                                  ? signals.addressLike
+                                  : [];
+                                const cityLike = Array.isArray(signals?.cityOrRegionLike)
+                                  ? signals.cityOrRegionLike
+                                  : [];
+
+                                return (
+                                  <div
+                                    key={`${pUrl}-${j}`}
+                                    className="rounded-xl border border-white/10 bg-black/20 p-3"
+                                  >
+                                    <div className="text-white/90 font-semibold text-sm break-all">
+                                      {pUrl}
+                                    </div>
+
+                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                      <MiniTag tone={hasJsonLd ? "good" : "neutral"}>
+                                        JSON-LD: {hasJsonLd ? "yes" : "no"}
+                                      </MiniTag>
+                                      <MiniTag tone={hasOG ? "good" : "neutral"}>
+                                        OG: {hasOG ? "yes" : "no"}
+                                      </MiniTag>
+                                      <MiniTag tone={hasTW ? "good" : "neutral"}>
+                                        TW: {hasTW ? "yes" : "no"}
+                                      </MiniTag>
+                                      <MiniTag tone={emails.length ? "good" : "neutral"}>
+                                        emails: {emails.length}
+                                      </MiniTag>
+                                      <MiniTag tone={phones.length ? "good" : "neutral"}>
+                                        phones: {phones.length}
+                                      </MiniTag>
+                                      <MiniTag tone={socials.length ? "good" : "neutral"}>
+                                        socials: {socials.length}
+                                      </MiniTag>
+                                      <MiniTag tone={addressLike.length ? "good" : "neutral"}>
+                                        address: {addressLike.length}
+                                      </MiniTag>
+                                      <MiniTag tone={cityLike.length ? "good" : "neutral"}>
+                                        city/region: {cityLike.length}
+                                      </MiniTag>
+                                    </div>
+
+                                    {(title || meta) && (
+                                      <div className="mt-3 space-y-1">
+                                        {title && (
+                                          <div className="text-white/80 text-sm">
+                                            <span className="text-white/60 font-semibold">
+                                              Title:
+                                            </span>{" "}
+                                            {title}
+                                          </div>
+                                        )}
+                                        {meta && (
+                                          <div className="text-white/75 text-sm">
+                                            <span className="text-white/60 font-semibold">
+                                              Meta:
+                                            </span>{" "}
+                                            {meta}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {(h1.length > 0 || h2.length > 0) && (
+                                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                                          <div className="text-[11px] uppercase tracking-widest text-white/50 mb-1">
+                                            H1
+                                          </div>
+                                          {h1.length === 0 ? (
+                                            <div className="text-white/60 text-sm">—</div>
+                                          ) : (
+                                            <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                                              {h1.slice(0, 3).map((x: any, k: number) => (
+                                                <li key={k}>{String(x)}</li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                        </div>
+
+                                        <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                                          <div className="text-[11px] uppercase tracking-widest text-white/50 mb-1">
+                                            H2
+                                          </div>
+                                          {h2.length === 0 ? (
+                                            <div className="text-white/60 text-sm">—</div>
+                                          ) : (
+                                            <ul className="list-disc pl-5 text-white/70 text-sm space-y-1">
+                                              {h2.slice(0, 5).map((x: any, k: number) => (
+                                                <li key={k}>{String(x)}</li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {snippet && (
+                                      <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-2">
+                                        <div className="text-[11px] uppercase tracking-widest text-white/50 mb-1">
+                                          Snippet
+                                        </div>
+                                        <div className="text-white/70 text-sm whitespace-pre-wrap">
+                                          {snippet}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {(emails.length || phones.length || socials.length) ? (
+                                      <details className="mt-3 rounded-lg border border-white/10 bg-white/5 p-2">
+                                        <summary className="cursor-pointer text-white/70 font-semibold text-sm">
+                                          Signals (emails/phones/socials)
+                                        </summary>
+
+                                        <div className="mt-2 space-y-2 text-sm">
+                                          {emails.length > 0 && (
+                                            <div className="text-white/70">
+                                              <span className="text-white/60 font-semibold">
+                                                Emails:
+                                              </span>{" "}
+                                              {emails.join(", ")}
+                                            </div>
+                                          )}
+                                          {phones.length > 0 && (
+                                            <div className="text-white/70">
+                                              <span className="text-white/60 font-semibold">
+                                                Phones:
+                                              </span>{" "}
+                                              {phones.join(", ")}
+                                            </div>
+                                          )}
+                                          {socials.length > 0 && (
+                                            <div className="text-white/70">
+                                              <span className="text-white/60 font-semibold">
+                                                Socials:
+                                              </span>
+                                              <ul className="list-disc pl-5 mt-1 space-y-1">
+                                                {socials.slice(0, 8).map((s: any, k: number) => (
+                                                  <li key={k} className="break-all">
+                                                    {String(s)}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </details>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </details>
+
+                        <details className="rounded-xl border border-white/10 bg-white/5 p-3">
+                          <summary className="cursor-pointer text-white/80 font-semibold text-sm">
+                            Crawl errors ({crawlErrors.length})
+                          </summary>
+                          {crawlErrors.length === 0 ? (
+                            <div className="mt-2 text-white/60 text-sm">—</div>
+                          ) : (
+                            <ul className="mt-3 list-disc pl-5 text-white/70 text-sm space-y-1">
+                              {crawlErrors.slice(0, 10).map((ce: any, j: number) => (
+                                <li key={j} className="break-all">
+                                  <span className="text-white/80 font-semibold">
+                                    {String(ce?.url ?? "")}:
+                                  </span>{" "}
+                                  {String(ce?.error ?? "")}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          <div className="mt-4">
+                            <details className="rounded-lg border border-white/10 bg-black/20 p-2">
+                              <summary className="cursor-pointer text-white/70 font-semibold text-sm">
+                                Evidence quotes ({evidence.length})
+                              </summary>
+                              {evidence.length === 0 ? (
+                                <div className="mt-2 text-white/60 text-sm">—</div>
+                              ) : (
+                                <div className="mt-2 space-y-2">
+                                  {evidence.slice(0, 6).map((ev: any, j: number) => (
+                                    <div
+                                      key={j}
+                                      className="rounded-lg border border-white/10 bg-white/5 p-2"
+                                    >
+                                      <div className="text-white/80 text-sm font-semibold break-all">
+                                        {String(ev?.url ?? "")}
+                                      </div>
+                                      <div className="mt-1 text-white/70 text-sm whitespace-pre-wrap">
+                                        {String(ev?.quote ?? "")}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </details>
+                          </div>
+                        </details>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </Card>
+
+          <Card title="AI insights (strategic)">{renderInsights(insights)}</Card>
 
           <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <summary className="cursor-pointer text-white/80 font-semibold">
