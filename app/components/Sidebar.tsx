@@ -15,6 +15,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Smart Matrix', href: '/dashboard/matrix' },
   { icon: LayoutGrid, label: 'Poster Studio', href: '/dashboard/poster' },
   { icon: Sparkles, label: 'Brand Voice', href: '/dashboard/brand-voice' },
+  { icon: Sparkles, label: 'Action Plan', href: '/dashboard/action-plan' },
   { icon: Bot, label: 'AI Agent', href: '/dashboard/ai-agent' },
   { icon: LayoutGrid, label: "Compare", href: "/dashboard/compare" },
   { icon: History, label: 'Archives', href: '/history' },
