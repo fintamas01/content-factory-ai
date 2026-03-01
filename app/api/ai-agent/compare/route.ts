@@ -1,14 +1,20 @@
 // app/api/ai-agent/compare/route.ts
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
 import * as cheerio from "cheerio";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
 function toUrl(input: string) {
-  const s = String(input ?? "").trim();
-  if (!s) throw new Error("Empty URL");
+  const s = (input ?? "").trim();
+  if (!s) throw new Error("Empty url");
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
   return `https://${s}`;
 }
@@ -18,7 +24,7 @@ function toHostname(inputUrl: string) {
     const u = new URL(toUrl(inputUrl));
     return u.hostname.replace(/^www\./, "");
   } catch {
-    return String(inputUrl ?? "")
+    return (inputUrl ?? "")
       .replace(/^https?:\/\//, "")
       .replace(/^www\./, "")
       .split("/")[0]
@@ -39,8 +45,8 @@ function normalizeWhitespace(s: string) {
   return s.replace(/\s+/g, " ").trim();
 }
 
-function truncate(s: string, max = 5000) {
-  const t = String(s ?? "").trim();
+function truncate(s: string, max = 4000) {
+  const t = (s ?? "").trim();
   return t.length > max ? t.slice(0, max) + "…" : t;
 }
 
@@ -50,7 +56,9 @@ function extractEmails(text: string) {
 }
 
 function extractPhones(text: string) {
-  const m = text.match(/(\+\d{1,3}\s?)?(\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}/g);
+  const m = text.match(
+    /(\+\d{1,3}\s?)?(\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}/g
+  );
   const cleaned = (m ?? [])
     .map((x) => normalizeWhitespace(x))
     .filter((x) => x.replace(/\D/g, "").length >= 8)
@@ -58,12 +66,54 @@ function extractPhones(text: string) {
   return Array.from(new Set(cleaned));
 }
 
-function pickInternalLinks($: cheerio.CheerioAPI, baseUrl: string, targetDomain: string) {
+function extractSocialLinks($: cheerio.CheerioAPI, baseUrl: string) {
+  const socials: string[] = [];
+  const socialHosts = [
+    "facebook.com",
+    "instagram.com",
+    "tiktok.com",
+    "linkedin.com",
+    "youtube.com",
+    "twitter.com",
+    "x.com",
+    "threads.net",
+  ];
+
+  $("a[href]").each((_, el) => {
+    const href = ($(el).attr("href") ?? "").trim();
+    if (!href) return;
+
+    let abs = href;
+    try {
+      abs = new URL(href, baseUrl).toString();
+    } catch {
+      return;
+    }
+
+    try {
+      const h = new URL(abs).hostname.replace(/^www\./, "");
+      if (socialHosts.some((sh) => h === sh || h.endsWith(`.${sh}`))) {
+        socials.push(abs);
+      }
+    } catch {
+      // ignore
+    }
+  });
+
+  return Array.from(new Set(socials)).slice(0, 12);
+}
+
+function pickInternalLinks(
+  $: cheerio.CheerioAPI,
+  baseUrl: string,
+  targetDomain: string
+) {
   const links: string[] = [];
 
   $("a[href]").each((_, el) => {
     const href = ($(el).attr("href") ?? "").trim();
     if (!href) return;
+
     if (href.startsWith("#")) return;
     if (href.startsWith("mailto:")) return;
     if (href.startsWith("tel:")) return;
@@ -75,6 +125,7 @@ function pickInternalLinks($: cheerio.CheerioAPI, baseUrl: string, targetDomain:
     } catch {
       return;
     }
+
     if (!isSameDomain(abs, targetDomain)) return;
     if (/\.(jpg|jpeg|png|webp|svg|pdf|zip|rar|mp4|mp3)$/i.test(abs)) return;
 
@@ -85,9 +136,86 @@ function pickInternalLinks($: cheerio.CheerioAPI, baseUrl: string, targetDomain:
   return Array.from(new Set(links));
 }
 
+type OnDomainPage = {
+  url: string;
+  title: string | null;
+  metaDescription: string | null;
+  headings: { h1: string[]; h2: string[]; h3: string[] };
+  hasJsonLd: boolean;
+  hasSchemaOrgMicrodata: boolean;
+  hasOpenGraph: boolean;
+  hasTwitterCard: boolean;
+  extractedText: string;
+  rawTextLength: number;
+  foundEmails: string[];
+  foundPhones: string[];
+  foundAddressesLike: string[];
+  foundCityOrRegionLike: string[];
+  socialLinks: string[];
+};
+
+type CrawlContext = {
+  targetDomain: string;
+  seedUrl: string;
+  pages: OnDomainPage[];
+  pageCount: number;
+};
+
+type ScorePartKey =
+  | "meta"
+  | "structuredData"
+  | "headings"
+  | "contact"
+  | "geo"
+  | "social"
+  | "textVolume";
+
+type ScorePart = { score: number; max: number; notes: string[] };
+type ScoreParts = Record<ScorePartKey, ScorePart>;
+
+const SCORE_KEYS: ScorePartKey[] = [
+  "meta",
+  "structuredData",
+  "headings",
+  "contact",
+  "geo",
+  "social",
+  "textVolume",
+];
+
+function emptyPart(max = 0): ScorePart {
+  return { score: 0, max, notes: [] };
+}
+
+function normalizeScoreParts(input?: Partial<ScoreParts>): ScoreParts {
+  const base: ScoreParts = {
+    meta: emptyPart(),
+    structuredData: emptyPart(),
+    headings: emptyPart(),
+    contact: emptyPart(),
+    geo: emptyPart(),
+    social: emptyPart(),
+    textVolume: emptyPart(),
+  };
+
+  if (!input) return base;
+  for (const k of SCORE_KEYS) {
+    const v = input[k];
+    if (v) base[k] = v;
+  }
+  return base;
+}
+
+function sumScore(parts: ScoreParts) {
+  const total = SCORE_KEYS.reduce((acc, k) => acc + (parts[k]?.score ?? 0), 0);
+  const max = SCORE_KEYS.reduce((acc, k) => acc + (parts[k]?.max ?? 0), 0);
+  const pct = max > 0 ? Math.round((total / max) * 100) : 0;
+  return { total, max, pct };
+}
+
 async function fetchHtml(url: string, timeoutMs: number) {
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url, {
@@ -101,47 +229,28 @@ async function fetchHtml(url: string, timeoutMs: number) {
     });
 
     if (!res.ok) {
-      return { ok: false as const, url, status: res.status, html: "", error: `Fetch failed: ${res.status}` };
+      return { ok: false as const, status: res.status, url, html: "", error: `Fetch failed: ${res.status}` };
     }
 
     const html = await res.text();
-    return { ok: true as const, url, status: 200, html, error: null as string | null };
+    return { ok: true as const, status: 200, url, html, error: null as string | null };
   } catch (e: any) {
-    return { ok: false as const, url, status: 0, html: "", error: String(e?.message ?? e) };
+    return {
+      ok: false as const,
+      status: 0,
+      url,
+      html: "",
+      error: `Fetch error: ${String(e?.message ?? e)}`,
+    };
   } finally {
-    clearTimeout(t);
+    clearTimeout(timer);
   }
 }
-
-type OnDomainPage = {
-  url: string;
-  title: string | null;
-  metaDescription: string | null;
-  hasJsonLd: boolean;
-  hasSchemaOrgMicrodata: boolean;
-  hasOpenGraph: boolean;
-  hasTwitterCard: boolean;
-  headings: { h1: string[]; h2: string[]; h3: string[] };
-  rawTextLength: number;
-  foundEmails: string[];
-  foundPhones: string[];
-  foundAddressesLike: string[];
-  foundCityOrRegionLike: string[];
-};
-
-type CrawlContext = {
-  targetDomain: string;
-  seedUrl: string;
-  pages: OnDomainPage[];
-  pageCount: number;
-  errors: Array<{ url: string; error: string }>;
-};
 
 function parseOnDomainPage(url: string, html: string): OnDomainPage {
   const $ = cheerio.load(html);
 
   const title = normalizeWhitespace($("title").first().text() || "") || null;
-
   const metaDescription =
     normalizeWhitespace($('meta[name="description"]').attr("content") || "") || null;
 
@@ -178,53 +287,80 @@ function parseOnDomainPage(url: string, html: string): OnDomainPage {
     if (t && t.length > bestText.length) bestText = t;
   }
 
+  const extractedText = truncate(
+    [
+      title ? `TITLE: ${title}` : "",
+      metaDescription ? `META_DESCRIPTION: ${metaDescription}` : "",
+      h1.length ? `H1: ${h1.join(" | ")}` : "",
+      h2.length ? `H2: ${h2.join(" | ")}` : "",
+      h3.length ? `H3: ${h3.join(" | ")}` : "",
+      bestText ? `BODY_TEXT: ${bestText}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    5000
+  );
+
   const foundEmails = extractEmails(bestText);
   const foundPhones = extractPhones(bestText);
 
   const addressLike = bestText
     .split(".")
     .map((s) => normalizeWhitespace(s))
-    .filter((s) => /utca|strada|street|nr\.|no\.|bl\.|ap\.|jud|county|romania|magyarország|ország/i.test(s))
+    .filter((s) =>
+      /utca|strada|street|nr\.|no\.|bl\.|ap\.|jud|county|romania|magyarország|ország/i.test(s)
+    )
     .slice(0, 6);
 
   const cityRegionLike = bestText
     .split(".")
     .map((s) => normalizeWhitespace(s))
-    .filter((s) => /sepsi|târgu|maros|kolozsvár|cluj|bucharest|budapest|satumar|szatmár|românia|romania/i.test(s))
+    .filter((s) =>
+      /sepsi|târgu|maros|kolozsvár|cluj|bucharest|budapest|szatmár|românia|romania/i.test(s)
+    )
     .slice(0, 6);
+
+  const socialLinks = extractSocialLinks($, url);
 
   return {
     url,
     title,
     metaDescription,
+    headings: { h1, h2, h3 },
     hasJsonLd,
     hasSchemaOrgMicrodata,
     hasOpenGraph,
     hasTwitterCard,
-    headings: { h1, h2, h3 },
+    extractedText,
     rawTextLength: bestText.length,
     foundEmails,
     foundPhones,
     foundAddressesLike: addressLike,
     foundCityOrRegionLike: cityRegionLike,
+    socialLinks,
   };
 }
 
-async function crawlOnDomain(seedUrl: string, targetDomain: string, maxPages: number, timeoutMs: number) {
-  const seed = toUrl(seedUrl).replace(/\/$/, "");
+async function crawlOnDomain(args: {
+  seedUrl: string;
+  targetDomain: string;
+  maxPages: number;
+  timeoutMsPerPage: number;
+}): Promise<{ crawl: CrawlContext; errors: Array<{ url: string; error: string }> }> {
+  const seed = toUrl(args.seedUrl).replace(/\/$/, "");
   const seen = new Set<string>();
   const queue: string[] = [seed];
   const pages: OnDomainPage[] = [];
   const errors: Array<{ url: string; error: string }> = [];
 
-  while (queue.length && pages.length < maxPages) {
+  while (queue.length && pages.length < args.maxPages) {
     const url = queue.shift()!;
     if (seen.has(url)) continue;
     seen.add(url);
 
-    const fetched = await fetchHtml(url, timeoutMs);
+    const fetched = await fetchHtml(url, args.timeoutMsPerPage);
     if (!fetched.ok) {
-      errors.push({ url, error: fetched.error || `Fetch failed (${fetched.status})` });
+      errors.push({ url, error: fetched.error ?? "Unknown fetch error" });
       continue;
     }
 
@@ -233,7 +369,7 @@ async function crawlOnDomain(seedUrl: string, targetDomain: string, maxPages: nu
 
     try {
       const $ = cheerio.load(fetched.html);
-      const links = pickInternalLinks($, url, targetDomain);
+      const links = pickInternalLinks($, url, args.targetDomain);
       for (const l of links.slice(0, 25)) {
         if (!seen.has(l)) queue.push(l);
       }
@@ -242,81 +378,61 @@ async function crawlOnDomain(seedUrl: string, targetDomain: string, maxPages: nu
     }
   }
 
-  const ctx: CrawlContext = {
-    targetDomain,
-    seedUrl: seed,
-    pages,
-    pageCount: pages.length,
+  return {
+    crawl: {
+      targetDomain: args.targetDomain,
+      seedUrl: seed,
+      pages,
+      pageCount: pages.length,
+    },
     errors,
   };
-
-  return ctx;
-}
-
-type ScorePartKey = "meta" | "structuredData" | "headings" | "contact" | "geo" | "textVolume";
-type ScorePart = { score: number; max: number; notes: string[] };
-type ScoreParts = Record<ScorePartKey, ScorePart>;
-
-const SCORE_KEYS: ScorePartKey[] = ["meta", "structuredData", "headings", "contact", "geo", "textVolume"];
-
-function emptyPart(max = 0): ScorePart {
-  return { score: 0, max, notes: [] };
-}
-
-function sumScore(parts: ScoreParts) {
-  const total = SCORE_KEYS.reduce((acc, k) => acc + (parts[k]?.score ?? 0), 0);
-  const max = SCORE_KEYS.reduce((acc, k) => acc + (parts[k]?.max ?? 0), 0);
-  const pct = max > 0 ? Math.round((total / max) * 100) : 0;
-  return { total, max, pct };
 }
 
 function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
-  const parts: ScoreParts = {
-    meta: emptyPart(25),
-    structuredData: emptyPart(25),
-    headings: emptyPart(15),
-    contact: emptyPart(15),
-    geo: emptyPart(10),
-    textVolume: emptyPart(10),
-  };
+  const parts = normalizeScoreParts();
+  parts.meta.max = 20;
+  parts.structuredData.max = 20;
+  parts.headings.max = 15;
+  parts.contact.max = 15;
+  parts.geo.max = 10;
+  parts.social.max = 10;
+  parts.textVolume.max = 10;
 
   const pages = crawl.pages;
 
-  // META
   const anyTitle = pages.some((p) => (p.title ?? "").length > 0);
   const anyMetaDesc = pages.some((p) => (p.metaDescription ?? "").length > 0);
   const anyOg = pages.some((p) => p.hasOpenGraph);
   const anyTw = pages.some((p) => p.hasTwitterCard);
 
   let metaScore = 0;
-  if (anyTitle) metaScore += 10;
+  if (anyTitle) metaScore += 8;
   else parts.meta.notes.push("Missing <title> on sampled pages.");
 
-  if (anyMetaDesc) metaScore += 10;
+  if (anyMetaDesc) metaScore += 8;
   else parts.meta.notes.push("Missing meta description on sampled pages.");
 
-  if (anyOg) metaScore += 3;
+  if (anyOg) metaScore += 2;
   else parts.meta.notes.push("No Open Graph meta tags detected.");
 
   if (anyTw) metaScore += 2;
   else parts.meta.notes.push("No Twitter Card meta tags detected.");
 
-  parts.meta.score = Math.min(parts.meta.max, metaScore);
+  parts.meta.score = metaScore;
 
-  // STRUCTURED DATA
   const anyJsonLd = pages.some((p) => p.hasJsonLd);
   const anyMicrodata = pages.some((p) => p.hasSchemaOrgMicrodata);
 
   let sdScore = 0;
-  if (anyJsonLd) sdScore += 15;
+  if (anyJsonLd) sdScore += 12;
   else parts.structuredData.notes.push("No JSON-LD (application/ld+json) detected.");
 
-  if (anyMicrodata) sdScore += 10;
+  if (anyMicrodata) sdScore += 8;
   else parts.structuredData.notes.push("No schema.org microdata/itemscope detected.");
 
-  parts.structuredData.score = Math.min(parts.structuredData.max, sdScore);
+  parts.structuredData.score = sdScore;
 
-  // HEADINGS
   const anyH1 = pages.some((p) => p.headings.h1.length > 0);
   const anyH2 = pages.some((p) => p.headings.h2.length > 0);
 
@@ -327,12 +443,10 @@ function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
   if (anyH2) headingScore += 7;
   else parts.headings.notes.push("No H2 headings detected (weak content structure).");
 
-  parts.headings.score = Math.min(parts.headings.max, headingScore);
+  parts.headings.score = headingScore;
 
-  // CONTACT
   const emails = Array.from(new Set(pages.flatMap((p) => p.foundEmails)));
   const phones = Array.from(new Set(pages.flatMap((p) => p.foundPhones)));
-  const hasContactPage = pages.some((p) => /kapcsolat|contact|impressum|about/i.test(p.url));
 
   let contactScore = 0;
   if (emails.length > 0) contactScore += 7;
@@ -341,12 +455,12 @@ function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
   if (phones.length > 0) contactScore += 6;
   else parts.contact.notes.push("No phone number detected on sampled pages.");
 
+  const hasContactPage = pages.some((p) => /kapcsolat|contact|impressum|about/i.test(p.url));
   if (hasContactPage) contactScore += 2;
   else parts.contact.notes.push("No obvious contact/about page found in sampled URLs.");
 
   parts.contact.score = Math.min(parts.contact.max, contactScore);
 
-  // GEO
   const addressLike = Array.from(new Set(pages.flatMap((p) => p.foundAddressesLike))).filter(Boolean);
   const cityLike = Array.from(new Set(pages.flatMap((p) => p.foundCityOrRegionLike))).filter(Boolean);
 
@@ -357,9 +471,19 @@ function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
   if (cityLike.length > 0) geoScore += 4;
   else parts.geo.notes.push("No city/region hints detected in text.");
 
-  parts.geo.score = Math.min(parts.geo.max, geoScore);
+  parts.geo.score = geoScore;
 
-  // TEXT VOLUME
+  const socialLinks = Array.from(new Set(pages.flatMap((p) => p.socialLinks)));
+
+  let socialScore = 0;
+  if (socialLinks.length >= 1) socialScore += 6;
+  else parts.social.notes.push("No social profile links detected.");
+
+  if (socialLinks.length >= 3) socialScore += 4;
+  else parts.social.notes.push("Add more official social links (FB/IG/LinkedIn) in footer/header.");
+
+  parts.social.score = Math.min(parts.social.max, socialScore);
+
   const totalText = pages.reduce((acc, p) => acc + (p.rawTextLength || 0), 0);
   const avgText = pages.length ? Math.round(totalText / pages.length) : 0;
 
@@ -371,26 +495,68 @@ function buildScorePartsFromCrawl(crawl: CrawlContext): ScoreParts {
     tvScore = 1;
     parts.textVolume.notes.push("Very low on-page text volume; add clearer service descriptions & sections.");
   }
-  parts.textVolume.score = Math.min(parts.textVolume.max, tvScore);
+  parts.textVolume.score = tvScore;
 
   return parts;
 }
 
-function parseCompetitors(input: unknown): string[] {
-  // allow:
-  // - competitors: string[]
-  // - competitors: "a.com\nb.com"
-  // - competitorUrls / competitorSites / competitorList
-  if (Array.isArray(input)) {
-    return input.map((x) => String(x).trim()).filter(Boolean).slice(0, 3);
+function buildEvidence(crawl: CrawlContext) {
+  return crawl.pages.slice(0, 6).map((p) => ({
+    url: p.url,
+    quote: truncate(p.extractedText.replace(/^BODY_TEXT:\s*/i, ""), 500),
+  }));
+}
+
+function categoriesFromScoreParts(parts: ScoreParts): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of SCORE_KEYS) out[k] = parts[k]?.score ?? 0;
+  return out;
+}
+
+function deltaParts(a: ScoreParts, b: ScoreParts) {
+  // delta = b - a (competitor - main)
+  const out: Record<string, number> = {};
+  for (const k of SCORE_KEYS) {
+    out[k] = (b[k]?.score ?? 0) - (a[k]?.score ?? 0);
   }
-  const s = String(input ?? "").trim();
-  if (!s) return [];
-  return s
-    .split(/\r?\n|,|;/g)
-    .map((x) => x.trim())
-    .filter(Boolean)
-    .slice(0, 3);
+  return out;
+}
+
+async function buildInsightsLLM(args: {
+  main: { url: string; score: number; scoreParts: ScoreParts; evidence: any[] };
+  competitors: Array<{ url: string; score: number; scoreParts: ScoreParts; evidence: any[] }>;
+  deltas: Array<{ competitor: string; delta: Record<string, number> }>;
+}) {
+  // If no key, just return null (UI will show null)
+  if (!process.env.OPENAI_API_KEY) return null;
+
+  const system = `
+You output STRICT JSON only. No markdown.
+Do NOT invent facts. Use evidence quotes if you mention something concrete.
+Return JSON keys: summary, topGaps, quickWins, positioning.
+`.trim();
+
+  const user = {
+    main: args.main,
+    competitors: args.competitors,
+    deltas: args.deltas,
+  };
+
+  const r = await openai.chat.completions.create({
+    model: "gpt-4.1",
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(user) },
+    ],
+    temperature: 0.2,
+  });
+
+  const raw = (r.choices[0]?.message?.content ?? "").trim();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { raw };
+  }
 }
 
 export async function POST(req: Request) {
@@ -398,84 +564,115 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
     if (!body) return badRequest("Invalid JSON body.");
 
-    // Accept multiple names so your UI won't break if it's different
-    const mainUrl =
-      body.mainUrl ?? body.mainSite ?? body.site ?? body.url ?? body.domain ?? "";
+    const mainUrl = typeof body.mainUrl === "string" ? body.mainUrl.trim() : "";
+    const competitors = Array.isArray(body.competitors) ? body.competitors : [];
+    const maxPages = typeof body.maxPages === "number" ? body.maxPages : 5;
+    const timeoutMsPerPage =
+      typeof body.timeoutMsPerPage === "number" ? body.timeoutMsPerPage : 5000;
 
-    const competitorsRaw =
-      body.competitors ??
-      body.competitorUrls ??
-      body.competitorSites ??
-      body.competitorList ??
-      body.competitorsText ??
-      "";
+    if (!mainUrl) return badRequest("Missing 'mainUrl'.");
+    if (!Array.isArray(competitors) || competitors.length === 0) return badRequest("Missing 'competitors'.");
 
-    const competitors = parseCompetitors(competitorsRaw);
+    const cleanedCompetitors = competitors
+      .map((x: any) => String(x ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 3);
 
-    if (!String(mainUrl).trim()) return badRequest("Missing 'mainUrl' (or mainSite/site/url).");
-    if (competitors.length === 0) return badRequest("Missing 'competitors' (array or newline string).");
+    if (cleanedCompetitors.length === 0) return badRequest("No valid competitors provided (max 3).");
 
-    const pagesPerSite = Math.max(1, Math.min(10, Number(body.pagesPerSite ?? body.maxPages ?? 5)));
-    const timeoutMs = Math.max(1000, Math.min(15000, Number(body.timeoutMs ?? body.timeout ?? 5000)));
+    const sites = [mainUrl, ...cleanedCompetitors];
 
-    const sites = [String(mainUrl).trim(), ...competitors].slice(0, 4);
+    const siteReports: Array<{
+      url: string;
+      domain: string;
+      ok: boolean;
+      error?: string;
+      score: number;
+      scoreParts: ScoreParts;
+      scoreSummary: { total: number; max: number; pct: number };
+      pageCount: number;
+      crawlErrors: Array<{ url: string; error: string }>;
+      evidence: Array<{ url: string; quote: string }>;
+    }> = [];
 
-    const results = [];
-    for (const site of sites) {
-      const seedUrl = toUrl(site);
-      const domain = toHostname(seedUrl);
+    for (const s of sites) {
+      const seed = toUrl(s);
+      const domain = toHostname(seed);
 
-      const crawl = await crawlOnDomain(seedUrl, domain, pagesPerSite, timeoutMs);
-      const scoreParts = buildScorePartsFromCrawl(crawl);
+      const { crawl, errors } = await crawlOnDomain({
+        seedUrl: seed,
+        targetDomain: domain,
+        maxPages: Math.max(1, Math.min(10, maxPages)),
+        timeoutMsPerPage: Math.max(1500, Math.min(15000, timeoutMsPerPage)),
+      });
+
+      const ok = crawl.pageCount > 0;
+      const scoreParts = ok ? buildScorePartsFromCrawl(crawl) : normalizeScoreParts();
       const scoreSummary = sumScore(scoreParts);
 
-      // Compact “evidence” preview for UI/debug
-      const pageSnippets = crawl.pages.slice(0, 3).map((p) => ({
-        url: p.url,
-        title: p.title,
-        metaDescription: p.metaDescription,
-        h1: p.headings.h1.slice(0, 2),
-        textLen: p.rawTextLength,
-      }));
-
-      results.push({
-        url: seedUrl,
+      siteReports.push({
+        url: seed,
         domain,
-        ok: crawl.pageCount > 0,
-        pageCount: crawl.pageCount,
-        errors: crawl.errors.slice(0, 5),
+        ok,
+        error: ok ? undefined : "No pages crawled (fetch blocked or timed out).",
         score: scoreSummary.pct,
-        scoreSummary,
         scoreParts,
-        pageSnippets,
+        scoreSummary,
+        pageCount: crawl.pageCount,
+        crawlErrors: errors.slice(0, 10),
+        evidence: ok ? buildEvidence(crawl) : [],
       });
     }
 
-    const main = results[0];
-    const competitorsOut = results.slice(1);
+    const main = siteReports[0];
+    const competitorsReports = siteReports.slice(1);
 
-    const ranking = [...results]
-      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-      .map((r) => ({ url: r.url, score: r.score }));
+    // Ranking
+    const ranking = [...siteReports]
+      .map((r) => ({ url: r.url, totalScore: r.score }))
+      .sort((a, b) => b.totalScore - a.totalScore);
 
-    // Delta vs main
-    const deltas = competitorsOut.map((c) => ({
-      competitor: c.url,
-      deltaScore: (c.score ?? 0) - (main?.score ?? 0),
-      breakdown: SCORE_KEYS.map((k) => ({
-        key: k,
-        delta: (c.scoreParts?.[k]?.score ?? 0) - (main?.scoreParts?.[k]?.score ?? 0),
-      })),
+    // Category matrix
+    const categoryMatrix = siteReports.map((r) => ({
+      url: r.url,
+      categories: categoriesFromScoreParts(r.scoreParts),
     }));
+
+    // Deltas (competitor - main)
+    const deltas = competitorsReports.map((c) => ({
+      competitor: c.url,
+      delta: deltaParts(main.scoreParts, c.scoreParts),
+    }));
+
+    // LLM insights (optional)
+    const insights = await buildInsightsLLM({
+      main: { url: main.url, score: main.score, scoreParts: main.scoreParts, evidence: main.evidence },
+      competitors: competitorsReports.map((c) => ({
+        url: c.url,
+        score: c.score,
+        scoreParts: c.scoreParts,
+        evidence: c.evidence,
+      })),
+      deltas,
+    });
 
     return NextResponse.json(
       {
-        mainUrl: toUrl(String(mainUrl).trim()),
-        competitors,
-        settings: { pagesPerSite, timeoutMs },
-        results,
+        mainUrl: main.url,
+        results: siteReports.map((r) => ({
+          url: r.url,
+          ok: r.ok,
+          error: r.error ?? null,
+          score: r.score,
+          scoreParts: r.scoreParts,
+          pageCount: r.pageCount,
+          crawlErrors: r.crawlErrors,
+          evidence: r.evidence,
+        })),
         ranking,
+        categoryMatrix,
         deltas,
+        insights: insights ?? null,
       },
       { status: 200 }
     );
