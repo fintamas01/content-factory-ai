@@ -17,6 +17,7 @@ const menuItems = [
   { icon: Sparkles, label: 'Brand Voice', href: '/dashboard/brand-voice' },
   { icon: Sparkles, label: 'Action Plan', href: '/dashboard/action-plan' },
   { icon: Bot, label: 'AI Agent', href: '/dashboard/ai-agent' },
+  { icon: Sparkles, label: 'Content Builder', href: '/dashboard/content-builder' },
   { icon: LayoutGrid, label: "Compare", href: "/dashboard/compare" },
   { icon: History, label: 'Archives', href: '/history' },
   { icon: CreditCard, label: 'Billing', href: '/billing' },
