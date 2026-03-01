@@ -12,6 +12,7 @@ type AgentResponse = {
   brandName: string | null;
   searchQuery?: string | null;
   webContextUsed?: boolean;
+  crawlUsed?: boolean;
   result: any;
 };
 
@@ -21,6 +22,14 @@ function clsx(...parts: Array<string | false | null | undefined>) {
 
 function isRecord(v: unknown): v is Record<string, any> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function safeJsonStringify(value: any, space = 2) {
+  try {
+    return JSON.stringify(value, null, space);
+  } catch {
+    return String(value);
+  }
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -65,11 +74,7 @@ function Card({
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       {(title || right) && (
         <div className="flex items-start justify-between gap-3 mb-3">
-          {title ? (
-            <div className="text-white font-semibold">{title}</div>
-          ) : (
-            <div />
-          )}
+          {title ? <div className="text-white font-semibold">{title}</div> : <div />}
           {right}
         </div>
       )}
@@ -89,29 +94,59 @@ function Badge({ children }: { children: React.ReactNode }) {
 function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-widest text-white/40">
-        {label}
-      </div>
+      <div className="text-[11px] uppercase tracking-widest text-white/40">{label}</div>
       <div className="text-white/90 text-sm mt-1">{value}</div>
     </div>
   );
 }
 
-/**
- * ✅ IMPORTANT:
- * - The API will ALWAYS return JSON.
- * - This component renders that JSON as a nice report instead of raw <pre>.
- */
+function ScorePartsCard({ scoreParts }: { scoreParts: any }) {
+  if (!isRecord(scoreParts)) return null;
+
+  const entries = Object.entries(scoreParts).filter(([, v]) => isRecord(v));
+
+  if (entries.length === 0) return null;
+
+  return (
+    <Card
+      title="Score breakdown"
+      right={<CopyButton text={safeJsonStringify(scoreParts, 2)} />}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {entries.map(([key, v]: any) => {
+          const score = typeof v.score === "number" ? v.score : 0;
+          const max = typeof v.max === "number" ? v.max : 0;
+          const notes = Array.isArray(v.notes) ? v.notes : [];
+          return (
+            <div key={key} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-white font-semibold">{String(key)}</div>
+                <Badge>
+                  {score}/{max}
+                </Badge>
+              </div>
+              {notes.length > 0 && (
+                <ul className="mt-2 list-disc pl-5 text-white/70 text-sm space-y-1">
+                  {notes.map((n: any, i: number) => (
+                    <li key={i}>{String(n)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function GeoAuditReport({ data }: { data: AgentResponse }) {
   const r = data?.result;
 
-  // If model returned non-JSON (raw), show it safely.
   if (!isRecord(r)) {
     return (
       <Card title="Report (raw)">
-        <pre className="text-xs text-white/80 whitespace-pre-wrap">
-          {typeof r === "string" ? r : JSON.stringify(r, null, 2)}
-        </pre>
+        <pre className="text-xs text-white/80 whitespace-pre-wrap">{safeJsonStringify(r, 2)}</pre>
       </Card>
     );
   }
@@ -123,6 +158,7 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
   const missingInfo = Array.isArray(r.missingInfo) ? r.missingInfo : [];
   const quickWins = Array.isArray(r.quickWins) ? r.quickWins : [];
   const copySuggestions = Array.isArray(r.copySuggestions) ? r.copySuggestions : [];
+  const scoreParts = r.scoreParts; // may or may not exist
 
   return (
     <div className="space-y-4">
@@ -136,11 +172,8 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
               </Badge>
             )}
             {data.searchQuery ? <Badge>Query: {data.searchQuery}</Badge> : null}
-            {data.webContextUsed ? (
-              <Badge>Web context: ON</Badge>
-            ) : (
-              <Badge>Web context: OFF</Badge>
-            )}
+            {data.webContextUsed ? <Badge>Web context: ON</Badge> : <Badge>Web context: OFF</Badge>}
+            {data.crawlUsed ? <Badge>Crawl: ON</Badge> : null}
           </div>
         }
       >
@@ -150,48 +183,54 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
           <KV label="URL" value={data.url ?? "—"} />
         </div>
 
-        {summary && (
-          <p className="mt-4 text-white/70 text-sm leading-relaxed">
-            {summary}
-          </p>
-        )}
+        {summary && <p className="mt-4 text-white/70 text-sm leading-relaxed">{summary}</p>}
       </Card>
+
+      <ScorePartsCard scoreParts={scoreParts} />
 
       {findings.length > 0 && (
         <Card title="Findings">
           <div className="space-y-3">
             {findings.map((f: any, idx: number) => (
-              <div
-                key={idx}
-                className="rounded-xl border border-white/10 bg-black/20 p-3"
-              >
-                <div className="text-white font-semibold">
-                  {f?.area ?? "Area"}
-                </div>
+              <div key={idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-white font-semibold">{f?.area ?? "Area"}</div>
+
                 <div className="mt-2 space-y-1 text-sm text-white/70">
-                  {f?.issue && (
+                  {f?.issue ? (
                     <div>
-                      <span className="text-white/80 font-semibold">
-                        Issue:
-                      </span>{" "}
+                      <span className="text-white/80 font-semibold">Issue:</span>{" "}
                       {String(f.issue)}
                     </div>
-                  )}
-                  {f?.impact && (
+                  ) : null}
+
+                  {f?.impact ? (
                     <div>
-                      <span className="text-white/80 font-semibold">
-                        Impact:
-                      </span>{" "}
+                      <span className="text-white/80 font-semibold">Impact:</span>{" "}
                       {String(f.impact)}
                     </div>
-                  )}
-                  {f?.fix && (
+                  ) : null}
+
+                  {f?.fix ? (
                     <div>
                       <span className="text-white/80 font-semibold">Fix:</span>{" "}
                       {String(f.fix)}
                     </div>
-                  )}
+                  ) : null}
                 </div>
+
+                {Array.isArray(f?.evidence) && f.evidence.length > 0 ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-black/10 p-3">
+                    <div className="text-white/80 text-xs font-semibold mb-2">Evidence</div>
+                    <div className="space-y-2">
+                      {f.evidence.map((ev: any, i: number) => (
+                        <div key={i} className="text-xs text-white/70">
+                          <div className="text-white/80">{String(ev?.url ?? "")}</div>
+                          {ev?.quote ? <div className="mt-1">“{String(ev.quote)}”</div> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -212,20 +251,16 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
         <Card title="Quick wins (actionable)">
           <div className="space-y-3">
             {quickWins.map((q: any, i: number) => (
-              <div
-                key={i}
-                className="rounded-xl border border-white/10 bg-black/20 p-3"
-              >
-                <div className="text-white font-semibold">
-                  {q?.title ?? `Quick win ${i + 1}`}
-                </div>
-                {Array.isArray(q?.steps) && q.steps.length > 0 && (
+              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-white font-semibold">{q?.title ?? `Quick win ${i + 1}`}</div>
+
+                {Array.isArray(q?.steps) && q.steps.length > 0 ? (
                   <ul className="list-disc pl-5 text-white/70 text-sm mt-2 space-y-1">
                     {q.steps.map((s: any, j: number) => (
                       <li key={j}>{String(s)}</li>
                     ))}
                   </ul>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
@@ -233,37 +268,24 @@ function GeoAuditReport({ data }: { data: AgentResponse }) {
       )}
 
       {copySuggestions.length > 0 && (
-        <Card
-          title="Copy suggestions"
-          right={<CopyButton text={JSON.stringify(copySuggestions, null, 2)} />}
-        >
+        <Card title="Copy suggestions" right={<CopyButton text={safeJsonStringify(copySuggestions, 2)} />}>
           <div className="space-y-3">
             {copySuggestions.map((c: any, i: number) => (
-              <div
-                key={i}
-                className="rounded-xl border border-white/10 bg-black/20 p-3"
-              >
-                <div className="text-white font-semibold">
-                  {c?.section ?? `Section ${i + 1}`}
-                </div>
-                {c?.exampleText && (
-                  <div className="text-white/70 text-sm mt-2 whitespace-pre-wrap">
-                    {String(c.exampleText)}
-                  </div>
-                )}
+              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-white font-semibold">{c?.section ?? `Section ${i + 1}`}</div>
+                {c?.exampleText ? (
+                  <div className="text-white/70 text-sm mt-2 whitespace-pre-wrap">{String(c.exampleText)}</div>
+                ) : null}
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      {/* Debug toggle: show raw JSON if needed */}
       <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <summary className="cursor-pointer text-white/80 font-semibold">
-          Debug: raw JSON
-        </summary>
+        <summary className="cursor-pointer text-white/80 font-semibold">Debug: raw JSON</summary>
         <pre className="mt-3 text-xs text-white/80 whitespace-pre-wrap overflow-auto">
-          {JSON.stringify(data, null, 2)}
+          {safeJsonStringify(data, 2)}
         </pre>
       </details>
     </div>
@@ -276,9 +298,7 @@ function ContentPlanReport({ data }: { data: AgentResponse }) {
   if (!isRecord(r)) {
     return (
       <Card title="Plan (raw)">
-        <pre className="text-xs text-white/80 whitespace-pre-wrap">
-          {typeof r === "string" ? r : JSON.stringify(r, null, 2)}
-        </pre>
+        <pre className="text-xs text-white/80 whitespace-pre-wrap">{safeJsonStringify(r, 2)}</pre>
       </Card>
     );
   }
@@ -296,11 +316,7 @@ function ContentPlanReport({ data }: { data: AgentResponse }) {
           <KV label="Platform" value={data.platform} />
           <KV label="Goal" value={data.goal} />
         </div>
-        {summary && (
-          <p className="mt-4 text-white/70 text-sm leading-relaxed">
-            {summary}
-          </p>
-        )}
+        {summary && <p className="mt-4 text-white/70 text-sm leading-relaxed">{summary}</p>}
       </Card>
 
       {pillars.length > 0 && (
@@ -314,33 +330,29 @@ function ContentPlanReport({ data }: { data: AgentResponse }) {
       )}
 
       {plan.length > 0 && (
-        <Card
-          title="14-day plan"
-          right={<CopyButton text={JSON.stringify(plan, null, 2)} />}
-        >
+        <Card title="14-day plan" right={<CopyButton text={safeJsonStringify(plan, 2)} />}>
           <div className="space-y-3">
             {plan.map((p: any, i: number) => (
-              <div
-                key={i}
-                className="rounded-xl border border-white/10 bg-black/20 p-3"
-              >
+              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-white font-semibold">
                     Day {p?.day ?? i + 1} • {p?.platform ?? data.platform}
                   </div>
                 </div>
-                {p?.hook && (
+
+                {p?.hook ? (
                   <div className="text-white/70 text-sm mt-2">
                     <b>Hook:</b> {String(p.hook)}
                   </div>
-                )}
-                {Array.isArray(p?.outline) && p.outline.length > 0 && (
+                ) : null}
+
+                {Array.isArray(p?.outline) && p.outline.length > 0 ? (
                   <ul className="list-disc pl-5 text-white/70 text-sm mt-2 space-y-1">
                     {p.outline.map((s: any, j: number) => (
                       <li key={j}>{String(s)}</li>
                     ))}
                   </ul>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
@@ -358,11 +370,9 @@ function ContentPlanReport({ data }: { data: AgentResponse }) {
       )}
 
       <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <summary className="cursor-pointer text-white/80 font-semibold">
-          Debug: raw JSON
-        </summary>
+        <summary className="cursor-pointer text-white/80 font-semibold">Debug: raw JSON</summary>
         <pre className="mt-3 text-xs text-white/80 whitespace-pre-wrap overflow-auto">
-          {JSON.stringify(data, null, 2)}
+          {safeJsonStringify(data, 2)}
         </pre>
       </details>
     </div>
@@ -375,9 +385,7 @@ function BrandVoiceReport({ data }: { data: AgentResponse }) {
   if (!isRecord(r)) {
     return (
       <Card title="Brand voice (raw)">
-        <pre className="text-xs text-white/80 whitespace-pre-wrap">
-          {typeof r === "string" ? r : JSON.stringify(r, null, 2)}
-        </pre>
+        <pre className="text-xs text-white/80 whitespace-pre-wrap">{safeJsonStringify(r, 2)}</pre>
       </Card>
     );
   }
@@ -418,24 +426,14 @@ function BrandVoiceReport({ data }: { data: AgentResponse }) {
       )}
 
       {examples.length > 0 && (
-        <Card
-          title="Example captions"
-          right={<CopyButton text={JSON.stringify(examples, null, 2)} />}
-        >
+        <Card title="Example captions" right={<CopyButton text={safeJsonStringify(examples, 2)} />}>
           <div className="space-y-3">
             {examples.map((ex: any, i: number) => (
-              <div
-                key={i}
-                className="rounded-xl border border-white/10 bg-black/20 p-3"
-              >
-                <div className="text-white font-semibold">
-                  {String(ex?.platform ?? data.platform)}
-                </div>
-                {ex?.caption && (
-                  <div className="text-white/70 text-sm mt-2 whitespace-pre-wrap">
-                    {String(ex.caption)}
-                  </div>
-                )}
+              <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-white font-semibold">{String(ex?.platform ?? data.platform)}</div>
+                {ex?.caption ? (
+                  <div className="text-white/70 text-sm mt-2 whitespace-pre-wrap">{String(ex.caption)}</div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -443,11 +441,9 @@ function BrandVoiceReport({ data }: { data: AgentResponse }) {
       )}
 
       <details className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <summary className="cursor-pointer text-white/80 font-semibold">
-          Debug: raw JSON
-        </summary>
+        <summary className="cursor-pointer text-white/80 font-semibold">Debug: raw JSON</summary>
         <pre className="mt-3 text-xs text-white/80 whitespace-pre-wrap overflow-auto">
-          {JSON.stringify(data, null, 2)}
+          {safeJsonStringify(data, 2)}
         </pre>
       </details>
     </div>
@@ -488,8 +484,8 @@ export default function AIAgentPage() {
         }),
       });
 
-      const json = (await res.json()) as AgentResponse & { error?: string };
-      if (!res.ok) throw new Error((json as any)?.error ?? "Request failed");
+      const json = (await res.json()) as (AgentResponse & { error?: string; details?: string }) | any;
+      if (!res.ok) throw new Error(json?.error ?? "Request failed");
       setData(json as AgentResponse);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -498,13 +494,14 @@ export default function AIAgentPage() {
     }
   }
 
+  const copyPayload =
+    data?.result != null ? safeJsonStringify(data.result, 2) : data != null ? safeJsonStringify(data, 2) : "";
+
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-white">AI Agent</h1>
-        <p className="text-white/60">
-          Cél-alapú futtatás (query → web context → elemzés → teendők).
-        </p>
+        <p className="text-white/60">Cél-alapú futtatás (query → web context → elemzés → teendők).</p>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
@@ -556,9 +553,7 @@ export default function AIAgentPage() {
               className="w-full mt-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-white"
               placeholder="https://example.com"
             />
-            <p className="text-xs text-white/40 mt-1">
-              GEO auditnál kötelező.
-            </p>
+            <p className="text-xs text-white/40 mt-1">GEO auditnál kötelező.</p>
           </div>
         )}
 
@@ -586,20 +581,24 @@ export default function AIAgentPage() {
             {loading ? "Running..." : "Run Agent"}
           </button>
 
-          {data?.result ? (
-            <CopyButton text={JSON.stringify(data.result, null, 2)} />
-          ) : null}
+          {data ? <CopyButton text={copyPayload} /> : null}
         </div>
 
         {err && <div className="text-red-300 text-sm">{err}</div>}
       </div>
 
-      {data && (
+      {data?.result && (
         <>
           {goal === "geo_audit" && <GeoAuditReport data={data} />}
           {goal === "content_plan" && <ContentPlanReport data={data} />}
           {goal === "brand_voice" && <BrandVoiceReport data={data} />}
         </>
+      )}
+
+      {data && !data.result && (
+        <Card title="Response (no result)">
+          <pre className="text-xs text-white/80 whitespace-pre-wrap">{safeJsonStringify(data, 2)}</pre>
+        </Card>
       )}
     </div>
   );
