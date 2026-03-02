@@ -21,6 +21,7 @@ const menuItems = [
   { icon: Bot, label: 'Smart Editor', href: '/dashboard/smart-editor' },
   { icon: LayoutGrid, label: 'Landing Page', href: '/dashboard/landing-page' },
   { icon: LayoutGrid, label: "Compare", href: "/dashboard/compare" },
+  { icon: LayoutGrid, label: "Apply Patch", href: "/dashboard/apply-patch" },
   { icon: History, label: 'Archives', href: '/history' },
   { icon: CreditCard, label: 'Billing', href: '/billing' },
   { icon: Settings, label: 'Settings', href: '/settings' },
