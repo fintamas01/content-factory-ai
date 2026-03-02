@@ -88,28 +88,41 @@ export default function HookOptimizerPage() {
 
       {hooks.length > 0 && (
         <div className="grid md:grid-cols-2 gap-6">
-          {hooks.map((hook, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border border-white/10 bg-gradient-to-br from-purple-900/30 to-black p-6 space-y-4 hover:scale-[1.02] transition"
-            >
-              <div className="text-xs uppercase text-purple-400 tracking-widest">
-                {hook.type}
-              </div>
+          {hooks.map((hook, i) => {
+            const isSelected = selectedHook === hook.headline;
 
-              <div className="text-xl font-bold text-white">
-                {hook.headline}
-              </div>
+            return (
+                <div
+                key={i}
+                onClick={() => setSelectedHook(hook.headline)}
+                className={clsx(
+                    "rounded-2xl border bg-gradient-to-br from-purple-900/30 to-black p-6 space-y-4 transition cursor-pointer",
+                    "hover:scale-[1.02]",
+                    isSelected ? "border-purple-400/50 ring-1 ring-purple-400/30" : "border-white/10"
+                )}
+                >
+                <div className="text-xs uppercase text-purple-400 tracking-widest">
+                    {hook.type}
+                </div>
 
-              <div className="text-white/70 text-sm">
-                {hook.explanation}
-              </div>
+                <div className="text-xl font-bold text-white">
+                    {hook.headline}
+                </div>
 
-              <div className="text-purple-300 text-sm font-semibold">
-                CTA: {hook.cta}
-              </div>
-            </div>
-          ))}
+                <div className="text-white/70 text-sm">
+                    {hook.explanation}
+                </div>
+
+                <div className="text-purple-300 text-sm font-semibold">
+                    CTA: {hook.cta}
+                </div>
+
+                <div className="text-white/50 text-xs">
+                    {isSelected ? "Selected ✅" : "Click to generate full post"}
+                </div>
+                </div>
+            );
+            })}
         </div>
       )}
     </div>
