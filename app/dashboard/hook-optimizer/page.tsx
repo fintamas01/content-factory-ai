@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import HookPostPreview from "@/app/components/HookPostPreview";
 
 function clsx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -21,6 +22,7 @@ export default function HookOptimizerPage() {
   const [loading, setLoading] = useState(false);
   const [hooks, setHooks] = useState<Hook[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [selectedHook, setSelectedHook] = useState<string>("");
 
   async function run() {
     setErr(null);
@@ -74,6 +76,15 @@ export default function HookOptimizerPage() {
 
         {err && <div className="text-red-400">{err}</div>}
       </div>
+
+      {selectedHook ? (
+        <HookPostPreview
+            hook={selectedHook}
+            topic={topic}       // ami nálad a “sales” input
+            tone={"modern, premium, direct"}
+            platform="instagram"
+        />
+        ) : null}
 
       {hooks.length > 0 && (
         <div className="grid md:grid-cols-2 gap-6">
