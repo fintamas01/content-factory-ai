@@ -115,6 +115,120 @@ export default function LandingPageAgent() {
     }
   }
 
+  function downloadHTML() {
+    if (!layout) return;
+  
+    const html = generateProductionHTML(layout, url, language);
+    const blob = new Blob([html], { type: "text/html" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "landing-page.html";
+    a.click();
+  }
+
+  function generateProductionHTML(layout: any, url: string, language: string) {
+    const sections = Array.isArray(layout?.page?.sections) ? layout.page.sections : [];
+  
+    const hero = sections.find((s: any) => s?.type === "hero");
+    const services = sections.find((s: any) => s?.type === "services");
+    const process = sections.find((s: any) => s?.type === "process");
+    const proof = sections.find((s: any) => s?.type === "proof");
+    const faq = sections.find((s: any) => s?.type === "faq");
+    const cta = sections.find((s: any) => s?.type === "cta");
+  
+    return `
+  <!DOCTYPE html>
+  <html lang="${language}">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${layout?.page?.title ?? "Landing Page"}</title>
+  <meta name="description" content="${hero?.subheadline ?? ""}" />
+  <style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto; margin:0; background:#0f172a; color:white}
+  .container{max-width:1100px;margin:auto;padding:60px 20px}
+  .section{margin-bottom:80px}
+  .hero h1{font-size:48px;line-height:1.1;margin-bottom:20px}
+  .hero p{font-size:20px;color:#cbd5e1;max-width:800px}
+  .button{display:inline-block;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:600}
+  .primary{background:#2563eb;color:white}
+  .secondary{background:#1e293b;color:white}
+  .card{background:#1e293b;padding:20px;border-radius:16px;margin-bottom:20px}
+  .faq details{margin-bottom:15px}
+  </style>
+  </head>
+  <body>
+  
+  <div class="container hero section">
+  <h1>${hero?.headline ?? ""}</h1>
+  <p>${hero?.subheadline ?? ""}</p>
+  <div style="margin-top:30px">
+  <a href="#" class="button primary">${hero?.ctaPrimary ?? "Get Started"}</a>
+  <a href="#" class="button secondary">${hero?.ctaSecondary ?? "Learn More"}</a>
+  </div>
+  </div>
+  
+  <div class="container section">
+  <h2>Services</h2>
+  ${(services?.items ?? [])
+    .map(
+      (s: any) => `
+  <div class="card">
+  <h3>${s.title}</h3>
+  <p>${s.desc ?? ""}</p>
+  <ul>
+  ${(s.points ?? []).map((p: string) => `<li>${p}</li>`).join("")}
+  </ul>
+  </div>`
+    )
+    .join("")}
+  </div>
+  
+  <div class="container section">
+  <h2>Process</h2>
+  ${(process?.steps ?? [])
+    .map(
+      (s: any, i: number) => `
+  <div class="card">
+  <strong>Step ${i + 1}</strong>
+  <h3>${s.title}</h3>
+  <p>${s.desc}</p>
+  </div>`
+    )
+    .join("")}
+  </div>
+  
+  <div class="container section">
+  <h2>Proof</h2>
+  <ul>
+  ${(proof?.bullets ?? []).map((b: string) => `<li>${b}</li>`).join("")}
+  </ul>
+  </div>
+  
+  <div class="container section faq">
+  <h2>FAQ</h2>
+  ${(faq?.items ?? [])
+    .map(
+      (f: any) => `
+  <details>
+  <summary>${f.q}</summary>
+  <p>${f.a}</p>
+  </details>`
+    )
+    .join("")}
+  </div>
+  
+  <div class="container section">
+  <h2>${cta?.headline ?? ""}</h2>
+  <p>${cta?.desc ?? ""}</p>
+  <a href="#" class="button primary">${cta?.ctaPrimary ?? "Contact"}</a>
+  </div>
+  
+  </body>
+  </html>
+  `;
+  }
+
   const layout = data?.layout;
   const sections: any[] = Array.isArray(layout?.page?.sections) ? layout.page.sections : [];
 
@@ -193,6 +307,15 @@ export default function LandingPageAgent() {
           {err && <div className="text-red-300 text-sm">{err}</div>}
         </div>
       </Card>
+
+      {layout && (
+        <button
+            onClick={downloadHTML}
+            className="rounded-2xl px-4 py-2 text-sm font-semibold border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/20"
+        >
+            Export Production HTML
+        </button>
+        )}
 
       {layout && (
         <div className="space-y-4">
