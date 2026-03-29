@@ -10,6 +10,10 @@ import {
   TrendingUp,
   Bot,
   Target,
+  MessageCircleQuestion,
+  Ban,
+  ShieldOff,
+  Users,
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
@@ -193,7 +197,7 @@ export default function AIGrowthAuditPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <ScoreCard
               label="SEO score"
               value={data.report.seo_score}
@@ -212,6 +216,27 @@ export default function AIGrowthAuditPage() {
               icon={Target}
               accent="bg-gradient-to-br from-emerald-600 to-teal-600"
             />
+            <ScoreCard
+              label="AI discoverability"
+              value={data.report.ai_discoverability.score}
+              icon={MessageCircleQuestion}
+              accent="bg-gradient-to-br from-amber-500 to-orange-600"
+            />
+          </div>
+
+          <div className="rounded-[28px] border border-amber-500/25 bg-gradient-to-br from-amber-500/5 to-orange-500/5 dark:from-amber-500/10 dark:to-orange-500/5 p-8 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase italic flex items-center gap-2">
+                <MessageCircleQuestion className="h-5 w-5 text-amber-500 shrink-0" />
+                Would ChatGPT recommend this business?
+              </h2>
+              <span className="inline-flex w-fit rounded-full bg-amber-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
+                {data.report.ai_discoverability.verdict}
+              </span>
+            </div>
+            <p className="mt-4 text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+              {data.report.ai_discoverability.explanation}
+            </p>
           </div>
 
           {data.report.issues.length > 0 && (
@@ -238,6 +263,94 @@ export default function AIGrowthAuditPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {data.report.conversion_blockers.length > 0 && (
+            <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 shadow-sm">
+              <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase italic mb-6 flex items-center gap-2">
+                <Ban className="h-5 w-5 text-red-500 shrink-0" />
+                Conversion blockers
+              </h2>
+              <ul className="space-y-4">
+                {data.report.conversion_blockers.map((row, i) => (
+                  <li
+                    key={i}
+                    className="rounded-2xl border border-red-500/20 bg-red-500/[0.03] px-5 py-4"
+                  >
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {row.blocker}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {row.detail}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {data.report.trust_signals_missing.length > 0 && (
+            <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 shadow-sm">
+              <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase italic mb-4 flex items-center gap-2">
+                <ShieldOff className="h-5 w-5 text-slate-500 shrink-0" />
+                Trust signals missing
+              </h2>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-4">
+                Based on visible copy in this page extract—not your whole site.
+              </p>
+              <ul className="space-y-2">
+                {data.report.trust_signals_missing.map((line, i) => (
+                  <li
+                    key={i}
+                    className="flex gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] px-4 py-3"
+                  >
+                    <span className="text-slate-400 font-black">·</span>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {data.report.content_gaps_vs_competitors.length > 0 && (
+            <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 shadow-sm">
+              <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase italic mb-2 flex items-center gap-2">
+                <Users className="h-5 w-5 text-indigo-500 shrink-0" />
+                Content gaps vs competitors
+              </h2>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-6">
+                Category-level inference (no live competitor crawl)—use as a
+                directional checklist.
+              </p>
+              <div className="space-y-4">
+                {data.report.content_gaps_vs_competitors.map((row, i) => (
+                  <div
+                    key={i}
+                    className="rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.03] p-5 space-y-3"
+                  >
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {row.gap}
+                    </p>
+                    {row.competitor_norm ? (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        <span className="font-black text-indigo-600 dark:text-indigo-400 uppercase text-[10px] tracking-widest mr-2">
+                          Typical in category
+                        </span>
+                        {row.competitor_norm}
+                      </p>
+                    ) : null}
+                    {row.suggestion ? (
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 border-t border-indigo-500/10 pt-3">
+                        <span className="font-black text-emerald-600 dark:text-emerald-400 uppercase text-[10px] tracking-widest mr-2">
+                          Suggestion
+                        </span>
+                        {row.suggestion}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

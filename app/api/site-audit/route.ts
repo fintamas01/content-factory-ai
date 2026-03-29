@@ -17,6 +17,10 @@ function parseJsonFromAssistantContent(raw: string): unknown {
   return JSON.parse(cleaned);
 }
 
+function clampScore(n: number) {
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 50;
+}
+
 function coerceReport(data: unknown): GrowthAuditReport | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
@@ -48,17 +52,84 @@ function coerceReport(data: unknown): GrowthAuditReport | null {
     ? o.content_suggestions.filter((s): s is string => typeof s === "string")
     : [];
 
-  const clamp = (n: number) =>
-    Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 50;
+  const adRaw = o.ai_discoverability;
+  let ai_discoverability: GrowthAuditReport["ai_discoverability"];
+  if (adRaw && typeof adRaw === "object") {
+    const ad = adRaw as Record<string, unknown>;
+    ai_discoverability = {
+      score: clampScore(Number(ad.score)),
+      verdict: typeof ad.verdict === "string" ? ad.verdict : "See explanation",
+      explanation:
+        typeof ad.explanation === "string"
+          ? ad.explanation
+          : "Not assessed in this run.",
+    };
+  } else {
+    ai_discoverability = {
+      score: clampScore(aiReady),
+      verdict: "Derived from AI readiness",
+      explanation:
+        "The model did not return a dedicated AI discoverability block; scores may align with overall AI readiness.",
+    };
+  }
+
+  const convBlockRaw = Array.isArray(o.conversion_blockers)
+    ? o.conversion_blockers
+    : [];
+  const conversion_blockers = convBlockRaw
+    .map((it) => {
+      if (!it || typeof it !== "object") return null;
+      const x = it as Record<string, unknown>;
+      const blocker = typeof x.blocker === "string" ? x.blocker : "";
+      const detail = typeof x.detail === "string" ? x.detail : "";
+      if (!blocker && !detail) return null;
+      return { blocker, detail };
+    })
+    .filter(Boolean) as GrowthAuditReport["conversion_blockers"];
+
+  const trustRaw = Array.isArray(o.trust_signals_missing)
+    ? o.trust_signals_missing
+    : [];
+  const trust_signals_missing = trustRaw.filter(
+    (s): s is string => typeof s === "string" && s.trim().length > 0
+  );
+
+  const gapsRaw = Array.isArray(o.content_gaps_vs_competitors)
+    ? o.content_gaps_vs_competitors
+    : [];
+  const content_gaps_vs_competitors = gapsRaw
+    .map((it) => {
+      if (!it || typeof it !== "object") return null;
+      const x = it as Record<string, unknown>;
+      const gap = typeof x.gap === "string" ? x.gap : "";
+      const competitor_norm =
+        typeof x.competitor_norm === "string"
+          ? x.competitor_norm
+          : typeof x.typical_competitor_pattern === "string"
+            ? x.typical_competitor_pattern
+            : "";
+      const suggestion = typeof x.suggestion === "string" ? x.suggestion : "";
+      if (!gap && !suggestion) return null;
+      return {
+        gap,
+        competitor_norm,
+        suggestion,
+      };
+    })
+    .filter(Boolean) as GrowthAuditReport["content_gaps_vs_competitors"];
 
   return {
     summary: summary || "Analysis complete.",
-    seo_score: clamp(seo),
-    ai_readiness_score: clamp(aiReady),
-    conversion_score: clamp(conv),
+    seo_score: clampScore(seo),
+    ai_readiness_score: clampScore(aiReady),
+    conversion_score: clampScore(conv),
     issues,
     quick_wins: qw,
     content_suggestions: cs,
+    ai_discoverability,
+    conversion_blockers,
+    trust_signals_missing,
+    content_gaps_vs_competitors,
   };
 }
 
@@ -151,7 +222,11 @@ OUTPUT: Strictly valid JSON only, matching this exact schema (no extra keys):
   "conversion_score": number,
   "issues": [ { "title": "string", "description": "string", "priority": "high"|"medium"|"low" } ],
   "quick_wins": [ "string" ],
-  "content_suggestions": [ "string" ]
+  "content_suggestions": [ "string" ],
+  "ai_discoverability": { "score": number, "verdict": "string", "explanation": "string" },
+  "conversion_blockers": [ { "blocker": "string", "detail": "string" } ],
+  "trust_signals_missing": [ "string" ],
+  "content_gaps_vs_competitors": [ { "gap": "string", "competitor_norm": "string", "suggestion": "string" } ]
 }
 
 SUMMARY (4–6 sentences):
@@ -178,6 +253,23 @@ QUICK WINS (4–7 items):
 CONTENT SUGGESTIONS (4–7 items):
 - Specific content angles, sections, or copy blocks to add (FAQ, comparison table, proof bar, objection handler)—each tied to a gap in the current text sample.
 - Where helpful, include a short example headline or bullet in quotes grounded in the page’s apparent topic.
+
+AI_DISCOVERABILITY (object — separate from ai_readiness_score):
+- score: 0–100 integer — how likely is it that a consumer AI assistant (e.g. ChatGPT-style) would **recommend or clearly cite this specific business** when a user asks for a solution in this category, based **only** on what is visible in the extract (brand/entity clarity, location, proof, specificity, uniqueness vs generic claims).
+- verdict: one punchy line (e.g. “Unlikely to be named without stronger entity signals” or “Strong candidate — clear offer + proof in copy”).
+- explanation: 3–5 sentences on what helps or hurts “AI discoverability” (named entity, address/service area, reviews/testimonials mentioned in text, concrete services, differentiation). Be explicit: “Would ChatGPT recommend this business?” is the user question you are answering.
+
+CONVERSION_BLOCKERS (3–6 items):
+- Each item: blocker = short label; detail = what you see in the text sample + why it hurts conversion + one concrete fix.
+- Focus on friction: unclear CTA, vague pricing, missing risk reversal, buried offer, jargon, no next step.
+
+TRUST_SIGNALS_MISSING (3–8 short strings):
+- Each line names one trust element **absent or weak in the extract** (e.g. “No third-party proof or logos mentioned in visible copy”, “No team or address to validate legitimacy”, “No guarantee or trial language”).
+- Do not invent that these exist elsewhere on the site—only what the extract lacks or barely hints at.
+
+CONTENT_GAPS_VS_COMPETITORS (3–6 items):
+- You have **no competitor URLs**. For each item: gap = what this page under-delivers vs expectations; competitor_norm = what **strong competitors in this business category** typically show on comparable pages (inferred category norm, label this as inference); suggestion = what to add on this page.
+- Example pattern: gap “No comparison vs alternatives”, competitor_norm “Peers often include a short comparison table or ‘vs X’ section”, suggestion “Add a 3-row comparison: you vs DIY vs agency”.
 
 GUARDRAILS:
 - Ground every claim in the JSON payload (url, title, metaDescription, h1, h2, textSample). If something is missing, say “Not visible in extract” rather than guessing.

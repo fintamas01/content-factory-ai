@@ -6,6 +6,28 @@ export interface GrowthAuditIssue {
   priority: AuditIssuePriority;
 }
 
+/** Likelihood an AI assistant (e.g. ChatGPT-style) would recommend or clearly cite this business from this page alone. */
+export interface AiDiscoverability {
+  score: number;
+  /** Short headline, e.g. "Moderate — citeable with caveats" */
+  verdict: string;
+  /** Why: entity clarity, specificity, trust cues in copy, etc. */
+  explanation: string;
+}
+
+export interface ConversionBlockerItem {
+  blocker: string;
+  detail: string;
+}
+
+/** Inferred vs category norms — no live competitor crawl in MVP. */
+export interface ContentGapVsCompetitorsItem {
+  gap: string;
+  /** What strong peers in this space typically surface (inferred). */
+  competitor_norm: string;
+  suggestion: string;
+}
+
 export interface GrowthAuditReport {
   summary: string;
   seo_score: number;
@@ -14,6 +36,10 @@ export interface GrowthAuditReport {
   issues: GrowthAuditIssue[];
   quick_wins: string[];
   content_suggestions: string[];
+  ai_discoverability: AiDiscoverability;
+  conversion_blockers: ConversionBlockerItem[];
+  trust_signals_missing: string[];
+  content_gaps_vs_competitors: ContentGapVsCompetitorsItem[];
 }
 
 export interface ExtractedPageSignals {
