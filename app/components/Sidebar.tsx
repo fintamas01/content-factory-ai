@@ -17,6 +17,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
 import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { SIDEBAR_NAV_ITEMS, type SidebarNavId } from "@/lib/platform/navigation";
+import { SidebarPlanBadge } from "@/app/components/SidebarPlanBadge";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -98,6 +99,7 @@ export default function Sidebar() {
         <span className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
           {PLATFORM_DISPLAY_NAME}
         </span>
+        <SidebarPlanBadge />
       </div>
 
       <nav

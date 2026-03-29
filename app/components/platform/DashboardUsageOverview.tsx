@@ -96,7 +96,7 @@ export function DashboardUsageOverview() {
         </div>
         {!isPro ? (
           <Link
-            href="/billing"
+            href="/dashboard/billing"
             className="inline-flex items-center justify-center gap-1.5 self-start rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-200 transition hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-white"
           >
             Upgrade
@@ -129,14 +129,14 @@ export function DashboardUsageOverview() {
       {!isPro ? (
         <p className="mt-5 border-t border-white/[0.06] pt-4 text-[11px] font-medium leading-relaxed text-slate-500 dark:text-slate-500">
           Pro includes much higher monthly quotas across all modules.{" "}
-          <Link href="/billing" className="font-semibold text-slate-400 underline underline-offset-2 hover:text-slate-200">
+          <Link href="/dashboard/billing" className="font-semibold text-slate-400 underline underline-offset-2 hover:text-slate-200">
             See details
           </Link>
         </p>
       ) : (
         <p className="mt-5 border-t border-white/[0.06] pt-4 text-[11px] text-slate-500 dark:text-slate-500">
           Manage billing anytime from{" "}
-          <Link href="/billing" className="font-semibold text-slate-400 hover:text-slate-200">
+          <Link href="/dashboard/billing" className="font-semibold text-slate-400 hover:text-slate-200">
             Billing
           </Link>
           .

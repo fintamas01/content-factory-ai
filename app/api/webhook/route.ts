@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const supabaseAdmin = createClient(
@@ -8,113 +8,188 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+/** Billing period end: Stripe exposes this on subscription items (see SubscriptionItem.current_period_end). */
+function periodEndIso(sub: Stripe.Subscription): string {
+  const end =
+    sub.items?.data?.[0]?.current_period_end ??
+    (sub as Stripe.Subscription & { current_period_end?: number })
+      .current_period_end;
+  if (end) {
+    return new Date(end * 1000).toISOString();
+  }
+  const now = new Date();
+  now.setDate(now.getDate() + 30);
+  return now.toISOString();
+}
+
+function customerIdFromStripe(
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null
+): string | null {
+  if (!customer) return null;
+  if (typeof customer === "string") return customer;
+  if (customer.deleted) return null;
+  return customer.id;
+}
+
+/** Stripe API 2025+: subscription id lives on `invoice.parent.subscription_details`. */
+function subscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
+  const parent = invoice.parent;
+  if (parent?.type === "subscription_details" && parent.subscription_details) {
+    const sub = parent.subscription_details.subscription;
+    if (typeof sub === "string") return sub;
+    if (sub && typeof sub === "object" && "id" in sub) return sub.id;
+  }
+  const legacy = (
+    invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null }
+  ).subscription;
+  if (typeof legacy === "string") return legacy;
+  if (legacy && typeof legacy === "object" && "id" in legacy) return legacy.id;
+  return null;
+}
+
 export async function POST(req: Request) {
   const body = await req.text();
-  const signature = req.headers.get('Stripe-Signature') as string;
+  const signature = req.headers.get("Stripe-Signature") as string;
 
   let event: Stripe.Event;
 
   try {
     event = stripe.webhooks.constructEvent(
-      body, 
-      signature, 
+      body,
+      signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (err: any) {
-    console.error(`Webhook Signature Error: ${err.message}`);
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("Webhook signature error:", msg);
+    return NextResponse.json({ error: `Webhook Error: ${msg}` }, { status: 400 });
   }
 
-  console.log(`🔔 Webhook received: ${event.type}`);
+  console.log(`Webhook: ${event.type}`);
 
-  // --- 1. ÚJ ELŐFIZETÉS (checkout.session.completed) ---
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as any;
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
     const subscriptionId = session.subscription;
 
-    console.log(`Processing Session: ${session.id}, Sub ID: ${subscriptionId}`);
-
-    if (subscriptionId) {
+    if (subscriptionId && typeof subscriptionId === "string") {
       try {
-        // Lekérjük az előfizetést
-        const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
-        
-        console.log("Stripe Subscription Data:", JSON.stringify(subscription, null, 2)); // Debug log
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const currentPeriodEnd = periodEndIso(subscription);
+        const priceId = subscription.items?.data?.[0]?.price?.id;
+        const userId = session.metadata?.userId;
 
-        // BIZTONSÁGOS DÁTUM KONVERTÁLÁS
-        let currentPeriodEnd;
-        if (subscription.current_period_end) {
-            currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
-        } else {
-            console.warn("⚠️ HIÁNYZÓ current_period_end! Fallback dátum használata.");
-            // Ha nincs dátum, adjunk hozzá 30 napot a mostanihoz
-            const now = new Date();
-            now.setDate(now.getDate() + 30);
-            currentPeriodEnd = now.toISOString();
+        if (!userId) {
+          console.error("checkout.session.completed: missing metadata.userId");
+          return NextResponse.json({ error: "Missing user id" }, { status: 400 });
         }
 
-        const priceId = subscription.items?.data?.[0]?.price?.id;
+        const customer = customerIdFromStripe(session.customer as Stripe.Checkout.Session["customer"]);
 
-        const { error } = await supabaseAdmin.from('subscriptions').upsert({
-          user_id: session.metadata?.userId,
-          stripe_customer_id: session.customer,
-          stripe_subscription_id: subscriptionId,
-          status: 'active',
-          price_id: priceId,
-          current_period_end: currentPeriodEnd,
-        });
+        const { error } = await supabaseAdmin.from("subscriptions").upsert(
+          {
+            user_id: userId,
+            stripe_customer_id: customer,
+            stripe_subscription_id: subscriptionId,
+            status: subscription.status === "active" ? "active" : subscription.status,
+            price_id: priceId,
+            current_period_end: currentPeriodEnd,
+          },
+          { onConflict: "user_id" }
+        );
 
         if (error) {
-          console.error("❌ Supabase Upsert Error:", error);
+          console.error("subscriptions upsert:", error);
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
-        console.log("✅ Subscription saved successfully!");
-
-      } catch (err: any) {
-        console.error("❌ Error retrieving/saving subscription:", err);
+      } catch (err: unknown) {
+        console.error("checkout.session.completed handler:", err);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
       }
-    } else {
-        console.error("❌ No subscription ID found in session.");
     }
   }
 
-  // --- 2. MEGÚJÍTÁS (invoice.payment_succeeded) ---
-  if (event.type === 'invoice.payment_succeeded') {
-    const invoice = event.data.object as any;
-    const subscriptionId = invoice.subscription;
+  if (event.type === "invoice.payment_succeeded") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const subscriptionId = subscriptionIdFromInvoice(invoice);
 
     if (subscriptionId) {
       try {
-        const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
-        
-        let currentPeriodEnd;
-        if (subscription.current_period_end) {
-             currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
-        } else {
-             const now = new Date();
-             now.setDate(now.getDate() + 30);
-             currentPeriodEnd = now.toISOString();
-        }
-        
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const currentPeriodEnd = periodEndIso(subscription);
         const priceId = subscription.items?.data?.[0]?.price?.id;
 
         const { error } = await supabaseAdmin
-          .from('subscriptions')
+          .from("subscriptions")
           .update({
             current_period_end: currentPeriodEnd,
-            status: 'active',
-            price_id: priceId 
+            status: subscription.status === "active" ? "active" : subscription.status,
+            price_id: priceId,
           })
-          .eq('stripe_subscription_id', subscriptionId);
-          
-        if (error) console.error("❌ Supabase Update Error:", error);
-        else console.log("✅ Subscription renewed successfully!");
+          .eq("stripe_subscription_id", subscriptionId);
 
+        if (error) console.error("invoice update:", error);
       } catch (err) {
-        console.error("❌ Error in invoice handler:", err);
+        console.error("invoice.payment_succeeded:", err);
       }
     }
+  }
+
+  if (
+    event.type === "customer.subscription.updated" ||
+    event.type === "customer.subscription.created"
+  ) {
+    const subscription = event.data.object as Stripe.Subscription;
+    const subscriptionId = subscription.id;
+    const currentPeriodEnd = periodEndIso(subscription);
+    const priceId = subscription.items?.data?.[0]?.price?.id;
+    let userId = subscription.metadata?.userId ?? null;
+    const customer = customerIdFromStripe(subscription.customer);
+
+    if (!userId) {
+      const { data: existing } = await supabaseAdmin
+        .from("subscriptions")
+        .select("user_id")
+        .eq("stripe_subscription_id", subscriptionId)
+        .maybeSingle();
+      userId = existing?.user_id ?? null;
+    }
+
+    if (userId) {
+      const status =
+        subscription.status === "active"
+          ? "active"
+          : subscription.status === "canceled"
+            ? "canceled"
+            : subscription.status;
+
+      const { error } = await supabaseAdmin.from("subscriptions").upsert(
+        {
+          user_id: userId,
+          stripe_customer_id: customer,
+          stripe_subscription_id: subscriptionId,
+          status,
+          price_id: priceId,
+          current_period_end: currentPeriodEnd,
+        },
+        { onConflict: "user_id" }
+      );
+      if (error) console.error("subscription.updated upsert:", error);
+    } else {
+      console.warn("subscription sync: no user id for", subscriptionId);
+    }
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object as Stripe.Subscription;
+    const { error } = await supabaseAdmin
+      .from("subscriptions")
+      .update({
+        status: "canceled",
+        current_period_end: periodEndIso(subscription),
+      })
+      .eq("stripe_subscription_id", subscription.id);
+
+    if (error) console.error("subscription.deleted:", error);
   }
 
   return NextResponse.json({ received: true });

@@ -196,7 +196,7 @@ export function ModuleUsageBanner({
               next month.
             </p>
             <Link
-              href="/billing"
+              href="/dashboard/billing"
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-xl bg-white px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-900 transition hover:bg-slate-100 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
             >
               View plans
@@ -207,7 +207,7 @@ export function ModuleUsageBanner({
           <p className="mt-4 text-xs font-medium leading-relaxed text-amber-200/90 dark:text-amber-200/80">
             You&apos;re nearing this module&apos;s limit.{" "}
             <Link
-              href="/billing"
+              href="/dashboard/billing"
               className="font-bold text-amber-100 underline decoration-amber-500/50 underline-offset-2 transition hover:text-white dark:text-amber-50"
             >
               Upgrade
@@ -218,7 +218,7 @@ export function ModuleUsageBanner({
           <p className="mt-4 text-[11px] font-medium leading-relaxed text-slate-500 dark:text-slate-500">
             On Free, limits reset each calendar month.{" "}
             <Link
-              href="/billing"
+              href="/dashboard/billing"
               className="font-semibold text-slate-400 underline decoration-white/10 underline-offset-2 transition hover:text-slate-200 dark:text-slate-400 dark:hover:text-slate-200"
             >
               Compare Pro

@@ -525,7 +525,7 @@ export default function ContentMatrix() {
             <div className="bg-slate-900 p-8 rounded-3xl border border-white/10 shadow-2xl text-center max-w-sm">
               <Lock className="w-12 h-12 text-blue-500 mb-4 mx-auto" />
               <h2 className="text-2xl font-bold mb-2">Pro Funkció</h2>
-              <button onClick={() => router.push('/billing')} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold mt-4">Upgrade Most</button>
+              <button onClick={() => router.push('/dashboard/billing')} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold mt-4">Upgrade Most</button>
             </div>
           </div>
         )}

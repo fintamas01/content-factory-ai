@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { Trash2, Plus, Building2, ShieldCheck, Loader2 } from "lucide-react";
 
@@ -185,9 +186,12 @@ export default function SettingsPage() {
           </div>
         </div>
         {subscription === "free" && (
-          <button className="bg-blue-600/10 text-blue-500 border border-blue-500/20 px-6 py-2 rounded-full text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">
+          <Link
+            href="/dashboard/billing"
+            className="bg-blue-600/10 text-blue-500 border border-blue-500/20 px-6 py-2 rounded-full text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all"
+          >
             Upgrade to Pro
-          </button>
+          </Link>
         )}
       </header>
 

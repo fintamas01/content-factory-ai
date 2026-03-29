@@ -39,7 +39,7 @@ export const SIDEBAR_NAV_ITEMS = [
   {
     id: "billing",
     label: "Billing",
-    href: "/billing",
+    href: "/dashboard/billing",
   },
   {
     id: "settings",
