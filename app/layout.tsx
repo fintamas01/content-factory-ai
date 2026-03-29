@@ -9,10 +9,11 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ContentFactory.AI",
-  description: "AI Social Media Content Automation",
+  title: "ContentFactory Platform",
+  description:
+    "Multi-module AI workspace: social content, product copy, and site intelligence.",
   icons: {
-    icon: '/CF_favicon.png'
+    icon: "/CF_favicon.png",
   },
 };
 
