@@ -2,19 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { parseJsonFromAssistantContent } from "@/lib/openai/parse-json-content";
 import type { ProductCopyResult } from "@/lib/products/types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-function parseJsonContent(raw: string): unknown {
-  let cleaned = raw.trim();
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/s, "");
-  }
-  return JSON.parse(cleaned);
-}
 
 function coerceProductCopy(data: unknown): ProductCopyResult | null {
   if (!data || typeof data !== "object") return null;
@@ -46,15 +37,34 @@ function coerceProductCopy(data: unknown): ProductCopyResult | null {
   };
 }
 
-const SYSTEM = `You are an expert ecommerce and SaaS copywriter. Generate compelling, accurate product listing copy. Output strictly valid JSON only with these keys (no extra keys, no markdown):
+const SYSTEM = `You are a senior ecommerce and B2B SaaS copy chief. Your job is copy that could ship on a real storefront or PDP: specific, benefit-led, and commercially credible—not template filler.
+
+INPUT: You receive JSON with productName plus optional productDetails, targetAudience, tone, keyBenefits. Ground every claim in that input. If details are thin, write tightly from what is given; do not invent certifications, awards, numbers, materials, or guarantees unless the user supplied them.
+
+OUTPUT: Strictly valid JSON only. No markdown, no code fences, no keys beyond this schema (no extra keys):
 {
-  "title": "string — short product title for listing or PDP headline",
-  "description": "string — 2–4 sentences, benefits-led, ready to paste on a product page",
-  "bullets": ["string", ...] — 4–6 bullet points, each one line, feature+benefit style",
-  "seo_title": "string — under ~60 chars, primary keyword natural",
-  "seo_description": "string — meta description under ~160 chars, click-worthy"
+  "title": "string",
+  "description": "string",
+  "bullets": ["string", ...],
+  "seo_title": "string",
+  "seo_description": "string"
 }
-Respect the user's tone if provided. Do not invent specs or awards not implied by the input. Plain text in strings only.`;
+
+TITLE: Short, specific headline (listing or hero). Prefer concrete nouns and outcome over vague adjectives. Avoid “The ultimate…”, “Revolutionary…”, “Best-in-class…” unless the input supports it.
+
+DESCRIPTION: 2–4 sentences. Lead with the clearest outcome for the buyer (who it’s for + what problem it removes or result it enables). Tie features to benefits using details from the input. No bullet list here. No empty hype.
+
+BULLETS: Exactly 4–6 items. Each line: one tight idea—prefer “[Concrete feature or fact] → [buyer payoff]” or a sharp standalone benefit. Under ~120 characters per bullet where possible. No “Lorem” style repeats; each line must add a new angle (use case, proof point from input, objection handled, differentiator).
+
+TONE: Honor the requested tone (professional, modern, persuasive, luxury, friendly) or default to confident and clear. Luxury = refined, not flowery. Persuasive = proof and specificity, not exclamation spam.
+
+SEO_TITLE: ~50–60 characters when possible. Read like a real search result: primary intent + product type + differentiator if space. Clickable and human—no ALL CAPS, no pipe-stuffed keyword stuffing.
+
+SEO_DESCRIPTION: ~150–160 characters. One natural sentence (or two very short ones) with benefit + light CTA or qualifier (“for …”, “with …”). Should read like a trustworthy snippet, not a keyword dump.
+
+BANNED: Generic phrases alone (“high quality”, “great value”, “perfect for everyone”) without tying to input. Repeated synonyms across fields. Fabricated stats.
+
+Plain text inside JSON strings only (no ** or HTML).`;
 
 export async function POST(req: Request) {
   try {
@@ -96,12 +106,14 @@ export async function POST(req: Request) {
     });
 
     const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) {
+    const user = authData?.user;
+    if (!user) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
-    const productName = typeof body.productName === "string" ? body.productName.trim() : "";
+    const productName =
+      typeof body.productName === "string" ? body.productName.trim() : "";
     if (!productName) {
       return NextResponse.json(
         { error: "Product name is required." },
@@ -109,17 +121,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const description =
-      typeof body.description === "string" ? body.description.trim() : "";
+    const productDetails =
+      typeof body.productDetails === "string" ? body.productDetails.trim() : "";
     const targetAudience =
       typeof body.targetAudience === "string" ? body.targetAudience.trim() : "";
     const tone = typeof body.tone === "string" ? body.tone.trim() : "";
+    const keyBenefits =
+      typeof body.keyBenefits === "string" ? body.keyBenefits.trim() : "";
+
+    const input_data = {
+      productDetails: productDetails || undefined,
+      targetAudience: targetAudience || undefined,
+      tone: tone || undefined,
+      keyBenefits: keyBenefits || undefined,
+    };
 
     const userPayload = {
       productName,
-      description: description || undefined,
-      targetAudience: targetAudience || undefined,
-      tone: tone || undefined,
+      ...input_data,
     };
 
     const completion = await openai.chat.completions.create({
@@ -142,7 +161,7 @@ export async function POST(req: Request) {
 
     let parsed: unknown;
     try {
-      parsed = parseJsonContent(content);
+      parsed = parseJsonFromAssistantContent(content);
     } catch {
       return NextResponse.json(
         { error: "Could not parse model output." },
@@ -158,7 +177,25 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ result });
+    let savedId: string | null = null;
+    const { data: inserted, error: insertErr } = await supabase
+      .from("product_generations")
+      .insert({
+        user_id: user.id,
+        product_name: productName,
+        input_data,
+        output_data: result,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      console.error("product_generations insert:", insertErr);
+    } else if (inserted?.id) {
+      savedId = inserted.id;
+    }
+
+    return NextResponse.json({ result, savedId });
   } catch (e) {
     console.error("generate-product:", e);
     return NextResponse.json(

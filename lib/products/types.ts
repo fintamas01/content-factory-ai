@@ -5,3 +5,12 @@ export interface ProductCopyResult {
   seo_title: string;
   seo_description: string;
 }
+
+/** Form payload sent to /api/generate-product */
+export interface ProductGeneratorInput {
+  productName: string;
+  productDetails?: string;
+  targetAudience?: string;
+  tone?: string;
+  keyBenefits?: string;
+}
