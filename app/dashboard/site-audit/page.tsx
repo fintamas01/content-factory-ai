@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
+import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import type { GrowthAuditReport } from "@/lib/site-audit/types";
 
 type ApiSuccess = {
@@ -164,6 +165,7 @@ export default function AIGrowthAuditPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiSuccess | null>(null);
+  const [usageBump, setUsageBump] = useState(0);
 
   const runAudit = async () => {
     setError(null);
@@ -182,10 +184,17 @@ export default function AIGrowthAuditPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (json?.code === "USAGE_LIMIT") {
+          setError(
+            "Monthly site audit limit reached. Upgrade on the Billing page for a higher quota."
+          );
+          return;
+        }
         setError(typeof json.error === "string" ? json.error : "Request failed.");
         return;
       }
       setData(json as ApiSuccess);
+      setUsageBump((n) => n + 1);
     } catch {
       setError("Network error. Try again.");
     } finally {
@@ -196,6 +205,8 @@ export default function AIGrowthAuditPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 p-8">
       <ModulePageHeader moduleId="siteAudit" />
+
+      <ModuleUsageBanner feature="audit" bump={usageBump} />
 
       <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 md:p-10 shadow-sm">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">

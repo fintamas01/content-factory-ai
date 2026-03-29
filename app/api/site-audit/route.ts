@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { fetchAndExtractPage, normalizeUrl } from "@/lib/site-audit/extract";
 import type { GrowthAuditReport } from "@/lib/site-audit/types";
+import { enforceUsageLimit } from "@/lib/usage/enforce";
+import { incrementUsage } from "@/lib/usage/usage-service";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -235,6 +237,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
 
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "audit");
+    if (usageDenied) return usageDenied;
+
     const body = await req.json().catch(() => ({}));
     const websiteInput = body?.url as string | undefined;
     if (!websiteInput || typeof websiteInput !== "string") {
@@ -300,6 +305,8 @@ export async function POST(req: Request) {
         { status: 502 }
       );
     }
+
+    await incrementUsage(supabase, "audit");
 
     return NextResponse.json({
       report,

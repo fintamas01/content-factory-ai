@@ -10,6 +10,8 @@ import {
   buildContentBrandRewriteSystemAppendixHu,
   buildContentBrandSystemSectionHu,
 } from "@/lib/brand-profile/prompts";
+import { enforceUsageLimit } from "@/lib/usage/enforce";
+import { incrementUsage } from "@/lib/usage/usage-service";
 
 const ADMIN_EMAIL = "fintatamas68@gmail.com";
 
@@ -127,6 +129,9 @@ export async function POST(req: Request) {
       );
     }
     const contentBrandSection = buildContentBrandSystemSectionHu(effectiveBrand);
+
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "content");
+    if (usageDenied) return usageDenied;
 
     let memoryBlock = "Nincs korábbi memória.";
     try {
@@ -266,6 +271,7 @@ Add vissza KIZÁRÓLAG JSON-t:
       console.error("Critique JSON parse hiba. RAW:", critiqueRaw);
       // ha a critique elhasal, még mindig visszaadhatjuk a draftot
       // de próbáljunk továbbmenni drafttal
+      await incrementUsage(supabase, "content");
       return NextResponse.json(draft);
     }
     const critique = critiqueParsed.value;
@@ -301,6 +307,7 @@ Feladat: írd újra a posztokat úgy, hogy a score minél közelebb legyen 100-h
     const finalParsed = safeJsonParse(finalRaw);
     if (!finalParsed.ok) {
       console.error("Final JSON parse hiba. RAW:", finalRaw);
+      await incrementUsage(supabase, "content");
       // fallback: draft
       return NextResponse.json(draft);
     }
@@ -350,6 +357,8 @@ Feladat: írd újra a posztokat úgy, hogy a score minél közelebb legyen 100-h
     } catch (e) {
       console.error("Brand memory mentés hiba:", e);
     }
+
+    await incrementUsage(supabase, "content");
 
     // visszaadjuk a FINAL posztot + opcionálisan a score-t (ha UI-ban akarod mutatni)
     return NextResponse.json({

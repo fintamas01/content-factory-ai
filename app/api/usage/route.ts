@@ -1,0 +1,54 @@
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { buildUsageSummary } from "@/lib/usage/usage-service";
+
+export async function GET() {
+  try {
+    const cookieStore = await cookies();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnon =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
+
+    if (!supabaseUrl || !supabaseAnon) {
+      return NextResponse.json(
+        { error: "Server configuration error." },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            /* ignore */
+          }
+        },
+      },
+    });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const summary = await buildUsageSummary(supabase, user.id);
+    return NextResponse.json(summary);
+  } catch (e) {
+    console.error("GET /api/usage:", e);
+    return NextResponse.json(
+      { error: "Unexpected server error." },
+      { status: 500 }
+    );
+  }
+}

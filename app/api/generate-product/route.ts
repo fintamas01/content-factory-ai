@@ -7,6 +7,8 @@ import type { ProductCopyResult } from "@/lib/products/types";
 import { fetchUserBrandProfile } from "@/lib/brand-profile/server";
 import { mergeBrandProfileForContent } from "@/lib/brand-profile/merge";
 import { buildProductBrandIdentityAddendumEn } from "@/lib/brand-profile/prompts";
+import { enforceUsageLimit } from "@/lib/usage/enforce";
+import { incrementUsage } from "@/lib/usage/usage-service";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -116,6 +118,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
 
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "product");
+    if (usageDenied) return usageDenied;
+
     const body = await req.json().catch(() => ({}));
     const productName =
       typeof body.productName === "string" ? body.productName.trim() : "";
@@ -217,6 +222,8 @@ export async function POST(req: Request) {
     } else if (inserted?.id) {
       savedId = inserted.id;
     }
+
+    await incrementUsage(supabase, "product");
 
     return NextResponse.json({ result, savedId });
   } catch (e) {

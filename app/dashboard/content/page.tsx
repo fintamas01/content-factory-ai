@@ -1,5 +1,6 @@
 "use client";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
+import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X,
@@ -60,6 +61,7 @@ export default function DashboardPage() {
   const [brands, setBrands] = useState<any[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
   const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
+  const [usageBump, setUsageBump] = useState(0);
 
   useEffect(() => {
     const fetchBrands = async () => {
@@ -157,11 +159,18 @@ export default function DashboardPage() {
       });
       const data = await res.json();
 
-      if (data.error) {
-        alert(data.error);
+      if (!res.ok) {
+        if (data.code === "USAGE_LIMIT") {
+          alert(
+            `${data.error}\n\nUpgrade your plan under Billing to get more monthly generations.`
+          );
+        } else {
+          alert(data.error || "Request failed.");
+        }
       } else {
         const { __agent, ...platformResults } = data; // <-- itt kivesszük
         setResults(platformResults);                  // csak platformok mennek a UI-ba
+        setUsageBump((n) => n + 1);
 
         // opcionális: ha később ki akarod írni a score-t
         if (__agent) {
@@ -210,6 +219,7 @@ export default function DashboardPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
       <ModulePageHeader moduleId="content" className="mb-2" />
+      <ModuleUsageBanner feature="content" bump={usageBump} />
       {unifiedBrand ? (
         <p className="mb-4 text-xs font-semibold text-emerald-600/90 dark:text-emerald-400/90">
           Using your saved brand profile

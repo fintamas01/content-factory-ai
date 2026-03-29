@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
+import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import type { ProductCopyResult } from "@/lib/products/types";
 
 const TONE_OPTIONS = [
@@ -80,6 +81,7 @@ export default function ProductGeniePage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
+  const [usageBump, setUsageBump] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -120,6 +122,12 @@ export default function ProductGeniePage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (json.code === "USAGE_LIMIT") {
+          setError(
+            `${typeof json.error === "string" ? json.error : "Limit reached."} Upgrade on the Billing page for a higher quota.`
+          );
+          return;
+        }
         setError(typeof json.error === "string" ? json.error : "Request failed.");
         return;
       }
@@ -129,6 +137,7 @@ export default function ProductGeniePage() {
         return;
       }
       if (typeof json.savedId === "string") setSavedId(json.savedId);
+      setUsageBump((n) => n + 1);
     } catch {
       setError("Network error. Try again.");
     } finally {
@@ -159,6 +168,8 @@ export default function ProductGeniePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 p-8">
       <ModulePageHeader moduleId="products" />
+
+      <ModuleUsageBanner feature="product" bump={usageBump} />
 
       {unifiedBrand ? (
         <p className="mb-4 text-xs font-semibold text-emerald-700/90 dark:text-emerald-400/90">

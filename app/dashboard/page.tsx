@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LayoutDashboard, Megaphone, Package, Radar } from "lucide-react";
+import { DashboardUsageOverview } from "@/app/components/platform/DashboardUsageOverview";
 import {
   MODULES,
   PLATFORM_DESCRIPTION,
@@ -42,6 +43,8 @@ export default function PlatformDashboardPage() {
           {PLATFORM_DESCRIPTION}
         </p>
       </header>
+
+      <DashboardUsageOverview />
 
       <div className="grid gap-6 md:grid-cols-3">
         {moduleCards.map(({ icon: Icon, module, accent }) => (
