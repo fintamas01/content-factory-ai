@@ -7,6 +7,53 @@ import type { GrowthAuditReport } from "@/lib/site-audit/types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const SYSTEM_PROMPT = `You are a senior SEO strategist, CRO (conversion rate) consultant, and AI search / LLM visibility specialist. Your client paid for a premium audit—deliver output that would justify a €50–€200 professional review: decisive, specific, revenue-aware, and non-generic.
+
+INPUT: You receive JSON with fields extracted from ONE public HTML page (single URL—not a full-site crawl). You must ground every claim in that payload. If a field is empty or missing, say so explicitly and lower confidence—never invent page elements you were not given.
+
+OUTPUT: Return strictly valid JSON only. No markdown, no code fences, no keys beyond this schema (no extra keys):
+
+{
+  "summary": "string",
+  "scores": { "seo": number, "ai_discoverability": number, "conversion": number },
+  "top_issues": [ { "title": "string", "impact": "string", "fix": "string", "priority": "high"|"medium"|"low" } ],
+  "quick_wins": [ { "action": "string", "expected_result": "string" } ],
+  "content_opportunities": [ { "idea": "string", "why_it_works": "string" } ],
+  "ai_visibility": { "would_ai_recommend": boolean, "reason": "string", "improvement": "string" }
+}
+
+SCORES (integers 0–100 for each):
+- seo: On-page signals visible in the extract—title/meta alignment, H1 focus, heading support, topical clarity vs generic fluff, obvious gaps (e.g. thin meta, title/H1 mismatch). Do not claim technical metrics you cannot see (Core Web Vitals, crawl budget, backlinks).
+- ai_discoverability: How likely a consumer AI (ChatGPT-style) could confidently name, describe, or recommend this business from THIS page alone—entity clarity, specificity, service geography, proof, differentiation from “template” copy.
+- conversion: Value prop clarity, friction, next step, risk reversal, specificity (numbers, outcomes), trust cues mentioned in the visible text sample.
+
+SUMMARY (5–8 sentences): Executive tone. State what the page is trying to sell or achieve, one sharp strength with reference to actual wording from the extract, the biggest revenue or visibility risk, and what to ship first. If the extract is thin, say how that caps certainty.
+
+TOP_ISSUES (5–8 items):
+- BANNED: vague titles like “Improve SEO”, “Add more content”, “Better UX” without diagnosis.
+- Each "title": diagnostic, specific (e.g. “Meta description repeats brand only—no search intent”).
+- "impact": MUST tie to business outcome—qualified traffic, snippet CTR, rankings for a named intent, conversion rate, lead quality, or AI citation likelihood. Use concrete language (e.g. “Weak meta → lower CTR from search results even if rank holds”).
+- "fix": One clear, executable fix—rewrite target, new H2, CTA copy pattern, proof placement—not a category label.
+- "priority": high | medium | low based on revenue/visibility upside.
+
+QUICK_WINS (5–8 items):
+- "action": imperative, specific, doable in under ~90 minutes on this page (copy/meta/headings/CTA)—include what to change in plain language.
+- "expected_result": measurable or directional outcome (e.g. “Higher CTR from search snippets for [intent]”, “Clearer primary CTA → fewer bounces on this landing”).
+
+CONTENT_OPPORTUNITIES (4–7 items):
+- "idea": a concrete asset or section (e.g. “Comparison table: vs hiring in-house”, “FAQ block targeting ‘pricing’ and ‘timeline’ objections”).
+- "why_it_works": tie to funnel stage, objection handling, SEO long-tail capture, or AI-friendly factual density—never “because content is good”.
+
+AI_VISIBILITY:
+- "would_ai_recommend": boolean—your best judgment on whether an AI assistant would recommend or clearly cite this business for a relevant user query, from this page text alone.
+- "reason": 2–4 sentences citing what supports or contradicts recommendation (specificity, proof, geography, entity name).
+- "improvement": 1–3 concrete changes to increase the likelihood of being recommended or accurately summarized (not generic).
+
+GUARDRAILS:
+- No fabricated reviews, awards, or schema you cannot see.
+- Plain text inside JSON strings only (no **, no bullet markdown).
+- Think like someone optimizing revenue and pipeline, not checklist SEO.`;
+
 function parseJsonFromAssistantContent(raw: string): unknown {
   let cleaned = raw.trim();
   if (cleaned.startsWith("```")) {
@@ -21,115 +68,125 @@ function clampScore(n: number) {
   return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 50;
 }
 
+function coerceBool(v: unknown): boolean {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const s = v.toLowerCase();
+    return s === "true" || s === "yes" || s === "1";
+  }
+  return false;
+}
+
 function coerceReport(data: unknown): GrowthAuditReport | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
 
   const summary = typeof o.summary === "string" ? o.summary : "";
-  const seo = Number(o.seo_score);
-  const aiReady = Number(o.ai_readiness_score);
-  const conv = Number(o.conversion_score);
 
-  const issuesRaw = Array.isArray(o.issues) ? o.issues : [];
-  const issues = issuesRaw
+  const scoresRaw = o.scores;
+  let seo = 50;
+  let aiDisc = 50;
+  let conv = 50;
+  if (scoresRaw && typeof scoresRaw === "object") {
+    const s = scoresRaw as Record<string, unknown>;
+    seo = clampScore(Number(s.seo));
+    aiDisc = clampScore(Number(s.ai_discoverability));
+    conv = clampScore(Number(s.conversion));
+  } else {
+    seo = clampScore(Number(o.seo_score));
+    aiDisc = clampScore(
+      Number(o.ai_discoverability_score ?? o.ai_readiness_score)
+    );
+    conv = clampScore(Number(o.conversion_score));
+  }
+
+  const topRaw = Array.isArray(o.top_issues) ? o.top_issues : [];
+  const top_issues = topRaw
     .map((it) => {
       if (!it || typeof it !== "object") return null;
       const x = it as Record<string, unknown>;
       const title = typeof x.title === "string" ? x.title : "";
-      const description = typeof x.description === "string" ? x.description : "";
+      const impact = typeof x.impact === "string" ? x.impact : "";
+      const fix = typeof x.fix === "string" ? x.fix : "";
       const p = x.priority;
       const priority =
         p === "high" || p === "medium" || p === "low" ? p : "medium";
-      if (!title && !description) return null;
-      return { title, description, priority };
+      if (!title && !impact && !fix) return null;
+      return { title, impact, fix, priority };
     })
-    .filter(Boolean) as GrowthAuditReport["issues"];
+    .filter(Boolean) as GrowthAuditReport["top_issues"];
 
-  const qw = Array.isArray(o.quick_wins)
-    ? o.quick_wins.filter((s): s is string => typeof s === "string")
-    : [];
-  const cs = Array.isArray(o.content_suggestions)
-    ? o.content_suggestions.filter((s): s is string => typeof s === "string")
-    : [];
+  const qwRaw = Array.isArray(o.quick_wins) ? o.quick_wins : [];
+  const quick_wins = qwRaw
+    .map((it) => {
+      if (typeof it === "string") {
+        return { action: it, expected_result: "" };
+      }
+      if (!it || typeof it !== "object") return null;
+      const x = it as Record<string, unknown>;
+      const action = typeof x.action === "string" ? x.action : "";
+      const expected_result =
+        typeof x.expected_result === "string" ? x.expected_result : "";
+      if (!action && !expected_result) return null;
+      return { action, expected_result };
+    })
+    .filter(Boolean) as GrowthAuditReport["quick_wins"];
 
-  const adRaw = o.ai_discoverability;
-  let ai_discoverability: GrowthAuditReport["ai_discoverability"];
-  if (adRaw && typeof adRaw === "object") {
-    const ad = adRaw as Record<string, unknown>;
-    ai_discoverability = {
-      score: clampScore(Number(ad.score)),
-      verdict: typeof ad.verdict === "string" ? ad.verdict : "See explanation",
-      explanation:
-        typeof ad.explanation === "string"
-          ? ad.explanation
-          : "Not assessed in this run.",
+  const coRaw = Array.isArray(o.content_opportunities)
+    ? o.content_opportunities
+    : [];
+  const content_opportunities = coRaw
+    .map((it) => {
+      if (!it || typeof it !== "object") return null;
+      const x = it as Record<string, unknown>;
+      const idea = typeof x.idea === "string" ? x.idea : "";
+      const why_it_works =
+        typeof x.why_it_works === "string" ? x.why_it_works : "";
+      if (!idea && !why_it_works) return null;
+      return { idea, why_it_works };
+    })
+    .filter(Boolean) as GrowthAuditReport["content_opportunities"];
+
+  const avRaw = o.ai_visibility;
+  let ai_visibility: GrowthAuditReport["ai_visibility"];
+  if (avRaw && typeof avRaw === "object") {
+    const av = avRaw as Record<string, unknown>;
+    ai_visibility = {
+      would_ai_recommend: coerceBool(av.would_ai_recommend),
+      reason: typeof av.reason === "string" ? av.reason : "",
+      improvement:
+        typeof av.improvement === "string" ? av.improvement : "",
     };
   } else {
-    ai_discoverability = {
-      score: clampScore(aiReady),
-      verdict: "Derived from AI readiness",
-      explanation:
-        "The model did not return a dedicated AI discoverability block; scores may align with overall AI readiness.",
-    };
-  }
-
-  const convBlockRaw = Array.isArray(o.conversion_blockers)
-    ? o.conversion_blockers
-    : [];
-  const conversion_blockers = convBlockRaw
-    .map((it) => {
-      if (!it || typeof it !== "object") return null;
-      const x = it as Record<string, unknown>;
-      const blocker = typeof x.blocker === "string" ? x.blocker : "";
-      const detail = typeof x.detail === "string" ? x.detail : "";
-      if (!blocker && !detail) return null;
-      return { blocker, detail };
-    })
-    .filter(Boolean) as GrowthAuditReport["conversion_blockers"];
-
-  const trustRaw = Array.isArray(o.trust_signals_missing)
-    ? o.trust_signals_missing
-    : [];
-  const trust_signals_missing = trustRaw.filter(
-    (s): s is string => typeof s === "string" && s.trim().length > 0
-  );
-
-  const gapsRaw = Array.isArray(o.content_gaps_vs_competitors)
-    ? o.content_gaps_vs_competitors
-    : [];
-  const content_gaps_vs_competitors = gapsRaw
-    .map((it) => {
-      if (!it || typeof it !== "object") return null;
-      const x = it as Record<string, unknown>;
-      const gap = typeof x.gap === "string" ? x.gap : "";
-      const competitor_norm =
-        typeof x.competitor_norm === "string"
-          ? x.competitor_norm
-          : typeof x.typical_competitor_pattern === "string"
-            ? x.typical_competitor_pattern
-            : "";
-      const suggestion = typeof x.suggestion === "string" ? x.suggestion : "";
-      if (!gap && !suggestion) return null;
-      return {
-        gap,
-        competitor_norm,
-        suggestion,
+    const ad = o.ai_discoverability;
+    if (ad && typeof ad === "object") {
+      const a = ad as Record<string, unknown>;
+      ai_visibility = {
+        would_ai_recommend: clampScore(Number(a.score)) >= 60,
+        reason:
+          typeof a.explanation === "string"
+            ? a.explanation
+            : typeof a.verdict === "string"
+              ? a.verdict
+              : "",
+        improvement: "Re-run audit with updated schema for full AI visibility block.",
       };
-    })
-    .filter(Boolean) as GrowthAuditReport["content_gaps_vs_competitors"];
+    } else {
+      ai_visibility = {
+        would_ai_recommend: false,
+        reason: "AI visibility block missing from model output.",
+        improvement: "Regenerate the audit.",
+      };
+    }
+  }
 
   return {
     summary: summary || "Analysis complete.",
-    seo_score: clampScore(seo),
-    ai_readiness_score: clampScore(aiReady),
-    conversion_score: clampScore(conv),
-    issues,
-    quick_wins: qw,
-    content_suggestions: cs,
-    ai_discoverability,
-    conversion_blockers,
-    trust_signals_missing,
-    content_gaps_vs_competitors,
+    scores: { seo, ai_discoverability: aiDisc, conversion: conv },
+    top_issues,
+    quick_wins,
+    content_opportunities,
+    ai_visibility,
   };
 }
 
@@ -210,71 +267,7 @@ export async function POST(req: Request) {
       temperature: 0.35,
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content: `You are a senior marketing strategist and SEO lead reviewing ONE public HTML page (extracted fields only—this is not a full-site crawl). Write with the tone of a premium SaaS audit: confident, specific, and commercially useful.
-
-OUTPUT: Strictly valid JSON only, matching this exact schema (no extra keys):
-{
-  "summary": "string",
-  "seo_score": number,
-  "ai_readiness_score": number,
-  "conversion_score": number,
-  "issues": [ { "title": "string", "description": "string", "priority": "high"|"medium"|"low" } ],
-  "quick_wins": [ "string" ],
-  "content_suggestions": [ "string" ],
-  "ai_discoverability": { "score": number, "verdict": "string", "explanation": "string" },
-  "conversion_blockers": [ { "blocker": "string", "detail": "string" } ],
-  "trust_signals_missing": [ "string" ],
-  "content_gaps_vs_competitors": [ { "gap": "string", "competitor_norm": "string", "suggestion": "string" } ]
-}
-
-SUMMARY (4–6 sentences):
-- Open with what this page is trying to accomplish based ONLY on title, meta description, headings, and text sample.
-- Call out 1–2 concrete strengths (quote or paraphrase specific phrases from the payload when possible).
-- Name the biggest gap or risk in plain language (e.g. missing primary keyword intent in H1, thin meta, unclear offer).
-- End with one sentence on what to fix first for impact. If the extract is thin or empty in places, say that explicitly and explain how that limits certainty—do not fabricate page elements you were not given.
-
-SCORING (0–100 each, integers):
-- seo_score: Title/meta, heading hierarchy, topical focus, and whether copy suggests clear keyword/entity focus vs. generic filler. Penalize missing or duplicate H1 patterns, very short meta, or title/meta mismatch with visible headings—only when inferable from the data.
-- ai_readiness_score: How machine-readable the page seems from text: clear topic, structured headings, definitional language, lists/facts vs. vague marketing fluff. Reward clear “who / what / why” in the sample.
-- conversion_score: Clarity of value prop, next step, friction words, trust/credibility signals visible in the text sample only (e.g. specificity, numbers, outcomes, guarantees mentioned in copy).
-
-ISSUES (max 8):
-- Each issue needs a short, diagnostic title (not “Improve SEO”).
-- Description must: (1) state what you observe from the provided fields, (2) explain why it hurts rankings, AI understanding, or conversions, (3) give ONE specific fix with a realistic example tied to this page’s topic (e.g. “Rewrite meta to ~150 characters including primary intent: ‘[example phrase]…’” or “Add a single H2 that answers ‘Pricing’ if the sample never mentions price”).
-- Priority: high = materially hurts crawlability, clarity, or trust from the evidence; medium = meaningful improvement; low = polish.
-- Never claim technical facts you cannot see (schema markup, page speed, Core Web Vitals, backlinks). If you infer a risk, label it as inference.
-
-QUICK WINS (4–7 items):
-- Imperative, start with a verb. Each line is one tactic + expected outcome, e.g. “Front-load the primary benefit in the first 160 characters of meta: compare current ‘…’ vs proposed ‘…’ (use your own words from the payload).”
-- Prefer changes that can be executed in under an hour on this page copy alone.
-
-CONTENT SUGGESTIONS (4–7 items):
-- Specific content angles, sections, or copy blocks to add (FAQ, comparison table, proof bar, objection handler)—each tied to a gap in the current text sample.
-- Where helpful, include a short example headline or bullet in quotes grounded in the page’s apparent topic.
-
-AI_DISCOVERABILITY (object — separate from ai_readiness_score):
-- score: 0–100 integer — how likely is it that a consumer AI assistant (e.g. ChatGPT-style) would **recommend or clearly cite this specific business** when a user asks for a solution in this category, based **only** on what is visible in the extract (brand/entity clarity, location, proof, specificity, uniqueness vs generic claims).
-- verdict: one punchy line (e.g. “Unlikely to be named without stronger entity signals” or “Strong candidate — clear offer + proof in copy”).
-- explanation: 3–5 sentences on what helps or hurts “AI discoverability” (named entity, address/service area, reviews/testimonials mentioned in text, concrete services, differentiation). Be explicit: “Would ChatGPT recommend this business?” is the user question you are answering.
-
-CONVERSION_BLOCKERS (3–6 items):
-- Each item: blocker = short label; detail = what you see in the text sample + why it hurts conversion + one concrete fix.
-- Focus on friction: unclear CTA, vague pricing, missing risk reversal, buried offer, jargon, no next step.
-
-TRUST_SIGNALS_MISSING (3–8 short strings):
-- Each line names one trust element **absent or weak in the extract** (e.g. “No third-party proof or logos mentioned in visible copy”, “No team or address to validate legitimacy”, “No guarantee or trial language”).
-- Do not invent that these exist elsewhere on the site—only what the extract lacks or barely hints at.
-
-CONTENT_GAPS_VS_COMPETITORS (3–6 items):
-- You have **no competitor URLs**. For each item: gap = what this page under-delivers vs expectations; competitor_norm = what **strong competitors in this business category** typically show on comparable pages (inferred category norm, label this as inference); suggestion = what to add on this page.
-- Example pattern: gap “No comparison vs alternatives”, competitor_norm “Peers often include a short comparison table or ‘vs X’ section”, suggestion “Add a 3-row comparison: you vs DIY vs agency”.
-
-GUARDRAILS:
-- Ground every claim in the JSON payload (url, title, metaDescription, h1, h2, textSample). If something is missing, say “Not visible in extract” rather than guessing.
-- Do not output markdown inside JSON string values—plain text only.`,
-        },
+        { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: JSON.stringify(payload),

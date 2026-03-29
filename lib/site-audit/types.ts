@@ -1,45 +1,41 @@
 export type AuditIssuePriority = "high" | "medium" | "low";
 
-export interface GrowthAuditIssue {
+export interface GrowthAuditScores {
+  seo: number;
+  ai_discoverability: number;
+  conversion: number;
+}
+
+export interface GrowthAuditTopIssue {
   title: string;
-  description: string;
+  impact: string;
+  fix: string;
   priority: AuditIssuePriority;
 }
 
-/** Likelihood an AI assistant (e.g. ChatGPT-style) would recommend or clearly cite this business from this page alone. */
-export interface AiDiscoverability {
-  score: number;
-  /** Short headline, e.g. "Moderate — citeable with caveats" */
-  verdict: string;
-  /** Why: entity clarity, specificity, trust cues in copy, etc. */
-  explanation: string;
+export interface GrowthAuditQuickWin {
+  action: string;
+  expected_result: string;
 }
 
-export interface ConversionBlockerItem {
-  blocker: string;
-  detail: string;
+export interface GrowthAuditContentOpportunity {
+  idea: string;
+  why_it_works: string;
 }
 
-/** Inferred vs category norms — no live competitor crawl in MVP. */
-export interface ContentGapVsCompetitorsItem {
-  gap: string;
-  /** What strong peers in this space typically surface (inferred). */
-  competitor_norm: string;
-  suggestion: string;
+export interface GrowthAuditAiVisibility {
+  would_ai_recommend: boolean;
+  reason: string;
+  improvement: string;
 }
 
 export interface GrowthAuditReport {
   summary: string;
-  seo_score: number;
-  ai_readiness_score: number;
-  conversion_score: number;
-  issues: GrowthAuditIssue[];
-  quick_wins: string[];
-  content_suggestions: string[];
-  ai_discoverability: AiDiscoverability;
-  conversion_blockers: ConversionBlockerItem[];
-  trust_signals_missing: string[];
-  content_gaps_vs_competitors: ContentGapVsCompetitorsItem[];
+  scores: GrowthAuditScores;
+  top_issues: GrowthAuditTopIssue[];
+  quick_wins: GrowthAuditQuickWin[];
+  content_opportunities: GrowthAuditContentOpportunity[];
+  ai_visibility: GrowthAuditAiVisibility;
 }
 
 export interface ExtractedPageSignals {
