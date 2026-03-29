@@ -30,9 +30,9 @@ export const MODULES = {
   },
   siteAudit: {
     id: "site-audit",
-    productName: "Site Audit Pro",
-    label: "Site Audit",
-    description: "Website audit, AI-readiness, and SEO / conversion suggestions.",
+    productName: "AI Growth Audit",
+    label: "Growth Audit",
+    description: "Page-level SEO, AI readiness, and conversion signals.",
     href: "/dashboard/site-audit",
   },
 } as const;

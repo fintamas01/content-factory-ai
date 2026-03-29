@@ -23,7 +23,7 @@ export const SIDEBAR_NAV_ITEMS = [
   },
   {
     id: "siteAudit",
-    label: "Site Audit",
+    label: MODULES.siteAudit.label,
     href: MODULES.siteAudit.href,
   },
   {
