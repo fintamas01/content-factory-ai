@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,6 +59,7 @@ export default function DashboardPage() {
   
   const [brands, setBrands] = useState<any[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
+  const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
 
   useEffect(() => {
     const fetchBrands = async () => {
@@ -74,6 +76,19 @@ export default function DashboardPage() {
       }
     };
     fetchBrands();
+  }, [user]);
+
+  useEffect(() => {
+    const loadUnified = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_brand_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setUnifiedBrand(data ?? null);
+    };
+    loadUnified();
   }, [user]);
   
   useEffect(() => {
@@ -104,12 +119,29 @@ export default function DashboardPage() {
   };
 
   const generateAll = async () => {
-    if (!input || selectedPlatforms.length === 0 || !selectedBrand) {
-      alert("Kérlek adj meg forrást, válassz platformot és márkaprofilt!");
+    if (!input || selectedPlatforms.length === 0) {
+      alert("Kérlek adj meg forrást és válassz legalább egy platformot!");
+      return;
+    }
+    if (!unifiedBrand && !selectedBrand) {
+      alert(
+        "Válassz márkát a listából (Settings), vagy ments egy közös Brand profilt a Brand oldalon."
+      );
       return;
     }
     setLoading(true);
     try {
+      const brandProfile = unifiedBrand
+        ? {
+            name: unifiedBrand.brand_name,
+            desc: unifiedBrand.brand_description ?? "",
+            audience: unifiedBrand.target_audience ?? "",
+          }
+        : {
+            name: selectedBrand.brand_name,
+            desc: selectedBrand.description,
+            audience: selectedBrand.target_audience,
+          };
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,11 +152,7 @@ export default function DashboardPage() {
           useResearch,
           templatePrompt: selectedTemplate.prompt, 
           platforms: selectedPlatforms,
-          brandProfile: {
-            name: selectedBrand.brand_name,
-            desc: selectedBrand.description,
-            audience: selectedBrand.target_audience
-          }
+          brandProfile,
         }),
       });
       const data = await res.json();
@@ -182,6 +210,11 @@ export default function DashboardPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
       <ModulePageHeader moduleId="content" className="mb-2" />
+      {unifiedBrand ? (
+        <p className="mb-4 text-xs font-semibold text-emerald-600/90 dark:text-emerald-400/90">
+          Using your saved brand profile
+        </p>
+      ) : null}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">
@@ -291,14 +324,23 @@ export default function DashboardPage() {
 
             <div className="mb-6">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Márkaprofil kiválasztása</span>
-              <select 
-                value={selectedBrand?.id}
-                onChange={(e) => setSelectedBrand(brands.find(b => b.id === e.target.value))}
-                className="w-full bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 p-3 rounded-xl outline-none text-sm font-bold"
-              >
-                {brands.length === 0 && <option>Nincs mentett márka (Settings)</option>}
-                {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
-              </select>
+              {unifiedBrand ? (
+                <div className="w-full rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {unifiedBrand.brand_name?.trim() || "Brand profile"}
+                  <span className="mt-1 block text-[10px] font-semibold uppercase tracking-widest text-emerald-600/80 dark:text-emerald-400/80">
+                    Brand oldal — közös profil
+                  </span>
+                </div>
+              ) : (
+                <select 
+                  value={selectedBrand?.id}
+                  onChange={(e) => setSelectedBrand(brands.find(b => b.id === e.target.value))}
+                  className="w-full bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 p-3 rounded-xl outline-none text-sm font-bold"
+                >
+                  {brands.length === 0 && <option>Nincs mentett márka (Settings)</option>}
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
+                </select>
+              )}
             </div>
 
             <motion.button 
@@ -307,7 +349,11 @@ export default function DashboardPage() {
               onMouseLeave={() => setButtonPos({ x: 0, y: 0 })}
               animate={{ x: buttonPos.x, y: buttonPos.y }}
               onClick={generateAll}
-              disabled={loading || selectedPlatforms.length === 0}
+              disabled={
+                loading ||
+                selectedPlatforms.length === 0 ||
+                (!unifiedBrand && !selectedBrand)
+              }
               className="relative group w-full bg-[#020617] p-[2px] rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(37,99,235,0.1)] active:scale-95 transition-transform disabled:opacity-50"
             >
               <div className={`absolute inset-0 z-0 transition-opacity duration-500 ${loading ? 'opacity-100' : 'opacity-0'}`}>
@@ -329,7 +375,7 @@ export default function DashboardPage() {
               key={key} 
               title={key.replace(/_/g, ' ')} 
               data={data}
-              brandName={selectedBrand?.brand_name}
+              brandName={unifiedBrand?.brand_name ?? selectedBrand?.brand_name}
               lang={lang}
               userId={user.id}
             />

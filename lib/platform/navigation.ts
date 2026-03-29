@@ -12,6 +12,11 @@ export const SIDEBAR_NAV_ITEMS = [
     exact: true,
   },
   {
+    id: "brand",
+    label: "Brand",
+    href: MODULES.brand.href,
+  },
+  {
     id: "content",
     label: "Content",
     href: MODULES.content.href,

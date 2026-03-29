@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { parseJsonFromAssistantContent } from "@/lib/openai/parse-json-content";
 import type { ProductCopyResult } from "@/lib/products/types";
+import { fetchUserBrandProfile } from "@/lib/brand-profile/server";
+import { mergeBrandProfileForContent } from "@/lib/brand-profile/merge";
+import { buildProductBrandIdentityAddendumEn } from "@/lib/brand-profile/prompts";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -39,7 +42,9 @@ function coerceProductCopy(data: unknown): ProductCopyResult | null {
 
 const SYSTEM = `You are a senior ecommerce and B2B SaaS copy chief. Your job is copy that could ship on a real storefront or PDP: specific, benefit-led, and commercially credible—not template filler.
 
-INPUT: You receive JSON with productName plus optional productDetails, targetAudience, tone, keyBenefits. Ground every claim in that input. If details are thin, write tightly from what is given; do not invent certifications, awards, numbers, materials, or guarantees unless the user supplied them.
+INPUT: You receive JSON with productName plus optional productDetails, targetAudience, tone, keyBenefits. When brandVoiceContext is present, it is the saved brand profile (facts). If a BRAND IDENTITY section appears below in the system message, follow it for how to apply that context—natural voice, no robotic repetition across fields. Product-level JSON fields override for factual product details when they conflict.
+
+Ground every claim in that input. If details are thin, write tightly from what is given; do not invent certifications, awards, numbers, materials, or guarantees unless the user supplied them.
 
 OUTPUT: Strictly valid JSON only. No markdown, no code fences, no keys beyond this schema (no extra keys):
 {
@@ -136,17 +141,35 @@ export async function POST(req: Request) {
       keyBenefits: keyBenefits || undefined,
     };
 
-    const userPayload = {
+    const unified = await fetchUserBrandProfile(supabase, user.id);
+    const effectiveBrand = mergeBrandProfileForContent(undefined, unified);
+    const systemContent =
+      unified && effectiveBrand.name.trim()
+        ? `${SYSTEM}\n\n${buildProductBrandIdentityAddendumEn(effectiveBrand)}`
+        : SYSTEM;
+
+    const userPayload: Record<string, unknown> = {
       productName,
       ...input_data,
     };
+
+    if (unified) {
+      userPayload.brandVoiceContext = {
+        brandName: unified.brand_name,
+        brandDescription: unified.brand_description,
+        targetAudience: unified.target_audience,
+        toneOfVoice: unified.tone_of_voice,
+        keySellingPoints: unified.key_selling_points,
+        websiteUrl: unified.website_url,
+      };
+    }
 
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_PRODUCT_MODEL ?? "gpt-4o-mini",
       temperature: 0.45,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEM },
+        { role: "system", content: systemContent },
         { role: "user", content: JSON.stringify(userPayload) },
       ],
     });

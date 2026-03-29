@@ -14,6 +14,13 @@ export const PLATFORM_DESCRIPTION =
   "Multi-module AI workspace: ContentFactory, ProductGenie, and Site Audit Pro in one place.";
 
 export const MODULES = {
+  brand: {
+    id: "brand",
+    productName: "Brand Profile",
+    label: "Brand",
+    description: "Shared brand voice and positioning for AI modules.",
+    href: "/dashboard/brand",
+  },
   content: {
     id: "content",
     productName: "ContentFactory",

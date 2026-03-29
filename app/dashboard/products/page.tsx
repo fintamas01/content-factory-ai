@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, type ComponentType, type ReactNode } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import {
   Loader2,
   Package,
@@ -25,6 +27,11 @@ const TONE_OPTIONS = [
   { value: "luxury", label: "Luxury" },
   { value: "friendly", label: "Friendly" },
 ];
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
+);
 
 function SectionCard({
   icon: Icon,
@@ -72,6 +79,22 @@ export default function ProductGeniePage() {
   const [result, setResult] = useState<ProductCopyResult | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_brand_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setUnifiedBrand(data ?? null);
+    })();
+  }, []);
 
   const generate = async () => {
     setError(null);
@@ -136,6 +159,12 @@ export default function ProductGeniePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 p-8">
       <ModulePageHeader moduleId="products" />
+
+      {unifiedBrand ? (
+        <p className="mb-4 text-xs font-semibold text-emerald-700/90 dark:text-emerald-400/90">
+          Using your saved brand profile
+        </p>
+      ) : null}
 
       <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 md:p-10 shadow-sm">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-600 mb-4">

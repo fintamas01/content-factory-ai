@@ -3,6 +3,13 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getBrandMemory, saveBrandMemory } from "@/lib/agent/brand-memory";
+import { fetchUserBrandProfile } from "@/lib/brand-profile/server";
+import { mergeBrandProfileForContent } from "@/lib/brand-profile/merge";
+import {
+  buildContentBrandCritiqueHintHu,
+  buildContentBrandRewriteSystemAppendixHu,
+  buildContentBrandSystemSectionHu,
+} from "@/lib/brand-profile/prompts";
 
 const ADMIN_EMAIL = "fintatamas68@gmail.com";
 
@@ -108,6 +115,19 @@ export async function POST(req: Request) {
       );
     }
 
+    const unifiedProfile = await fetchUserBrandProfile(supabase, user.id);
+    const effectiveBrand = mergeBrandProfileForContent(brandProfile, unifiedProfile);
+    if (!effectiveBrand.name.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "Adj meg márkát: ments egy Brand profilt (/dashboard/brand), vagy válassz márkát a listából.",
+        },
+        { status: 400 }
+      );
+    }
+    const contentBrandSection = buildContentBrandSystemSectionHu(effectiveBrand);
+
     let memoryBlock = "Nincs korábbi memória.";
     try {
       const blocks: string[] = [];
@@ -167,10 +187,8 @@ export async function POST(req: Request) {
     // ---- 3) DRAFT GENERÁLÁS ----
     const systemPromptDraft = `Te egy világszínvonalú marketing stratéga és Narratív Brand Twin ügynök vagy.
 
-KIZÁRÓLAG A KÖVETKEZŐ MÁRKASTÍLUSBAN DOLGOZZ:
-- Márka: ${brandProfile.name}
-- Leírás: ${brandProfile.desc}
-- Célközönség: ${brandProfile.audience}
+KIZÁRÓLAG AZ ALÁBBI MÁRKAIDENTITÁS SZERINT DOLGOZZ (nem sablonlista, hanem irányelv):
+${contentBrandSection}
 
 RELEVÁNS MÚLTBELI MEMÓRIÁK (tanulj belőlük, de ne másold szó szerint):
 ${memoryBlock}
@@ -230,8 +248,11 @@ Add vissza KIZÁRÓLAG JSON-t:
         { role: "system", content: critiqueSystem },
         {
           role: "user",
-          content: `Brand: ${brandProfile.name}\nTone: ${tone}\nLanguage: ${targetLang}\nPlatforms: ${platforms.join(
-            ", "
+          content: `${buildContentBrandCritiqueHintHu(
+            effectiveBrand,
+            tone,
+            targetLang,
+            platforms as string[]
           )}\n\nDraft JSON:\n${JSON.stringify(draft)}`,
         },
       ],
@@ -250,7 +271,9 @@ Add vissza KIZÁRÓLAG JSON-t:
     const critique = critiqueParsed.value;
 
     const rewriteSystem = `Te ugyanaz a Brand Twin ügynök vagy, de most KÖTELEZŐEN javítod a posztokat az editor javaslatai alapján.
-KIZÁRÓLAG érvényes JSON-t adj vissza ugyanabban a formátumban.`;
+KIZÁRÓLAG érvényes JSON-t adj vissza ugyanabban a formátumban.
+
+${buildContentBrandRewriteSystemAppendixHu(effectiveBrand)}`;
 
     const rewriteResp = await openai.chat.completions.create({
       model,
@@ -258,11 +281,7 @@ KIZÁRÓLAG érvényes JSON-t adj vissza ugyanabban a formátumban.`;
         { role: "system", content: rewriteSystem },
         {
           role: "user",
-          content: `Brand: ${brandProfile.name}
-Leírás: ${brandProfile.desc}
-Célközönség: ${brandProfile.audience}
-
-RELEVÁNS MEMÓRIA:
+          content: `RELEVÁNS MEMÓRIA:
 ${memoryBlock}
 
 Editor értékelés:
