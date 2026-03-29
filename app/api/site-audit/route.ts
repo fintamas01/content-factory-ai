@@ -308,15 +308,27 @@ export async function POST(req: Request) {
 
     await incrementUsage(supabase, "audit");
 
+    const signalsPayload = {
+      url: signals.url,
+      title: signals.title,
+      metaDescription: signals.metaDescription,
+      h1Count: signals.h1.length,
+      h2Count: signals.h2.length,
+    };
+
+    const { error: saveAuditErr } = await supabase.from("site_audit_runs").insert({
+      user_id: user.id,
+      page_url: signals.url,
+      report: report as unknown as Record<string, unknown>,
+      signals: signalsPayload,
+    });
+    if (saveAuditErr) {
+      console.error("site_audit_runs insert:", saveAuditErr);
+    }
+
     return NextResponse.json({
       report,
-      signals: {
-        url: signals.url,
-        title: signals.title,
-        metaDescription: signals.metaDescription,
-        h1Count: signals.h1.length,
-        h2Count: signals.h2.length,
-      },
+      signals: signalsPayload,
     });
   } catch (e) {
     console.error("site-audit:", e);

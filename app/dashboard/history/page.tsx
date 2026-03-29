@@ -1,170 +1,298 @@
 "use client";
-import { useState, useEffect } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import { Calendar, Search, ChevronRight, Copy, Check, X, Clock, FileText } from 'lucide-react';
 
-// Típusok definiálása
-interface MatrixItem {
-  day: string;
-  title: string;
-  platform: string;
-  outline: string;
-  content: string;
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  ChevronRight,
+  History,
+  Loader2,
+  Search,
+  Trash2,
+  ExternalLink,
+  FileText,
+  Package,
+  Radar,
+  LayoutGrid,
+} from "lucide-react";
+import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
+import type { HistoryKind, HistoryListItem } from "@/lib/history/types";
+import { KIND_LABEL } from "@/lib/history/map-rows";
+import {
+  KIND_VISUAL,
+  formatHistoryDate,
+} from "@/lib/history/kind-styles";
+import { HistoryDetailModal } from "@/app/components/history/HistoryDetailModal";
+
+type FilterTab = "all" | HistoryKind;
+
+const TABS: { id: FilterTab; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "content", label: "Content" },
+  { id: "product", label: "Products" },
+  { id: "audit", label: "Audit" },
+  { id: "matrix", label: "Matrix" },
+];
+
+function kindIcon(kind: HistoryKind) {
+  switch (kind) {
+    case "content":
+      return FileText;
+    case "product":
+      return Package;
+    case "audit":
+      return Radar;
+    default:
+      return LayoutGrid;
+  }
 }
 
-interface HistoryItem {
-  id: string;
-  brand_name: string;
-  created_at: string;
-  generation_data: {
-    days: MatrixItem[];
-  };
+function tabButtonClass(active: boolean, tabId: FilterTab): string {
+  if (!active) {
+    return "border border-white/[0.08] bg-white/[0.03] text-slate-500 hover:border-white/15 hover:bg-white/[0.06] hover:text-slate-300";
+  }
+  switch (tabId) {
+    case "all":
+      return "border border-white/20 bg-white/[0.12] text-white shadow-lg shadow-black/20";
+    case "content":
+      return "border border-transparent bg-blue-600 text-white shadow-lg shadow-blue-600/25";
+    case "product":
+      return "border border-transparent bg-violet-600 text-white shadow-lg shadow-violet-600/25";
+    case "audit":
+      return "border border-transparent bg-emerald-600 text-white shadow-lg shadow-emerald-600/25";
+    case "matrix":
+      return "border border-transparent bg-amber-600 text-white shadow-lg shadow-amber-600/25";
+    default:
+      return "border border-white/20 bg-white/[0.12] text-white";
+  }
 }
 
-export default function HistoryPage() {
+export default function DashboardHistoryPage() {
+  const [items, setItems] = useState<HistoryListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [selectedGen, setSelectedGen] = useState<HistoryItem | null>(null);
-  
-  // Modal állapotok (View Mode)
-  const [viewPost, setViewPost] = useState<MatrixItem | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<FilterTab>("all");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<HistoryListItem | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
-  );
-
-  useEffect(() => {
-    async function getHistory() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('matrix_generations')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }); // Legfrissebb elől
-        
-        if (data) setHistory(data);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/history");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof json.error === "string" ? json.error : "Failed to load history.");
+        setItems([]);
+        return;
       }
+      setItems(Array.isArray(json.items) ? json.items : []);
+    } catch {
+      setError("Network error.");
+      setItems([]);
+    } finally {
       setLoading(false);
     }
-    getHistory();
-  }, [supabase]);
+  }, []);
 
-  const handleCopy = () => {
-    if (viewPost) {
-      navigator.clipboard.writeText(viewPost.content || viewPost.outline);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    let list = items;
+    if (tab !== "all") {
+      list = list.filter((i) => i.kind === tab);
+    }
+    const q = query.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (i) =>
+        i.title.toLowerCase().includes(q) ||
+        i.preview.toLowerCase().includes(q)
+    );
+  }, [items, tab, query]);
+
+  const deleteItem = async (e: React.MouseEvent, item: HistoryListItem) => {
+    e.stopPropagation();
+    if (!confirm("Delete this item from your history?")) return;
+    setDeleting(item.id);
+    try {
+      const res = await fetch("/api/history", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, kind: item.kind }),
+      });
+      if (!res.ok) {
+        alert("Could not delete.");
+        return;
+      }
+      setItems((prev) => prev.filter((x) => x.id !== item.id));
+      setSelected((s) => (s?.id === item.id ? null : s));
+    } finally {
+      setDeleting(null);
     }
   };
 
-  if (loading) return <div className="p-8 text-slate-500">Előzmények betöltése...</div>;
-
   return (
-    <div className="p-8 bg-slate-950 min-h-screen text-white">
-      <header className="mb-10">
-        <h1 className="text-3xl font-bold flex items-center gap-3 mb-2">
-          <Clock className="text-blue-500" /> Előzmények
-        </h1>
-        <p className="text-slate-400">Itt találod az összes korábban generált stratégiádat.</p>
-      </header>
+    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-8">
+      <nav
+        className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500"
+        aria-label="Breadcrumb"
+      >
+        <Link
+          href="/dashboard"
+          className="text-slate-500 transition hover:text-blue-500 dark:hover:text-blue-400"
+        >
+          {PLATFORM_DISPLAY_NAME}
+        </Link>
+        <ChevronRight className="h-3 w-3 opacity-50" aria-hidden />
+        <span className="text-blue-600 dark:text-blue-400">History</span>
+      </nav>
 
-      {history.length === 0 ? (
-        <div className="text-center py-20 bg-slate-900/50 rounded-3xl border border-white/5">
-          <FileText className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-300">Még nincsenek előzmények</h3>
-          <p className="text-slate-500 mt-2">Generálj egyet a Smart Matrix menüben!</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {history.map((item) => (
-            <div key={item.id} className="bg-slate-900/50 border border-white/5 rounded-2xl p-6 hover:border-blue-500/30 transition-all group">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                
-                {/* Bal oldal: Infók */}
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-blue-400 font-bold text-lg">{item.brand_name}</span>
-                    <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full">
-                      {new Date(item.created_at).toLocaleDateString('hu-HU')}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-400">
-                    {item.generation_data?.days?.length || 0} napos stratégia
-                  </p>
-                </div>
-
-                {/* Jobb oldal: Műveletek */}
-                <button 
-                  onClick={() => setSelectedGen(selectedGen?.id === item.id ? null : item)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-blue-600 rounded-xl font-medium transition-colors flex items-center gap-2 text-sm"
-                >
-                  Részletek mutatása <ChevronRight className={`w-4 h-4 transition-transform ${selectedGen?.id === item.id ? 'rotate-90' : ''}`} />
-                </button>
-              </div>
-
-              {/* LENYÍLÓ TARTALOM (Accordion) */}
-              {selectedGen?.id === item.id && (
-                <div className="mt-6 pt-6 border-t border-white/5 grid grid-cols-1 md:grid-cols-5 gap-3 animate-in slide-in-from-top-2">
-                  {item.generation_data?.days?.map((day, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => setViewPost(day)}
-                      className="p-4 rounded-xl bg-slate-950 border border-white/5 hover:border-blue-500/50 cursor-pointer transition-all"
-                    >
-                      <span className="text-xs font-bold text-blue-500 uppercase">{day.day}</span>
-                      <h4 className="text-sm font-bold text-white mt-1 line-clamp-2">{day.title}</h4>
-                      <p className="text-[10px] text-slate-500 mt-2 uppercase">{day.platform}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* --- POST VIEWER MODAL (Ugyanaz, mint a fő oldalon) --- */}
-      {viewPost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setViewPost(null)} />
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-            
-            <div className="flex items-center justify-between p-6 border-b border-white/5">
-              <div>
-                <span className="text-blue-500 font-bold uppercase text-xs">{viewPost.day} • {viewPost.platform}</span>
-                <h3 className="text-xl font-bold text-white mt-1">{viewPost.title}</h3>
-              </div>
-              <button onClick={() => setViewPost(null)} className="p-2 hover:bg-white/10 rounded-full">
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto custom-scrollbar">
-              <div className="mb-6 bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
-                <label className="block text-[10px] font-bold text-blue-400 uppercase mb-1">Stratégia</label>
-                <p className="text-sm text-slate-300 italic">{viewPost.outline}</p>
-              </div>
-
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Poszt Tartalom</label>
-              <div className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-200 font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                {viewPost.content}
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-white/5 bg-slate-900/50 rounded-b-2xl flex justify-end">
-               <button 
-                 onClick={handleCopy}
-                 className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${isCopied ? 'bg-green-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
-               >
-                 {isCopied ? <><Check className="w-4 h-4" /> Másolva</> : <><Copy className="w-4 h-4" /> Másolás</>}
-               </button>
-            </div>
+      <header className="space-y-2">
+        <div className="flex items-center gap-3">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800/80 to-[#0b1220] shadow-inner shadow-black/40">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/15 to-transparent" />
+            <History className="relative h-7 w-7 text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white">
+              History
+            </h1>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Everything you&apos;ve generated — organized by module.
+            </p>
           </div>
         </div>
+      </header>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-widest transition ${tabButtonClass(tab === t.id, t.id)}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:max-w-[280px]">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search…"
+            className="w-full rounded-2xl border border-white/10 bg-[#0b1220] py-3 pl-11 pr-4 text-sm text-slate-200 placeholder:text-slate-600 outline-none ring-0 transition focus:border-blue-500/40 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-24">
+          <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] py-20 text-center">
+          <FileText className="mx-auto mb-4 h-12 w-12 text-slate-600" />
+          <p className="font-bold text-slate-400">No saved activity yet</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Use Content, Products, or Site audit — outputs you save will show up here.
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] py-16 text-center">
+          <p className="font-bold text-slate-400">No matches</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try another tab or clear the search.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {filtered.map((item) => {
+            const Icon = kindIcon(item.kind);
+            const vis = KIND_VISUAL[item.kind];
+            const { primary, sub } = item.created_at
+              ? formatHistoryDate(item.created_at)
+              : { primary: "—", sub: "" };
+            return (
+              <li key={`${item.kind}-${item.id}`}>
+                <button
+                  type="button"
+                  onClick={() => setSelected(item)}
+                  className={`group relative flex w-full gap-0 overflow-hidden rounded-[22px] border border-white/[0.07] bg-gradient-to-br from-[#0f172a]/90 to-[#070d18] text-left shadow-[0_12px_40px_-24px_rgba(0,0,0,0.7)] transition hover:border-white/[0.12] hover:shadow-[0_16px_48px_-20px_rgba(59,130,246,0.15)]`}
+                >
+                  <div
+                    className={`w-1 shrink-0 bg-gradient-to-b ${vis.leftBar}`}
+                    aria-hidden
+                  />
+                  <div className="flex min-w-0 flex-1 items-start gap-4 p-4 pl-4 md:p-5">
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br ${vis.iconBg} ring-2 ${vis.iconRing} shadow-inner`}
+                    >
+                      <Icon className={`h-5 w-5 opacity-95 ${vis.iconText}`} />
+                    </div>
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.15em] ${vis.badge}`}
+                        >
+                          {KIND_LABEL[item.kind]}
+                        </span>
+                        <span className="text-[11px] font-medium tabular-nums text-slate-500">
+                          {primary}
+                          {sub ? (
+                            <span className="ml-1.5 font-normal text-slate-600">
+                              {sub}
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-[15px] font-bold leading-snug tracking-tight text-slate-50">
+                        {item.title}
+                      </p>
+                      <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-500">
+                        {item.preview}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2 pt-1">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-500 opacity-0 transition group-hover:opacity-100">
+                        Open
+                        <ExternalLink className="h-3 w-3" />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => deleteItem(e, item)}
+                        disabled={deleting === item.id}
+                        className="rounded-xl p-2 text-slate-600 transition hover:bg-red-500/15 hover:text-red-300 disabled:opacity-50"
+                        aria-label="Delete"
+                      >
+                        {deleting === item.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      {selected ? (
+        <HistoryDetailModal item={selected} onClose={() => setSelected(null)} />
+      ) : null}
     </div>
   );
 }

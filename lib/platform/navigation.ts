@@ -34,7 +34,7 @@ export const SIDEBAR_NAV_ITEMS = [
   {
     id: "history",
     label: "History",
-    href: "/history",
+    href: "/dashboard/history",
   },
   {
     id: "billing",
