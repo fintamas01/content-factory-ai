@@ -1,22 +1,19 @@
-import Link from "next/link";
-import { ArrowLeft, Radar } from "lucide-react";
+import { Radar } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
+import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 
 export default function SiteAuditPlaceholderPage() {
   const m = MODULES.siteAudit;
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20 p-8">
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to workspace home
-      </Link>
+      <ModulePageHeader moduleId="siteAudit" />
       <div className="rounded-[32px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-10 shadow-sm">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-600 mb-6">
           <Radar className="h-7 w-7" />
         </div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">
+          {m.productName}
+        </p>
         <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase italic">
           {m.label}
         </h1>

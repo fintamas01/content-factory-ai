@@ -63,7 +63,7 @@ export default function LandingPage() {
             transition={{ delay: 0.2 }}
             className="max-w-2xl mx-auto text-slate-400 text-lg md:text-xl font-medium"
           >
-            Az első AI platform, ami valódi közösségi média kampányokat generál egyetlen ötletből. Felejtsd el a manuális posztolást.
+            Egy platform: közösségi tartalom, termék szöveg és oldal audit — modulonként bővülő AI eszközök. Kezdd a ContentFactory modullal.
           </motion.p>
 
           <motion.div 

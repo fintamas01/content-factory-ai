@@ -58,7 +58,10 @@ export default function PlatformDashboardPage() {
                 <Icon className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {module.productName}
+                </p>
+                <h2 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
                   {module.label}
                 </h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed">

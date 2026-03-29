@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
-import { MODULES, PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
+import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
+import { SIDEBAR_NAV_ITEMS, type SidebarNavId } from "@/lib/platform/navigation";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,33 +27,36 @@ function isNavActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-type NavItem = {
-  icon: ComponentType<{ className?: string }>;
+const SIDEBAR_ICONS: Record<
+  SidebarNavId,
+  ComponentType<{ className?: string }>
+> = {
+  dashboard: LayoutDashboard,
+  content: Megaphone,
+  products: Package,
+  siteAudit: Radar,
+  history: History,
+  billing: CreditCard,
+  settings: Settings,
+};
+
+function NavRow({
+  id,
+  label,
+  href,
+  exact,
+  pathname,
+}: {
+  id: SidebarNavId;
   label: string;
   href: string;
   exact?: boolean;
-};
-
-const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", exact: true },
-  { icon: Megaphone, label: "Content", href: MODULES.content.href },
-  { icon: Package, label: "Products", href: MODULES.products.href },
-  { icon: Radar, label: "Site Audit", href: MODULES.siteAudit.href },
-  { icon: History, label: "History", href: "/history" },
-  { icon: CreditCard, label: "Billing", href: "/billing" },
-  { icon: Settings, label: "Settings", href: "/settings" },
-];
-
-function NavRow({
-  item,
-  pathname,
-}: {
-  item: NavItem;
   pathname: string;
 }) {
-  const active = isNavActive(pathname, item.href, item.exact);
+  const Icon = SIDEBAR_ICONS[id];
+  const active = isNavActive(pathname, href, exact);
   return (
-    <Link href={item.href}>
+    <Link href={href}>
       <div
         className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm cursor-pointer ${
           active
@@ -60,8 +64,8 @@ function NavRow({
             : "text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5"
         }`}
       >
-        <item.icon className="w-5 h-5 shrink-0" />
-        <span>{item.label}</span>
+        <Icon className="w-5 h-5 shrink-0" />
+        <span>{label}</span>
       </div>
     </Link>
   );
@@ -94,9 +98,19 @@ export default function Sidebar() {
         </span>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-        {navItems.map((item) => (
-          <NavRow key={item.href} item={item} pathname={pathname} />
+      <nav
+        className="flex-1 px-4 space-y-2 overflow-y-auto"
+        aria-label="Main navigation"
+      >
+        {SIDEBAR_NAV_ITEMS.map((item) => (
+          <NavRow
+            key={item.id}
+            id={item.id}
+            label={item.label}
+            href={item.href}
+            exact={"exact" in item ? item.exact : undefined}
+            pathname={pathname}
+          />
         ))}
       </nav>
 

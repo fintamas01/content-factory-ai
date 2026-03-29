@@ -1,4 +1,5 @@
 "use client";
+import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X,
@@ -180,9 +181,12 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
+      <ModulePageHeader moduleId="content" className="mb-2" />
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">Neural <span className="text-blue-600">Workspace</span></h1>
+          <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">
+            ContentFactory <span className="text-blue-600">Studio</span>
+          </h1>
           <p className="text-slate-500 font-medium">Hozd létre a következő kampányodat másodpercek alatt.</p>
         </div>
         
