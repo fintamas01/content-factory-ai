@@ -75,7 +75,42 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Onboarding gating:
+  // - Logged-in users must complete onboarding before accessing /dashboard/*
+  // - /onboarding/* always allowed
+  // - Keeps behavior production-safe (RLS-protected table, no auth changes)
+  const isOnboardingPath = pathname === "/onboarding" || pathname.startsWith("/onboarding/");
+  const isDashboardPath = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+
+  if (user && isDashboardPath) {
+    const { data: onboardingRow } = await supabase
+      .from("user_onboarding")
+      .select("onboarding_completed")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const completed = Boolean(onboardingRow?.onboarding_completed);
+    if (!completed && !isOnboardingPath) {
+      return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
+  }
+
+  if (user && isOnboardingPath) {
+    const { data: onboardingRow } = await supabase
+      .from("user_onboarding")
+      .select("onboarding_completed")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const completed = Boolean(onboardingRow?.onboarding_completed);
+    if (completed) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
 
   return response;
 }
