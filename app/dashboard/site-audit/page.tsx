@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   Loader2,
   Radar,
@@ -18,6 +19,8 @@ import {
   Copy,
   Check,
   LayoutDashboard,
+  PanelRight,
+  ChevronRight,
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
@@ -40,46 +43,77 @@ type ApiSuccess = {
   };
 };
 
+type TabId =
+  | "overview"
+  | "seo"
+  | "ai"
+  | "conversion"
+  | "content"
+  | "actions";
+
 const PRI_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-function LargeScoreCard({
+const NAV: {
+  id: TabId;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "seo", label: "SEO", icon: TrendingUp },
+  { id: "ai", label: "AI Visibility", icon: MessageCircleQuestion },
+  { id: "conversion", label: "Conversion", icon: Target },
+  { id: "content", label: "Content Opportunities", icon: Lightbulb },
+  { id: "actions", label: "Actions", icon: Zap },
+];
+
+const shell =
+  "min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#080c14] via-[#070b12] to-[#05070c] text-zinc-100 antialiased selection:bg-emerald-500/25 selection:text-emerald-100";
+
+/** Primary surface — cards & panels */
+const panel =
+  "rounded-2xl border border-white/[0.06] bg-[#0c1018]/90 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_24px_48px_-24px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-[box-shadow,border-color] duration-300 hover:border-white/[0.09] hover:shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset,0_28px_56px_-20px_rgba(0,0,0,0.5)]";
+
+const sectionLabel =
+  "text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500";
+
+const tabTransition = {
+  duration: 0.28,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
+
+function ScoreTile({
   label,
   value,
   icon: Icon,
-  accentBar,
-  iconWrap,
+  accent,
 }: {
   label: string;
   value: number;
   icon: ComponentType<{ className?: string }>;
-  accentBar: string;
-  iconWrap: string;
+  accent: string;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-[24px] border border-slate-200/90 dark:border-white/[0.08] bg-gradient-to-b from-white to-slate-50/90 dark:from-[#111827] dark:to-[#0b1220] p-6 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.15)] dark:shadow-[0_12px_40px_-16px_rgba(0,0,0,0.55)] transition-shadow hover:shadow-lg dark:hover:border-white/15">
-      <div
-        className={`absolute top-0 left-0 right-0 h-[3px] ${accentBar}`}
-        aria-hidden
-      />
-      <div className="flex items-start justify-between gap-4">
+    <motion.div
+      initial={false}
+      whileHover={{ y: -3 }}
+      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+      className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.05] to-white/[0.01] p-6 shadow-lg shadow-black/20 transition-colors duration-300 hover:border-white/[0.12]"
+    >
+      <div className={`absolute left-0 right-0 top-0 h-[2px] ${accent}`} />
+      <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/[0.03] blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
+      <div className="relative flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-            {label}
-          </p>
-          <p className="mt-3 text-5xl font-black tabular-nums tracking-tight text-slate-900 dark:text-white">
+          <p className={`${sectionLabel} text-zinc-500`}>{label}</p>
+          <p className="mt-4 text-4xl font-semibold tabular-nums tracking-tight text-white">
             {value}
           </p>
-          <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-500">
-            out of 100
-          </p>
+          <p className="mt-1.5 text-[13px] text-zinc-500">out of 100</p>
         </div>
-        <div
-          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${iconWrap} shadow-inner`}
-        >
-          <Icon className="h-7 w-7 text-white opacity-95" />
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] shadow-inner transition-transform duration-300 group-hover:scale-105">
+          <Icon className="h-6 w-6 text-zinc-300" />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -87,26 +121,20 @@ function PriorityBadge({ priority }: { priority: string }) {
   const p = priority.toLowerCase();
   const styles =
     p === "high"
-      ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/25"
+      ? "bg-red-500/15 text-red-300 border-red-500/25"
       : p === "low"
-        ? "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-400/20"
-        : "bg-amber-500/12 text-amber-800 dark:text-amber-300 border-amber-500/25";
+        ? "bg-zinc-500/15 text-zinc-400 border-zinc-500/20"
+        : "bg-amber-500/12 text-amber-200 border-amber-500/25";
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${styles}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${styles}`}
     >
       {priority}
     </span>
   );
 }
 
-function CopyField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     if (!value) return;
@@ -115,75 +143,71 @@ function CopyField({
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 dark:border-white/10 dark:bg-[#0f172a]/90">
+    <div className="rounded-xl border border-white/[0.06] bg-black/25 p-3 transition-colors duration-200 hover:border-white/[0.1]">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-          {label}
-        </p>
+        <p className={`${sectionLabel} !tracking-[0.15em]`}>{label}</p>
         <button
           type="button"
           onClick={copy}
           disabled={!value}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+          className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 transition hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-300 active:scale-[0.97] disabled:opacity-40"
         >
           {copied ? (
-            <Check className="h-3 w-3 text-emerald-500" />
+            <Check className="h-3 w-3 text-emerald-400" />
           ) : (
             <Copy className="h-3 w-3" />
           )}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-100">
-        {value || "—"}
-      </p>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-200">{value || "—"}</p>
     </div>
   );
 }
 
 function FixResultPanel({ fix }: { fix: AuditFixPackage }) {
   return (
-    <div className="mt-5 space-y-4 rounded-[20px] border border-emerald-500/25 bg-gradient-to-b from-emerald-500/[0.06] to-transparent p-5 dark:from-emerald-500/10">
-      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
+    <div className="space-y-4 rounded-xl border border-emerald-500/25 bg-gradient-to-b from-emerald-500/[0.06] to-transparent p-4 shadow-[0_0_32px_-12px_rgba(16,185,129,0.25)] transition-shadow duration-300 hover:shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)]">
+      <div className={`flex items-center gap-2 ${sectionLabel} text-emerald-400/95`}>
         <Sparkles className="h-3.5 w-3.5" />
         Generated fix pack
       </div>
       {fix.conversion_impact ? (
-        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 dark:bg-amber-500/[0.08]">
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-800 dark:text-amber-300/90">
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/90">
             Conversion &amp; business impact
           </p>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-slate-900 dark:text-slate-100">
+          <p className="mt-2 text-sm leading-relaxed text-zinc-100">
             {fix.conversion_impact}
           </p>
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         <CopyField label="Meta title" value={fix.meta_title} />
         <CopyField label="Meta description" value={fix.meta_description} />
       </div>
       {fix.meta_title_alternates.length > 0 ? (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Title A/B options
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {fix.meta_title_alternates.map((t, i) => (
-              <CopyField key={i} label={`Alt title ${i + 1}`} value={t} />
+              <CopyField key={i} label={`Alt ${i + 1}`} value={t} />
             ))}
           </div>
         </div>
       ) : null}
       {fix.headlines.length > 0 ? (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Headlines
           </p>
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {fix.headlines.map((h, i) => (
               <li
                 key={i}
-                className="rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2 text-sm font-medium text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                className="rounded-lg border border-white/[0.06] bg-black/25 px-3 py-2 text-sm text-zinc-200"
               >
                 {h}
               </li>
@@ -193,24 +217,24 @@ function FixResultPanel({ fix }: { fix: AuditFixPackage }) {
       ) : null}
       {fix.improved_text ? (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Primary improved copy
           </p>
-          <p className="whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm leading-relaxed text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-200">
+          <p className="whitespace-pre-wrap rounded-lg border border-white/[0.06] bg-black/25 p-3 text-sm leading-relaxed text-zinc-200">
             {fix.improved_text}
           </p>
         </div>
       ) : null}
       {fix.copy_variants.length > 0 ? (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Alternate angles
           </p>
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {fix.copy_variants.map((block, i) => (
               <li
                 key={i}
-                className="whitespace-pre-wrap rounded-xl border border-violet-200/80 bg-violet-50/50 p-4 text-sm leading-relaxed text-slate-800 dark:border-violet-500/20 dark:bg-violet-500/[0.08] dark:text-slate-200"
+                className="whitespace-pre-wrap rounded-lg border border-violet-500/15 bg-violet-500/[0.06] p-3 text-sm leading-relaxed text-zinc-200"
               >
                 {block}
               </li>
@@ -220,16 +244,16 @@ function FixResultPanel({ fix }: { fix: AuditFixPackage }) {
       ) : null}
       {fix.seo_content_notes ? (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             SEO notes
           </p>
-          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+          <p className="text-sm leading-relaxed text-zinc-300">
             {fix.seo_content_notes}
           </p>
         </div>
       ) : null}
       {fix.notes ? (
-        <div className="rounded-xl border border-slate-200/60 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5 text-sm text-zinc-400">
           {fix.notes}
         </div>
       ) : null}
@@ -237,13 +261,13 @@ function FixResultPanel({ fix }: { fix: AuditFixPackage }) {
   );
 }
 
-function AiVisibilityModule({ report }: { report: GrowthAuditReport }) {
+function AiVisibilityPanel({ report }: { report: GrowthAuditReport }) {
   const v = report.ai_visibility;
   const positive = v.would_ai_recommend;
   const how =
     v.how_systems_see_site?.trim() ||
     v.reason ||
-    "How LLMs interpret this page depends on clear entities, headings, and proof in the extract.";
+    "Clear entities, headings, and proof help LLMs represent this page accurately.";
   const concrete =
     v.concrete_improvements?.length > 0
       ? v.concrete_improvements
@@ -252,190 +276,57 @@ function AiVisibilityModule({ report }: { report: GrowthAuditReport }) {
         : [];
 
   return (
-    <section
-      className="relative overflow-hidden rounded-[28px] border-2 border-violet-500/35 bg-gradient-to-br from-violet-600/[0.07] via-fuchsia-600/[0.05] to-transparent dark:from-violet-500/15 dark:via-fuchsia-600/10 dark:to-[#0b1220]/80 p-8 md:p-10 shadow-[0_0_0_1px_rgba(139,92,246,0.15)] dark:shadow-[0_20px_50px_-20px_rgba(139,92,246,0.35)]"
-      aria-labelledby="ai-visibility-heading"
-    >
-      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl dark:bg-violet-400/10" />
-      <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-fuchsia-500/10 blur-3xl" />
-
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3 lg:max-w-xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300">
+    <div className={`${panel} p-6 md:p-8`}>
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-4 lg:max-w-xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/[0.08] px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-violet-300/95 shadow-sm shadow-violet-950/40">
             <Bot className="h-3.5 w-3.5" aria-hidden />
-            AI visibility agent
+            AI systems
           </div>
-          <h2
-            id="ai-visibility-heading"
-            className="text-xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white md:text-2xl"
-          >
-            How AI systems see your site
+          <h2 className="text-xl font-semibold tracking-tight text-white md:text-2xl">
+            How AI sees this page
           </h2>
-          <p className="text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
-            {v.reason}
-          </p>
+          <p className="text-[15px] leading-relaxed text-zinc-400">{v.reason}</p>
         </div>
-
-        <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
-          <span
-            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-left text-sm font-bold shadow-sm lg:text-right ${
-              positive
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:border-emerald-400/30 dark:text-emerald-200"
-                : "border-slate-400/30 bg-slate-500/10 text-slate-700 dark:border-white/10 dark:text-slate-200"
-            }`}
-          >
-            <span
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-                positive ? "bg-emerald-500/20" : "bg-slate-500/20"
-              }`}
-            >
-              {positive ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-              )}
-            </span>
-            <span>
-              {positive
-                ? "Likely to be recommended or cited"
-                : "Unlikely or unclear for AI assistants"}
-            </span>
-          </span>
-        </div>
+        <span
+          className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-shadow duration-300 ${
+            positive
+              ? "border-emerald-500/35 bg-emerald-500/[0.12] text-emerald-100 shadow-[0_0_24px_-8px_rgba(16,185,129,0.35)]"
+              : "border-zinc-600/40 bg-zinc-900/50 text-zinc-300"
+          }`}
+        >
+          {positive ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-zinc-500" />
+          )}
+          {positive
+            ? "Likely cited or recommended"
+            : "Unclear for assistants"}
+        </span>
       </div>
-
-      <div className="relative mt-8 grid gap-5 lg:grid-cols-2">
-        <div className="rounded-2xl border border-violet-500/20 bg-white/60 p-5 dark:bg-[#0f172a]/80 dark:backdrop-blur-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
+      <div className="mt-10 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05] p-5 transition-colors duration-300 hover:border-violet-500/30">
+          <p className={`${sectionLabel} text-violet-300/90`}>
             Retrieval &amp; representation
           </p>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-            {how}
-          </p>
+          <p className="mt-3 text-[15px] leading-relaxed text-zinc-300">{how}</p>
         </div>
-        <div className="rounded-2xl border border-fuchsia-500/20 bg-white/60 p-5 dark:bg-[#0f172a]/80">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fuchsia-600 dark:text-fuchsia-400">
+        <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/[0.05] p-5 transition-colors duration-300 hover:border-fuchsia-500/30">
+          <p className={`${sectionLabel} text-fuchsia-300/90`}>
             Concrete improvements
           </p>
           <ul className="mt-3 space-y-2">
             {concrete.map((line, i) => (
-              <li
-                key={i}
-                className="flex gap-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200"
-              >
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-fuchsia-500" />
+              <li key={i} className="flex gap-2 text-sm text-zinc-300">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-fuchsia-400" />
                 {line}
               </li>
             ))}
           </ul>
         </div>
       </div>
-    </section>
-  );
-}
-
-function RecommendedActionsPanel({
-  report,
-  onFixIssue,
-  fixLoadingKey,
-}: {
-  report: GrowthAuditReport;
-  onFixIssue: (issue: GrowthAuditTopIssue, idx: number) => void;
-  fixLoadingKey: string | null;
-}) {
-  const items = useMemo(() => {
-    const ranked = report.top_issues
-      .map((issue, idx) => ({ issue, idx }))
-      .sort(
-        (a, b) =>
-          (PRI_ORDER[a.issue.priority] ?? 9) -
-          (PRI_ORDER[b.issue.priority] ?? 9)
-      );
-    const out: Array<
-      | { kind: "issue"; idx: number; title: string; priority: string }
-      | { kind: "win"; idx: number; action: string }
-    > = [];
-    ranked.slice(0, 6).forEach(({ issue, idx }) => {
-      out.push({
-        kind: "issue",
-        idx,
-        title: issue.title,
-        priority: issue.priority,
-      });
-    });
-    report.quick_wins.slice(0, 4).forEach((w, idx) => {
-      out.push({ kind: "win", idx, action: w.action });
-    });
-    return out.slice(0, 10);
-  }, [report]);
-
-  if (items.length === 0) return null;
-
-  return (
-    <section
-      className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-gradient-to-br from-slate-50 to-white dark:from-[#0f172a] dark:to-[#0b1220] p-6 md:p-8 shadow-sm"
-      aria-labelledby="actions-heading"
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-            <LayoutDashboard className="h-5 w-5" />
-          </div>
-          <div>
-            <h2
-              id="actions-heading"
-              className="text-lg font-black uppercase italic text-slate-900 dark:text-white"
-            >
-              Recommended actions
-            </h2>
-            <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-              Prioritized from your audit—jump to fixes with one tap.
-            </p>
-          </div>
-        </div>
-      </div>
-      <ul className="mt-6 divide-y divide-slate-200/80 dark:divide-white/[0.06]">
-        {items.map((row, i) => (
-          <li
-            key={`${row.kind}-${row.idx}-${i}`}
-            className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                {row.kind === "issue" ? "Issue" : "Quick win"}
-              </p>
-              <p className="mt-1 font-bold leading-snug text-slate-900 dark:text-white">
-                {row.kind === "issue" ? row.title : row.action}
-              </p>
-              {row.kind === "issue" ? (
-                <PriorityBadge priority={row.priority} />
-              ) : null}
-            </div>
-            {row.kind === "issue" ? (
-              <button
-                type="button"
-                onClick={() =>
-                  onFixIssue(report.top_issues[row.idx]!, row.idx)
-                }
-                disabled={fixLoadingKey === `issue-${row.idx}`}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-60"
-              >
-                {fixLoadingKey === `issue-${row.idx}` ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Fix this
-              </button>
-            ) : (
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Under 90 min
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
+    </div>
   );
 }
 
@@ -447,6 +338,9 @@ export default function AIGrowthAuditPage() {
   const [data, setData] = useState<ApiSuccess | null>(null);
   const [usageBump, setUsageBump] = useState(0);
 
+  const [tab, setTab] = useState<TabId>("overview");
+  const [selectedIssueIdx, setSelectedIssueIdx] = useState<number | null>(null);
+
   const [fixLoadingKey, setFixLoadingKey] = useState<string | null>(null);
   const [fixByIssue, setFixByIssue] = useState<Record<string, AuditFixPackage>>(
     {}
@@ -457,12 +351,39 @@ export default function AIGrowthAuditPage() {
   const [planDays, setPlanDays] = useState<AuditContentPlanDay[] | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
 
+  const sortedIssueIndices = useMemo(() => {
+    if (!data) return [];
+    return data.report.top_issues
+      .map((issue, idx) => ({ issue, idx }))
+      .sort(
+        (a, b) =>
+          PRI_ORDER[a.issue.priority] - PRI_ORDER[b.issue.priority]
+      )
+      .map((x) => x.idx);
+  }, [data]);
+
+  useEffect(() => {
+    if (!data) {
+      setTab("overview");
+      setSelectedIssueIdx(null);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (tab !== "actions" || !data?.report.top_issues.length) return;
+    if (selectedIssueIdx === null) {
+      setSelectedIssueIdx(sortedIssueIndices[0] ?? 0);
+    }
+  }, [tab, data, selectedIssueIdx, sortedIssueIndices]);
+
   const runAudit = async () => {
     setError(null);
     setData(null);
     setPlanDays(null);
     setPlanError(null);
     setFixByIssue({});
+    setSelectedIssueIdx(null);
+    setTab("overview");
     const trimmed = url.trim();
     if (!trimmed) {
       setError("Enter a website URL.");
@@ -555,360 +476,569 @@ export default function AIGrowthAuditPage() {
     }
   };
 
-  return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20 p-8">
-      <ModulePageHeader moduleId="siteAudit" />
+  const selectedIssue: GrowthAuditTopIssue | null =
+    data && selectedIssueIdx !== null
+      ? data.report.top_issues[selectedIssueIdx] ?? null
+      : null;
+  const selectedKey =
+    selectedIssueIdx !== null ? `issue-${selectedIssueIdx}` : null;
+  const selectedFix = selectedKey ? fixByIssue[selectedKey] : undefined;
 
-      <ModuleUsageBanner feature="audit" bump={usageBump} />
+  const renderPanel = () => {
+    if (!data) return null;
+    const { report, signals } = data;
 
-      <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 md:p-10 shadow-sm">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-600 mb-4">
-              <Radar className="h-6 w-6" />
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">
-              {m.productName}
-            </p>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase italic">
-              AI Growth Agent
-            </h1>
-            <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium text-sm max-w-xl">
-              Audit your page, then generate fixes, meta copy, and a 14-day growth
-              calendar—built from the same signals as your report.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label
-              htmlFor="audit-url"
-              className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2"
-            >
-              Website URL
-            </label>
-            <div className="relative">
-              <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                id="audit-url"
-                type="url"
-                placeholder="https://example.com"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runAudit()}
-                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 py-3.5 pl-11 pr-4 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
-                disabled={loading}
-              />
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={runAudit}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-8 py-3.5 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-500 disabled:opacity-50 transition-colors"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Running…
-              </>
-            ) : (
-              "Run audit"
-            )}
-          </button>
-        </div>
-
-        {error && (
-          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
-      </div>
-
-      {data && (
-        <div className="space-y-10 animate-in fade-in duration-300">
-          <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 md:p-10 shadow-sm">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
-              Executive summary
-            </div>
-            <p className="text-base md:text-[17px] font-medium leading-[1.65] text-slate-700 dark:text-slate-200">
-              {data.report.summary}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                {data.signals.url}
-              </span>
-              {data.signals.title ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                  Title detected
-                </span>
-              ) : null}
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                H1: {data.signals.h1Count} · H2: {data.signals.h2Count}
-              </span>
-            </div>
-          </div>
-
-          <RecommendedActionsPanel
-            report={data.report}
-            onFixIssue={requestFix}
-            fixLoadingKey={fixLoadingKey}
-          />
-
-          {fixError ? (
-            <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-              <span>{fixError}</span>
-            </div>
-          ) : null}
-
-          <section className="rounded-[28px] border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.06] to-transparent p-6 md:p-8 dark:from-blue-500/10">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
-                  <CalendarDays className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-black uppercase italic text-slate-900 dark:text-white">
-                    14-day growth plan
-                  </h2>
-                  <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Daily ideas, hooks, and captions aligned to this audit.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={runContentPlan}
-                disabled={planLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 disabled:opacity-50"
-              >
-                {planLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                Generate 14-day growth plan
-              </button>
-            </div>
-            {planError ? (
-              <p className="mt-4 text-sm text-red-600 dark:text-red-400">
-                {planError}
-              </p>
-            ) : null}
-            {planDays && planDays.length > 0 ? (
-              <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-                {planDays.map((d, i) => (
-                  <li
-                    key={`${d.day}-${i}`}
-                    className="rounded-[20px] border border-slate-200 bg-white p-4 dark:border-white/[0.08] dark:bg-[#0f172a]"
-                  >
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
-                      Day {d.day}
-                    </p>
-                    <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
-                      {d.content_idea}
-                    </p>
-                    <p className="mt-2 text-xs font-semibold text-violet-600 dark:text-violet-400">
-                      Hook: {d.hook}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                      {d.caption}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-
-          <section aria-labelledby="scores-heading">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <h2
-                id="scores-heading"
-                className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400"
-              >
-                Performance scores
-              </h2>
-            </div>
+    switch (tab) {
+      case "overview":
+        return (
+          <div className="space-y-10">
             <div className="grid gap-5 sm:grid-cols-3">
-              <LargeScoreCard
+              <ScoreTile
                 label="SEO"
-                value={data.report.scores.seo}
+                value={report.scores.seo}
                 icon={TrendingUp}
-                accentBar="bg-gradient-to-r from-blue-600 via-cyan-500 to-cyan-400"
-                iconWrap="bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg shadow-blue-500/25"
+                accent="bg-gradient-to-r from-sky-500 to-cyan-400"
               />
-              <LargeScoreCard
-                label="AI Discoverability"
-                value={data.report.scores.ai_discoverability}
+              <ScoreTile
+                label="AI discoverability"
+                value={report.scores.ai_discoverability}
                 icon={MessageCircleQuestion}
-                accentBar="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400"
-                iconWrap="bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20"
+                accent="bg-gradient-to-r from-amber-500 to-orange-500"
               />
-              <LargeScoreCard
+              <ScoreTile
                 label="Conversion"
-                value={data.report.scores.conversion}
+                value={report.scores.conversion}
                 icon={Target}
-                accentBar="bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400"
-                iconWrap="bg-gradient-to-br from-emerald-600 to-teal-600 shadow-lg shadow-emerald-500/20"
+                accent="bg-gradient-to-r from-emerald-500 to-teal-500"
               />
             </div>
-          </section>
-
-          <AiVisibilityModule report={data.report} />
-
-          {data.report.top_issues.length > 0 ? (
-            <section aria-labelledby="issues-heading">
-              <h2
-                id="issues-heading"
-                className="mb-5 flex items-center gap-2 text-lg font-black uppercase italic text-slate-900 dark:text-white"
-              >
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Actionable issues
-              </h2>
-              <ul className="grid gap-4">
-                {data.report.top_issues.map((issue, i) => {
-                  const k = `issue-${i}`;
-                  const fix = fixByIssue[k];
-                  const loading = fixLoadingKey === k;
-                  return (
-                    <li
-                      key={`${issue.title}-${i}`}
-                      id={`audit-issue-${i}`}
-                      className="rounded-[24px] border border-slate-200/90 bg-white p-6 shadow-sm dark:border-white/[0.08] dark:bg-[#0f172a]/90 dark:shadow-none"
-                    >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white pr-2">
-                          {issue.title}
-                        </h3>
-                        <PriorityBadge priority={issue.priority} />
-                      </div>
-                      <div className="mt-4 space-y-4 border-t border-slate-100 pt-4 dark:border-white/5">
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 mb-1.5">
-                            Explanation
-                          </p>
-                          <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
-                            {issue.explanation}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 mb-1.5">
-                            Impact
-                          </p>
-                          <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
-                            {issue.impact}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4 dark:bg-emerald-500/[0.06]">
-                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-400 mb-1.5">
-                            Suggested fix
-                          </p>
-                          <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-                            {issue.fix}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => requestFix(issue, i)}
-                          disabled={loading}
-                          className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          {loading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Zap className="h-4 w-4" />
-                          )}
-                          Fix this
-                        </button>
-                        {fix ? <FixResultPanel fix={fix} /> : null}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
-
-          {data.report.quick_wins.length > 0 ? (
-            <section aria-labelledby="quick-wins-heading">
-              <h2
-                id="quick-wins-heading"
-                className="mb-5 flex items-center gap-2 text-lg font-black uppercase italic text-slate-900 dark:text-white"
-              >
-                <Sparkles className="h-5 w-5 text-emerald-500" />
-                Quick wins
-              </h2>
-              <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
-                {data.report.quick_wins.map((row, i) => (
+            <div className={`${panel} p-7 md:p-9`}>
+              <p className={sectionLabel}>Executive summary</p>
+              <p className="mt-5 text-[15px] leading-[1.7] text-zinc-300">
+                {report.summary}
+              </p>
+              <div className="mt-8 flex flex-wrap gap-2.5">
+                <span className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3.5 py-2 font-mono text-[11px] leading-snug text-zinc-400 transition-colors hover:border-white/15">
+                  {signals.url}
+                </span>
+                {signals.title ? (
+                  <span className="rounded-lg border border-white/[0.08] px-3.5 py-2 text-[11px] text-zinc-500">
+                    Title detected
+                  </span>
+                ) : null}
+                <span className="rounded-lg border border-white/[0.08] px-3.5 py-2 text-[11px] text-zinc-500">
+                  H1 {signals.h1Count} · H2 {signals.h2Count}
+                </span>
+              </div>
+            </div>
+            <div className={`${panel} p-7 md:p-9`}>
+              <p className={sectionLabel}>Key insights</p>
+              <ul className="mt-6 space-y-4">
+                {report.quick_wins.slice(0, 4).map((w, i) => (
                   <li
                     key={i}
-                    className="flex gap-4 rounded-[20px] border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-5 dark:border-white/[0.08] dark:from-[#111827] dark:to-[#0b1220]"
+                    className="group flex gap-4 rounded-xl py-1 text-[14px] leading-relaxed text-zinc-300 transition-colors hover:text-zinc-100"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-3">
-                      <p className="text-sm font-bold leading-snug text-slate-900 dark:text-white">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500/70 transition-transform duration-300 group-hover:scale-110 group-hover:text-emerald-400" />
+                    <span>{w.action}</span>
+                  </li>
+                ))}
+                {sortedIssueIndices[0] !== undefined &&
+                report.top_issues[sortedIssueIndices[0]!] ? (
+                  <li className="flex gap-4 border-t border-white/[0.06] pt-5 text-[14px] text-zinc-400">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                    <span>
+                      Top priority:{" "}
+                      {report.top_issues[sortedIssueIndices[0]!]!.title}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTab("actions");
+                          setSelectedIssueIdx(sortedIssueIndices[0]!);
+                        }}
+                        className="ml-2 font-medium text-emerald-400/95 underline-offset-4 transition hover:text-emerald-300 hover:underline"
+                      >
+                        Open in Actions
+                      </button>
+                    </span>
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+        );
+
+      case "seo":
+        return (
+          <div className="space-y-8">
+            <div className="max-w-md">
+              <ScoreTile
+                label="SEO score"
+                value={report.scores.seo}
+                icon={TrendingUp}
+                accent="bg-gradient-to-r from-sky-500 to-cyan-400"
+              />
+            </div>
+            <div className={`${panel} p-7`}>
+              <p className={sectionLabel}>On-page signals</p>
+              <dl className="mt-6 space-y-5 text-[14px]">
+                <div>
+                  <dt className={sectionLabel}>URL</dt>
+                  <dd className="mt-2 font-mono text-[13px] leading-relaxed text-zinc-300 break-all">
+                    {signals.url}
+                  </dd>
+                </div>
+                <div>
+                  <dt className={sectionLabel}>Title</dt>
+                  <dd className="mt-2 text-zinc-200">
+                    {signals.title || "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className={sectionLabel}>Meta description</dt>
+                  <dd className="mt-2 text-zinc-400">
+                    {signals.metaDescription || "—"}
+                  </dd>
+                </div>
+                <div className="flex gap-10">
+                  <div>
+                    <dt className={sectionLabel}>H1</dt>
+                    <dd className="mt-2 tabular-nums text-lg font-medium text-zinc-100">
+                      {signals.h1Count}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className={sectionLabel}>H2</dt>
+                    <dd className="mt-2 tabular-nums text-lg font-medium text-zinc-100">
+                      {signals.h2Count}
+                    </dd>
+                  </div>
+                </div>
+              </dl>
+              <p className="mt-8 text-[14px] leading-relaxed text-zinc-500">
+                Align title, meta, and headings with the query and intent you want
+                to win. Use the Actions tab to generate copy fixes per issue.
+              </p>
+            </div>
+          </div>
+        );
+
+      case "ai":
+        return (
+          <div>
+            <AiVisibilityPanel report={report} />
+          </div>
+        );
+
+      case "conversion":
+        return (
+          <div className="space-y-8">
+            <div className="max-w-md">
+              <ScoreTile
+                label="Conversion score"
+                value={report.scores.conversion}
+                icon={Target}
+                accent="bg-gradient-to-r from-emerald-500 to-teal-500"
+              />
+            </div>
+            <div className={`${panel} p-7 md:p-9`}>
+              <p className={sectionLabel}>Quick wins</p>
+              <ul className="mt-6 space-y-3">
+                {report.quick_wins.map((row, i) => (
+                  <li
+                    key={i}
+                    className="group flex gap-4 rounded-xl border border-white/[0.05] bg-black/25 p-5 transition-all duration-300 hover:border-white/[0.1] hover:bg-black/35"
+                  >
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500/80 transition-transform duration-300 group-hover:scale-105" />
+                    <div>
+                      <p className="font-medium leading-snug text-zinc-100">
                         {row.action}
                       </p>
                       {row.expected_result ? (
-                        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.08] px-3 py-2.5 dark:bg-emerald-500/10">
-                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-300/90 mb-1">
-                            Expected result
-                          </p>
-                          <p className="text-xs font-medium leading-relaxed text-emerald-950/90 dark:text-emerald-100/90">
-                            {row.expected_result}
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {data.report.content_opportunities.length > 0 ? (
-            <section
-              className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-slate-50/80 p-8 dark:bg-[#070d18] dark:ring-1 dark:ring-white/5 md:p-10"
-              aria-labelledby="content-opp-heading"
-            >
-              <h2
-                id="content-opp-heading"
-                className="mb-6 flex items-center gap-2 text-lg font-black uppercase italic text-slate-900 dark:text-white"
-              >
-                <Lightbulb className="h-5 w-5 text-blue-500" />
-                Content opportunities
-              </h2>
-              <ul className="space-y-5">
-                {data.report.content_opportunities.map((row, i) => (
-                  <li
-                    key={i}
-                    className="flex gap-4 rounded-[22px] border border-white bg-white p-6 shadow-sm dark:border-white/[0.06] dark:bg-[#0b1220] dark:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.45)]"
-                  >
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-xs font-black text-blue-600 dark:text-blue-400">
-                      {i + 1}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <p className="text-[15px] font-bold leading-snug text-slate-900 dark:text-white">
-                        {row.idea}
-                      </p>
-                      {row.why_it_works ? (
-                        <p className="text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-400">
-                          {row.why_it_works}
+                        <p className="mt-2.5 text-[13px] leading-relaxed text-zinc-500">
+                          {row.expected_result}
                         </p>
                       ) : null}
                     </div>
                   </li>
                 ))}
               </ul>
-            </section>
+            </div>
+          </div>
+        );
+
+      case "content":
+        return (
+          <div className="space-y-10">
+            <div className={`${panel} p-7 md:p-9`}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className={sectionLabel}>Content opportunities</p>
+                  <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
+                    Ideas grounded in your audit
+                  </h3>
+                </div>
+              </div>
+              {report.content_opportunities.length === 0 ? (
+                <p className="mt-4 text-sm text-zinc-500">
+                  No content angles in this run—try re-running the audit.
+                </p>
+              ) : (
+                <ul className="mt-8 space-y-3">
+                  {report.content_opportunities.map((row, i) => (
+                    <li
+                      key={i}
+                      className="group flex gap-4 rounded-xl border border-white/[0.06] bg-black/30 p-5 transition-all duration-300 hover:border-blue-500/20 hover:bg-black/40"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-xs font-semibold text-blue-300 transition-transform duration-300 group-hover:scale-105">
+                        {i + 1}
+                      </span>
+                      <div>
+                        <p className="font-medium leading-snug text-zinc-100">
+                          {row.idea}
+                        </p>
+                        {row.why_it_works ? (
+                          <p className="mt-2.5 text-[13px] leading-relaxed text-zinc-500">
+                            {row.why_it_works}
+                          </p>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className={`${panel} p-7 md:p-9`}>
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className={sectionLabel}>14-day growth plan</p>
+                  <p className="mt-2 text-[14px] text-zinc-400">
+                    Daily ideas, hooks, and captions from this report.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={runContentPlan}
+                  disabled={planLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 hover:shadow-blue-500/25 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {planLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CalendarDays className="h-4 w-4" />
+                  )}
+                  Generate plan
+                </button>
+              </div>
+              {planError ? (
+                <p className="mt-4 text-sm text-red-400">{planError}</p>
+              ) : null}
+              {planDays && planDays.length > 0 ? (
+                <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+                  {planDays.map((d, i) => (
+                    <li
+                      key={`${d.day}-${i}`}
+                      className="rounded-xl border border-white/[0.06] bg-black/25 p-5 transition-colors duration-300 hover:border-white/[0.1]"
+                    >
+                      <p className={`${sectionLabel} text-blue-400/95`}>
+                        Day {d.day}
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-zinc-100">
+                        {d.content_idea}
+                      </p>
+                      <p className="mt-2 text-xs text-violet-300/90">
+                        Hook: {d.hook}
+                      </p>
+                      <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                        {d.caption}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+        );
+
+      case "actions":
+        return (
+          <div>
+            {fixError ? (
+              <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3.5 text-[14px] text-amber-100 shadow-lg shadow-amber-950/20">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                {fixError}
+              </div>
+            ) : null}
+            {report.top_issues.length === 0 ? (
+              <p className="text-[14px] text-zinc-500">
+                No issues returned for this URL.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-0">
+                <div className="lg:w-[min(100%,400px)] lg:shrink-0 lg:border-r lg:border-white/[0.06] lg:pr-6">
+                  <p className={`mb-4 ${sectionLabel}`}>Priority queue</p>
+                  <ul className="space-y-1.5">
+                    {sortedIssueIndices.map((idx) => {
+                      const issue = report.top_issues[idx]!;
+                      const active = selectedIssueIdx === idx;
+                      return (
+                        <li key={idx}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedIssueIdx(idx)}
+                            className={`flex w-full items-start gap-3 rounded-xl border px-3.5 py-3.5 text-left transition-all duration-200 ${
+                              active
+                                ? "border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 to-emerald-500/5 shadow-[0_0_24px_-12px_rgba(16,185,129,0.35)]"
+                                : "border-transparent hover:border-white/[0.08] hover:bg-white/[0.04]"
+                            } active:scale-[0.99]`}
+                          >
+                            <ChevronRight
+                              className={`mt-0.5 h-4 w-4 shrink-0 transition-transform duration-200 ${
+                                active
+                                  ? "translate-x-0.5 text-emerald-400"
+                                  : "text-zinc-600"
+                              }`}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[14px] font-medium leading-snug text-zinc-100">
+                                {issue.title}
+                              </p>
+                              <div className="mt-2">
+                                <PriorityBadge priority={issue.priority} />
+                              </div>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                <div className="min-h-[360px] flex-1 lg:min-w-0 lg:pl-2">
+                  {selectedIssue && selectedIssueIdx !== null ? (
+                    <div className="flex h-full flex-col gap-6 lg:flex-row lg:gap-8">
+                      <div
+                        className={`flex-1 space-y-5 ${panel} p-6`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="text-lg font-semibold leading-snug tracking-tight text-white">
+                            {selectedIssue.title}
+                          </h3>
+                          <PriorityBadge priority={selectedIssue.priority} />
+                        </div>
+                        {selectedIssue.explanation ? (
+                          <div>
+                            <p className={sectionLabel}>Explanation</p>
+                            <p className="mt-2 text-[14px] leading-relaxed text-zinc-400">
+                              {selectedIssue.explanation}
+                            </p>
+                          </div>
+                        ) : null}
+                        <div>
+                          <p className={sectionLabel}>Impact</p>
+                          <p className="mt-2 text-[14px] leading-relaxed text-zinc-300">
+                            {selectedIssue.impact}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={sectionLabel}>Suggested fix</p>
+                          <p className="mt-2 text-[14px] leading-relaxed text-zinc-400">
+                            {selectedIssue.fix}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            requestFix(selectedIssue, selectedIssueIdx)
+                          }
+                          disabled={fixLoadingKey === `issue-${selectedIssueIdx}`}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 hover:shadow-emerald-500/30 active:scale-[0.98] disabled:opacity-50 sm:w-auto sm:px-8"
+                        >
+                          {fixLoadingKey === `issue-${selectedIssueIdx}` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Zap className="h-4 w-4" />
+                          )}
+                          Fix this
+                        </button>
+                      </div>
+                      <div className="flex-1 lg:max-w-[min(100%,520px)]">
+                        <div
+                          className={`mb-3 flex items-center gap-2 ${sectionLabel}`}
+                        >
+                          <PanelRight className="h-3.5 w-3.5 text-zinc-600" />
+                          Generated output
+                        </div>
+                        {selectedFix ? (
+                          <FixResultPanel fix={selectedFix} />
+                        ) : (
+                          <div
+                            className={`flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.1] bg-black/30 p-10 text-center transition-colors duration-300 hover:border-white/[0.14]`}
+                          >
+                            <p className="max-w-xs text-[14px] leading-relaxed text-zinc-500">
+                              Run &quot;Fix this&quot; to generate meta, headlines,
+                              and copy tailored to this issue.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={`flex min-h-[300px] flex-col items-center justify-center ${panel} p-10`}
+                    >
+                      <p className="max-w-sm text-center text-[14px] leading-relaxed text-zinc-500">
+                        Select an issue from the queue to view details and
+                        generate a fix.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className={shell}>
+      <div className="mx-auto max-w-[1400px] px-4 py-8 md:px-6 lg:px-8">
+        <ModulePageHeader moduleId="siteAudit" />
+        <ModuleUsageBanner feature="audit" bump={usageBump} />
+
+        <div className="relative mt-8 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a0e14] p-6 shadow-[0_32px_64px_-32px_rgba(0,0,0,0.85)] md:p-9">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(16,185,129,0.09),transparent)]" />
+          <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+          <div className="relative flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 shadow-inner shadow-emerald-950/50">
+                <Radar className="h-5 w-5" />
+              </div>
+              <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-emerald-500/85">
+                {m.productName}
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-[2rem] md:leading-tight">
+                AI Growth Agent
+              </h1>
+              <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-zinc-500">
+                Workspace view: jump between overview, pillars, and prioritized
+                actions without losing context.
+              </p>
+            </div>
+          </div>
+          <div className="relative mt-10 flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="audit-url"
+                className="mb-2 block text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500"
+              >
+                Website URL
+              </label>
+              <div className="relative">
+                <Globe className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500 transition-colors" />
+                <input
+                  id="audit-url"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && runAudit()}
+                  className="w-full rounded-xl border border-white/[0.08] bg-black/40 py-3.5 pl-11 pr-4 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-[border,box-shadow] duration-200 focus:border-emerald-500/40 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)] disabled:opacity-60"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+            <motion.button
+              type="button"
+              onClick={runAudit}
+              disabled={loading}
+              whileTap={{ scale: loading ? 1 : 0.98 }}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-8 py-3.5 text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-emerald-900/30 transition-[background,box-shadow] duration-200 hover:bg-emerald-500 hover:shadow-emerald-800/40 disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              Run audit
+            </motion.button>
+          </div>
+          {error ? (
+            <div className="relative mt-5 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/[0.08] px-4 py-3.5 text-[14px] text-red-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+              {error}
+            </div>
           ) : null}
         </div>
-      )}
+
+        {data ? (
+          <div className="mt-10 flex flex-col gap-8 lg:flex-row lg:items-start">
+            <aside className="lg:sticky lg:top-6 lg:w-56 lg:shrink-0">
+              <nav
+                className="flex flex-row gap-1 overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#0a0e14]/90 p-1.5 shadow-xl shadow-black/30 backdrop-blur-md lg:flex-col lg:overflow-visible"
+                aria-label="Audit sections"
+              >
+                {NAV.map(({ id, label, icon: Icon }) => {
+                  const active = tab === id;
+                  return (
+                    <motion.button
+                      key={id}
+                      type="button"
+                      layout
+                      onClick={() => setTab(id)}
+                      whileTap={{ scale: 0.98 }}
+                      className={`relative flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition-colors duration-200 lg:w-full ${
+                        active
+                          ? "bg-white/[0.09] text-white shadow-sm"
+                          : "text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-200"
+                      }`}
+                    >
+                      {active ? (
+                        <motion.span
+                          layoutId="nav-pill"
+                          className="absolute inset-0 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/10 to-transparent"
+                          transition={tabTransition}
+                        />
+                      ) : null}
+                      <Icon
+                        className={`relative z-[1] h-4 w-4 shrink-0 transition-colors ${
+                          active ? "text-emerald-400" : "text-zinc-500"
+                        }`}
+                      />
+                      <span className="relative z-[1] whitespace-nowrap">
+                        {label}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </nav>
+            </aside>
+
+            <main className="min-h-[min(70vh,640px)] min-w-0 flex-1 pb-20">
+              <header className="mb-6 border-b border-white/[0.06] pb-5 lg:mb-8 lg:pb-6">
+                <p className={sectionLabel}>Current view</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-white lg:text-2xl">
+                  {NAV.find((n) => n.id === tab)?.label}
+                </h2>
+              </header>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={tab}
+                  role="tabpanel"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={tabTransition}
+                  className="will-change-[opacity,transform]"
+                >
+                  {renderPanel()}
+                </motion.div>
+              </AnimatePresence>
+            </main>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
