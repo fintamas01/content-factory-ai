@@ -1,4 +1,8 @@
 import type { WebsiteExtractPayload } from "./types";
+import {
+  buildCompactAuditInput,
+  serializeAuditPageInput,
+} from "./compactContext";
 import { callOpenAIJson } from "./shared";
 
 const SYSTEM = `You are a principal SEO strategist at a top-tier digital agency. Your client expects a paid audit quality: no fluff, no generic checklists.
@@ -32,16 +36,10 @@ export async function analyzeSEO(
   | { ok: true; data: import("./types").SEOAnalysis }
   | { ok: false; error: string }
 > {
+  const ctx = buildCompactAuditInput(extract);
   const res = await callOpenAIJson({
     system: SYSTEM,
-    user: JSON.stringify({
-      url: extract.url,
-      title: extract.title,
-      metaDescription: extract.metaDescription,
-      h1: extract.h1,
-      h2: extract.h2.slice(0, 20),
-      textSample: extract.textSample.slice(0, 8000),
-    }),
+    user: serializeAuditPageInput(ctx),
     temperature: 0.3,
   });
   if (!res.ok) return { ok: false, error: res.error };

@@ -1,4 +1,8 @@
 import type { WebsiteExtractPayload } from "./types";
+import {
+  buildCompactAuditInput,
+  serializeAuditPageInput,
+} from "./compactContext";
 import { callOpenAIJson } from "./shared";
 
 const SYSTEM = `You are a content strategist at a performance marketing agency. Your job is to find what this ONE page fails to cover that buyers and searchers still need—so the business can capture demand and handle objections.
@@ -26,16 +30,10 @@ export async function analyzeContentGaps(
   | { ok: true; data: import("./types").ContentGapsAnalysis }
   | { ok: false; error: string }
 > {
+  const ctx = buildCompactAuditInput(extract);
   const res = await callOpenAIJson({
     system: SYSTEM,
-    user: JSON.stringify({
-      url: extract.url,
-      title: extract.title,
-      metaDescription: extract.metaDescription,
-      h1: extract.h1,
-      h2: extract.h2.slice(0, 20),
-      textSample: extract.textSample.slice(0, 8000),
-    }),
+    user: serializeAuditPageInput(ctx),
     temperature: 0.4,
   });
   if (!res.ok) return { ok: false, error: res.error };

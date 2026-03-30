@@ -1,5 +1,6 @@
 import type { GrowthAuditReport } from "@/lib/site-audit/types";
 import { coerceReport, parseJsonFromAssistantContent } from "@/lib/site-audit/coerce-report";
+import { buildCompactAuditInput } from "./compactContext";
 import { siteAuditOpenAI, getSiteAuditModel } from "./shared";
 import type {
   AIVisibilityAnalysis,
@@ -152,15 +153,9 @@ function mergeFallback(bundle: PhaseBundle): GrowthAuditReport {
 export async function synthesizeReport(
   bundle: PhaseBundle
 ): Promise<GrowthAuditReport> {
+  const compact = buildCompactAuditInput(bundle.extract);
   const payload = {
-    extract: {
-      url: bundle.extract.url,
-      title: bundle.extract.title,
-      metaDescription: bundle.extract.metaDescription,
-      h1: bundle.extract.h1,
-      h2: bundle.extract.h2.slice(0, 20),
-      textSample: bundle.extract.textSample.slice(0, 6000),
-    },
+    extract: compact,
     phases: {
       seo: bundle.seo.ok ? bundle.seo.data : { error: bundle.seo.error },
       ai_discoverability: bundle.aiVis.ok
@@ -177,6 +172,7 @@ export async function synthesizeReport(
     const completion = await siteAuditOpenAI.chat.completions.create({
       model: getSiteAuditModel(),
       temperature: 0.25,
+      max_tokens: 4096,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYNTH_SYSTEM },

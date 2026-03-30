@@ -22,11 +22,14 @@ export async function callOpenAIJson(params: {
   system: string;
   user: string;
   temperature?: number;
+  /** Larger outputs (e.g. batched specialists) may need a higher cap. */
+  max_tokens?: number;
 }): Promise<{ ok: true; parsed: unknown } | { ok: false; error: string }> {
   try {
     const completion = await siteAuditOpenAI.chat.completions.create({
       model: getSiteAuditModel(),
       temperature: params.temperature ?? 0.35,
+      ...(params.max_tokens != null ? { max_tokens: params.max_tokens } : {}),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: params.system },

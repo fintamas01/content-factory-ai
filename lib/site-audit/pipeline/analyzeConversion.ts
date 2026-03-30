@@ -1,4 +1,8 @@
 import type { WebsiteExtractPayload } from "./types";
+import {
+  buildCompactAuditInput,
+  serializeAuditPageInput,
+} from "./compactContext";
 import { callOpenAIJson } from "./shared";
 
 const SYSTEM = `You are a senior conversion strategist (CRO + messaging). You audit ONE landing page from extracted text, headings, and meta only—no heatmaps, no analytics.
@@ -31,16 +35,10 @@ export async function analyzeConversion(
   | { ok: true; data: import("./types").ConversionAnalysis }
   | { ok: false; error: string }
 > {
+  const ctx = buildCompactAuditInput(extract);
   const res = await callOpenAIJson({
     system: SYSTEM,
-    user: JSON.stringify({
-      url: extract.url,
-      title: extract.title,
-      metaDescription: extract.metaDescription,
-      h1: extract.h1,
-      h2: extract.h2.slice(0, 15),
-      textSample: extract.textSample.slice(0, 8000),
-    }),
+    user: serializeAuditPageInput(ctx),
     temperature: 0.35,
   });
   if (!res.ok) return { ok: false, error: res.error };

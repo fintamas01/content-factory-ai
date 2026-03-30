@@ -4,11 +4,8 @@ import { NextResponse } from "next/server";
 import { coerceReport } from "@/lib/site-audit/coerce-report";
 import { normalizeUrl } from "@/lib/site-audit/extract";
 import {
-  analyzeAIVisibility,
-  analyzeContentGaps,
-  analyzeConversion,
-  analyzeSEO,
   extractWebsiteData,
+  runSpecialistPhases,
   synthesizeReport,
 } from "@/lib/site-audit/pipeline";
 import type { GrowthAuditReport } from "@/lib/site-audit/types";
@@ -85,13 +82,8 @@ export async function POST(req: Request) {
 
     const signals = extracted.data;
 
-    // Phases 2–5: parallel specialist calls (partial failure tolerated)
-    const [seo, aiVis, conversion, gaps] = await Promise.all([
-      analyzeSEO(signals),
-      analyzeAIVisibility(signals),
-      analyzeConversion(signals),
-      analyzeContentGaps(signals),
-    ]);
+    // Phases 2–5: one batched OpenAI call (fallback: four parallel calls with same compact input)
+    const { seo, aiVis, conversion, gaps } = await runSpecialistPhases(signals);
 
     // Phase 6: synthesize final report (fallback merge inside synthesizeReport)
     const report: GrowthAuditReport = await synthesizeReport({
