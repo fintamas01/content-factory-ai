@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import {
   Loader2,
   Radar,
@@ -13,11 +13,21 @@ import {
   Lightbulb,
   Bot,
   CheckCircle2,
+  Zap,
+  CalendarDays,
+  Copy,
+  Check,
+  LayoutDashboard,
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
-import type { GrowthAuditReport } from "@/lib/site-audit/types";
+import type {
+  AuditContentPlanDay,
+  AuditFixPackage,
+  GrowthAuditReport,
+  GrowthAuditTopIssue,
+} from "@/lib/site-audit/types";
 
 type ApiSuccess = {
   report: GrowthAuditReport;
@@ -29,6 +39,8 @@ type ApiSuccess = {
     h2Count: number;
   };
 };
+
+const PRI_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
 function LargeScoreCard({
   label,
@@ -88,9 +100,156 @@ function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
-function AiVisibilitySpotlight({ report }: { report: GrowthAuditReport }) {
+function CopyField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    if (!value) return;
+    void navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 dark:border-white/10 dark:bg-[#0f172a]/90">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+          {label}
+        </p>
+        <button
+          type="button"
+          onClick={copy}
+          disabled={!value}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+        >
+          {copied ? (
+            <Check className="h-3 w-3 text-emerald-500" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-100">
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
+
+function FixResultPanel({ fix }: { fix: AuditFixPackage }) {
+  return (
+    <div className="mt-5 space-y-4 rounded-[20px] border border-emerald-500/25 bg-gradient-to-b from-emerald-500/[0.06] to-transparent p-5 dark:from-emerald-500/10">
+      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
+        <Sparkles className="h-3.5 w-3.5" />
+        Generated fix pack
+      </div>
+      {fix.conversion_impact ? (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 dark:bg-amber-500/[0.08]">
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-800 dark:text-amber-300/90">
+            Conversion &amp; business impact
+          </p>
+          <p className="mt-2 text-sm font-medium leading-relaxed text-slate-900 dark:text-slate-100">
+            {fix.conversion_impact}
+          </p>
+        </div>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <CopyField label="Meta title" value={fix.meta_title} />
+        <CopyField label="Meta description" value={fix.meta_description} />
+      </div>
+      {fix.meta_title_alternates.length > 0 ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+            Title A/B options
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {fix.meta_title_alternates.map((t, i) => (
+              <CopyField key={i} label={`Alt title ${i + 1}`} value={t} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {fix.headlines.length > 0 ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+            Headlines
+          </p>
+          <ul className="space-y-2">
+            {fix.headlines.map((h, i) => (
+              <li
+                key={i}
+                className="rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2 text-sm font-medium text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+              >
+                {h}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {fix.improved_text ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+            Primary improved copy
+          </p>
+          <p className="whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-white/90 p-4 text-sm leading-relaxed text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-200">
+            {fix.improved_text}
+          </p>
+        </div>
+      ) : null}
+      {fix.copy_variants.length > 0 ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+            Alternate angles
+          </p>
+          <ul className="space-y-3">
+            {fix.copy_variants.map((block, i) => (
+              <li
+                key={i}
+                className="whitespace-pre-wrap rounded-xl border border-violet-200/80 bg-violet-50/50 p-4 text-sm leading-relaxed text-slate-800 dark:border-violet-500/20 dark:bg-violet-500/[0.08] dark:text-slate-200"
+              >
+                {block}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {fix.seo_content_notes ? (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">
+            SEO notes
+          </p>
+          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+            {fix.seo_content_notes}
+          </p>
+        </div>
+      ) : null}
+      {fix.notes ? (
+        <div className="rounded-xl border border-slate-200/60 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+          {fix.notes}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AiVisibilityModule({ report }: { report: GrowthAuditReport }) {
   const v = report.ai_visibility;
   const positive = v.would_ai_recommend;
+  const how =
+    v.how_systems_see_site?.trim() ||
+    v.reason ||
+    "How LLMs interpret this page depends on clear entities, headings, and proof in the extract.";
+  const concrete =
+    v.concrete_improvements?.length > 0
+      ? v.concrete_improvements
+      : v.improvement
+        ? [v.improvement]
+        : [];
 
   return (
     <section
@@ -104,13 +263,13 @@ function AiVisibilitySpotlight({ report }: { report: GrowthAuditReport }) {
         <div className="space-y-3 lg:max-w-xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300">
             <Bot className="h-3.5 w-3.5" aria-hidden />
-            Key insight
+            AI visibility agent
           </div>
           <h2
             id="ai-visibility-heading"
             className="text-xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white md:text-2xl"
           >
-            AI visibility
+            How AI systems see your site
           </h2>
           <p className="text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
             {v.reason}
@@ -145,16 +304,137 @@ function AiVisibilitySpotlight({ report }: { report: GrowthAuditReport }) {
         </div>
       </div>
 
-      {v.improvement ? (
-        <div className="relative mt-8 rounded-2xl border border-violet-500/20 bg-white/60 p-5 dark:bg-[#0f172a]/80 dark:backdrop-blur-sm">
+      <div className="relative mt-8 grid gap-5 lg:grid-cols-2">
+        <div className="rounded-2xl border border-violet-500/20 bg-white/60 p-5 dark:bg-[#0f172a]/80 dark:backdrop-blur-sm">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
-            Recommended next step
+            Retrieval &amp; representation
           </p>
           <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-            {v.improvement}
+            {how}
           </p>
         </div>
-      ) : null}
+        <div className="rounded-2xl border border-fuchsia-500/20 bg-white/60 p-5 dark:bg-[#0f172a]/80">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fuchsia-600 dark:text-fuchsia-400">
+            Concrete improvements
+          </p>
+          <ul className="mt-3 space-y-2">
+            {concrete.map((line, i) => (
+              <li
+                key={i}
+                className="flex gap-2 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200"
+              >
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-fuchsia-500" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RecommendedActionsPanel({
+  report,
+  onFixIssue,
+  fixLoadingKey,
+}: {
+  report: GrowthAuditReport;
+  onFixIssue: (issue: GrowthAuditTopIssue, idx: number) => void;
+  fixLoadingKey: string | null;
+}) {
+  const items = useMemo(() => {
+    const ranked = report.top_issues
+      .map((issue, idx) => ({ issue, idx }))
+      .sort(
+        (a, b) =>
+          (PRI_ORDER[a.issue.priority] ?? 9) -
+          (PRI_ORDER[b.issue.priority] ?? 9)
+      );
+    const out: Array<
+      | { kind: "issue"; idx: number; title: string; priority: string }
+      | { kind: "win"; idx: number; action: string }
+    > = [];
+    ranked.slice(0, 6).forEach(({ issue, idx }) => {
+      out.push({
+        kind: "issue",
+        idx,
+        title: issue.title,
+        priority: issue.priority,
+      });
+    });
+    report.quick_wins.slice(0, 4).forEach((w, idx) => {
+      out.push({ kind: "win", idx, action: w.action });
+    });
+    return out.slice(0, 10);
+  }, [report]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section
+      className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-gradient-to-br from-slate-50 to-white dark:from-[#0f172a] dark:to-[#0b1220] p-6 md:p-8 shadow-sm"
+      aria-labelledby="actions-heading"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <LayoutDashboard className="h-5 w-5" />
+          </div>
+          <div>
+            <h2
+              id="actions-heading"
+              className="text-lg font-black uppercase italic text-slate-900 dark:text-white"
+            >
+              Recommended actions
+            </h2>
+            <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+              Prioritized from your audit—jump to fixes with one tap.
+            </p>
+          </div>
+        </div>
+      </div>
+      <ul className="mt-6 divide-y divide-slate-200/80 dark:divide-white/[0.06]">
+        {items.map((row, i) => (
+          <li
+            key={`${row.kind}-${row.idx}-${i}`}
+            className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                {row.kind === "issue" ? "Issue" : "Quick win"}
+              </p>
+              <p className="mt-1 font-bold leading-snug text-slate-900 dark:text-white">
+                {row.kind === "issue" ? row.title : row.action}
+              </p>
+              {row.kind === "issue" ? (
+                <PriorityBadge priority={row.priority} />
+              ) : null}
+            </div>
+            {row.kind === "issue" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onFixIssue(report.top_issues[row.idx]!, row.idx)
+                }
+                disabled={fixLoadingKey === `issue-${row.idx}`}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-60"
+              >
+                {fixLoadingKey === `issue-${row.idx}` ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4" />
+                )}
+                Fix this
+              </button>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                Under 90 min
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -167,9 +447,22 @@ export default function AIGrowthAuditPage() {
   const [data, setData] = useState<ApiSuccess | null>(null);
   const [usageBump, setUsageBump] = useState(0);
 
+  const [fixLoadingKey, setFixLoadingKey] = useState<string | null>(null);
+  const [fixByIssue, setFixByIssue] = useState<Record<string, AuditFixPackage>>(
+    {}
+  );
+  const [fixError, setFixError] = useState<string | null>(null);
+
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planDays, setPlanDays] = useState<AuditContentPlanDay[] | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+
   const runAudit = async () => {
     setError(null);
     setData(null);
+    setPlanDays(null);
+    setPlanError(null);
+    setFixByIssue({});
     const trimmed = url.trim();
     if (!trimmed) {
       setError("Enter a website URL.");
@@ -202,6 +495,66 @@ export default function AIGrowthAuditPage() {
     }
   };
 
+  const requestFix = async (issue: GrowthAuditTopIssue, idx: number) => {
+    if (!data) return;
+    const key = `issue-${idx}`;
+    setFixLoadingKey(key);
+    setFixError(null);
+    try {
+      const res = await fetch("/api/audit-fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signals: data.signals,
+          issue,
+          reportSummary: data.report.summary,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFixError(
+          typeof json.error === "string" ? json.error : "Fix generation failed."
+        );
+        return;
+      }
+      const fix = json.fix as AuditFixPackage | undefined;
+      if (fix) setFixByIssue((prev) => ({ ...prev, [key]: fix }));
+    } catch {
+      setFixError("Network error.");
+    } finally {
+      setFixLoadingKey(null);
+    }
+  };
+
+  const runContentPlan = async () => {
+    if (!data) return;
+    setPlanLoading(true);
+    setPlanError(null);
+    try {
+      const res = await fetch("/api/audit-content-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          report: data.report,
+          signals: data.signals,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPlanError(
+          typeof json.error === "string" ? json.error : "Plan failed."
+        );
+        return;
+      }
+      const days = json.days as AuditContentPlanDay[] | undefined;
+      if (Array.isArray(days)) setPlanDays(days);
+    } catch {
+      setPlanError("Network error.");
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 p-8">
       <ModulePageHeader moduleId="siteAudit" />
@@ -218,11 +571,11 @@ export default function AIGrowthAuditPage() {
               {m.productName}
             </p>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase italic">
-              AI Growth Audit
+              AI Growth Agent
             </h1>
             <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium text-sm max-w-xl">
-              Paste a public page URL. We fetch the HTML, extract key signals, and
-              return an AI-powered growth report with scores and actions.
+              Audit your page, then generate fixes, meta copy, and a 14-day growth
+              calendar—built from the same signals as your report.
             </p>
           </div>
         </div>
@@ -261,7 +614,7 @@ export default function AIGrowthAuditPage() {
                 Running…
               </>
             ) : (
-              "Run Audit"
+              "Run audit"
             )}
           </button>
         </div>
@@ -276,7 +629,6 @@ export default function AIGrowthAuditPage() {
 
       {data && (
         <div className="space-y-10 animate-in fade-in duration-300">
-          {/* Summary */}
           <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-8 md:p-10 shadow-sm">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
               Executive summary
@@ -299,7 +651,78 @@ export default function AIGrowthAuditPage() {
             </div>
           </div>
 
-          {/* KPI strip */}
+          <RecommendedActionsPanel
+            report={data.report}
+            onFixIssue={requestFix}
+            fixLoadingKey={fixLoadingKey}
+          />
+
+          {fixError ? (
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+              <span>{fixError}</span>
+            </div>
+          ) : null}
+
+          <section className="rounded-[28px] border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.06] to-transparent p-6 md:p-8 dark:from-blue-500/10">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                  <CalendarDays className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black uppercase italic text-slate-900 dark:text-white">
+                    14-day growth plan
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
+                    Daily ideas, hooks, and captions aligned to this audit.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={runContentPlan}
+                disabled={planLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 disabled:opacity-50"
+              >
+                {planLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Generate 14-day growth plan
+              </button>
+            </div>
+            {planError ? (
+              <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+                {planError}
+              </p>
+            ) : null}
+            {planDays && planDays.length > 0 ? (
+              <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+                {planDays.map((d, i) => (
+                  <li
+                    key={`${d.day}-${i}`}
+                    className="rounded-[20px] border border-slate-200 bg-white p-4 dark:border-white/[0.08] dark:bg-[#0f172a]"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                      Day {d.day}
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
+                      {d.content_idea}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-violet-600 dark:text-violet-400">
+                      Hook: {d.hook}
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                      {d.caption}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
           <section aria-labelledby="scores-heading">
             <div className="mb-4 flex items-end justify-between gap-4">
               <h2
@@ -334,9 +757,8 @@ export default function AIGrowthAuditPage() {
             </div>
           </section>
 
-          <AiVisibilitySpotlight report={data.report} />
+          <AiVisibilityModule report={data.report} />
 
-          {/* Top issues */}
           {data.report.top_issues.length > 0 ? (
             <section aria-labelledby="issues-heading">
               <h2
@@ -344,45 +766,72 @@ export default function AIGrowthAuditPage() {
                 className="mb-5 flex items-center gap-2 text-lg font-black uppercase italic text-slate-900 dark:text-white"
               >
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Top issues
+                Actionable issues
               </h2>
               <ul className="grid gap-4">
-                {data.report.top_issues.map((issue, i) => (
-                  <li
-                    key={`${issue.title}-${i}`}
-                    className="rounded-[24px] border border-slate-200/90 bg-white p-6 shadow-sm dark:border-white/[0.08] dark:bg-[#0f172a]/90 dark:shadow-none"
-                  >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white pr-2">
-                        {issue.title}
-                      </h3>
-                      <PriorityBadge priority={issue.priority} />
-                    </div>
-                    <div className="mt-4 space-y-4 border-t border-slate-100 pt-4 dark:border-white/5">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 mb-1.5">
-                          Impact
-                        </p>
-                        <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
-                          {issue.impact}
-                        </p>
+                {data.report.top_issues.map((issue, i) => {
+                  const k = `issue-${i}`;
+                  const fix = fixByIssue[k];
+                  const loading = fixLoadingKey === k;
+                  return (
+                    <li
+                      key={`${issue.title}-${i}`}
+                      id={`audit-issue-${i}`}
+                      className="rounded-[24px] border border-slate-200/90 bg-white p-6 shadow-sm dark:border-white/[0.08] dark:bg-[#0f172a]/90 dark:shadow-none"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white pr-2">
+                          {issue.title}
+                        </h3>
+                        <PriorityBadge priority={issue.priority} />
                       </div>
-                      <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4 dark:bg-emerald-500/[0.06]">
-                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-400 mb-1.5">
-                          Fix
-                        </p>
-                        <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-                          {issue.fix}
-                        </p>
+                      <div className="mt-4 space-y-4 border-t border-slate-100 pt-4 dark:border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 mb-1.5">
+                            Explanation
+                          </p>
+                          <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
+                            {issue.explanation}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 mb-1.5">
+                            Impact
+                          </p>
+                          <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
+                            {issue.impact}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4 dark:bg-emerald-500/[0.06]">
+                          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-400 mb-1.5">
+                            Suggested fix
+                          </p>
+                          <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
+                            {issue.fix}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => requestFix(issue, i)}
+                          disabled={loading}
+                          className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          {loading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Zap className="h-4 w-4" />
+                          )}
+                          Fix this
+                        </button>
+                        {fix ? <FixResultPanel fix={fix} /> : null}
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ) : null}
 
-          {/* Quick wins */}
           {data.report.quick_wins.length > 0 ? (
             <section aria-labelledby="quick-wins-heading">
               <h2
@@ -422,7 +871,6 @@ export default function AIGrowthAuditPage() {
             </section>
           ) : null}
 
-          {/* Content opportunities — full width section */}
           {data.report.content_opportunities.length > 0 ? (
             <section
               className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-slate-50/80 p-8 dark:bg-[#070d18] dark:ring-1 dark:ring-white/5 md:p-10"

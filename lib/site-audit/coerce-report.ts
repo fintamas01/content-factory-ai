@@ -55,13 +55,20 @@ export function coerceReport(data: unknown): GrowthAuditReport | null {
       if (!it || typeof it !== "object") return null;
       const x = it as Record<string, unknown>;
       const title = typeof x.title === "string" ? x.title : "";
+      let explanation =
+        typeof x.explanation === "string"
+          ? x.explanation
+          : typeof x.detail === "string"
+            ? x.detail
+            : "";
       const impact = typeof x.impact === "string" ? x.impact : "";
       const fix = typeof x.fix === "string" ? x.fix : "";
+      if (!explanation && impact) explanation = impact;
       const p = x.priority;
       const priority =
         p === "high" || p === "medium" || p === "low" ? p : "medium";
       if (!title && !impact && !fix) return null;
-      return { title, impact, fix, priority };
+      return { title, explanation, impact, fix, priority };
     })
     .filter(Boolean) as GrowthAuditReport["top_issues"];
 
@@ -100,17 +107,33 @@ export function coerceReport(data: unknown): GrowthAuditReport | null {
   let ai_visibility: GrowthAuditReport["ai_visibility"];
   if (avRaw && typeof avRaw === "object") {
     const av = avRaw as Record<string, unknown>;
+    const how =
+      typeof av.how_systems_see_site === "string"
+        ? av.how_systems_see_site
+        : typeof av.how_ai_sees_site === "string"
+          ? av.how_ai_sees_site
+          : "";
+    const concreteRaw = av.concrete_improvements;
+    const concrete_improvements = Array.isArray(concreteRaw)
+      ? concreteRaw
+          .filter((s): s is string => typeof s === "string")
+          .slice(0, 12)
+      : [];
     ai_visibility = {
       would_ai_recommend: coerceBool(av.would_ai_recommend),
       reason: typeof av.reason === "string" ? av.reason : "",
       improvement:
         typeof av.improvement === "string" ? av.improvement : "",
+      how_systems_see_site: how,
+      concrete_improvements,
     };
   } else {
     ai_visibility = {
       would_ai_recommend: false,
       reason: "AI visibility block missing from model output.",
       improvement: "Regenerate the audit.",
+      how_systems_see_site: "",
+      concrete_improvements: [],
     };
   }
 

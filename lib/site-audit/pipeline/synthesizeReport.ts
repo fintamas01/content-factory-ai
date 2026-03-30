@@ -35,10 +35,10 @@ Return strictly valid JSON only. No markdown, no extra keys. Schema:
 {
   "summary": "string (6-10 sentences)",
   "scores": { "seo": number, "ai_discoverability": number, "conversion": number },
-  "top_issues": [ { "title": "string", "impact": "string", "fix": "string", "priority": "high"|"medium"|"low" } ],
+  "top_issues": [ { "title": "string", "explanation": "string (what is wrong, plainly)", "impact": "string (business consequence)", "fix": "string", "priority": "high"|"medium"|"low" } ],
   "quick_wins": [ { "action": "string", "expected_result": "string" } ],
   "content_opportunities": [ { "idea": "string", "why_it_works": "string" } ],
-  "ai_visibility": { "would_ai_recommend": boolean, "reason": "string", "improvement": "string" }
+  "ai_visibility": { "would_ai_recommend": boolean, "reason": "string", "improvement": "string", "how_systems_see_site": "string (how crawlers/LLMs likely read entities, topic, trust from the extract)", "concrete_improvements": ["string", "..."] }
 }
 
 SUMMARY: Open with what this page is trying to achieve in one line. Then: strongest signal from the extract, the single biggest revenue or trust risk, how SEO / conversion / AI-mediated discovery interact on this URL, and the recommended sequencing (what to fix before spending on traffic). If specialist data was incomplete, say what was inferred vs certain.
@@ -46,6 +46,8 @@ SUMMARY: Open with what this page is trying to achieve in one line. Then: strong
 SCORES: Prefer specialist phase scores when present and consistent with the extract. If a phase failed, infer conservatively (roughly 45-60) and reflect uncertainty in summary—not fake precision.
 
 TOP_ISSUES (5-8): Each "title" is diagnostic and specific—never "Improve SEO" or "Better content" without naming the failure mode.
+
+Each "explanation" states the on-page problem in plain language (distinct from impact).
 
 Each "impact" must explain WHY the issue hurts the business (qualified traffic, snippet CTR, trust, lead quality, AI citation likelihood) in concrete terms—not "bad UX".
 
@@ -55,7 +57,7 @@ QUICK_WINS (5-8): Actions doable in under ~90 minutes on this page; "expected_re
 
 CONTENT_OPPORTUNITIES: Merge and dedupe with content specialist ideas; each "why_it_works" must state marketing logic (stage, objection, query capture).
 
-AI_VISIBILITY: Align with AI specialist score. "reason" cites evidence from the extract. "improvement" is 1-3 concrete changes to be recommended or accurately summarized by AIs.
+AI_VISIBILITY: Align with AI specialist score. "reason" cites evidence from the extract. "improvement" is 1-3 concrete changes. "how_systems_see_site" explains retrieval/representation (what topic/entity signals exist, what is ambiguous). "concrete_improvements" is 3-6 specific edits (not generic SEO).
 
 GUARDRAILS: Never invent reviews, awards, metrics, or page elements not in the extract. Plain text only inside JSON strings.`;
 
@@ -72,7 +74,9 @@ function mergeFallback(bundle: PhaseBundle): GrowthAuditReport {
     for (const issue of bundle.seo.data.seo_issues.slice(0, 4)) {
       top_issues.push({
         title: issue.title || "SEO issue",
-        impact: issue.detail || "Search visibility and snippet performance.",
+        explanation: issue.detail || "On-page SEO signal gap or mismatch.",
+        impact:
+          "Search visibility, snippet CTR, and qualified clicks can suffer when titles/headings/meta do not match intent.",
         fix: "Rewrite meta/title/headings per SEO observations.",
         priority: "high",
       });
@@ -82,7 +86,9 @@ function mergeFallback(bundle: PhaseBundle): GrowthAuditReport {
     for (const b of bundle.conversion.data.blockers.slice(0, 4)) {
       top_issues.push({
         title: b.title || "Conversion blocker",
-        impact: b.detail || "Conversion rate and lead quality.",
+        explanation: b.detail || "Messaging or proof gap on the page.",
+        impact:
+          "Conversion rate and lead quality suffer when visitors lack clarity, proof, or a crisp next step.",
         fix: "Clarify offer, CTA, and proof using conversion fixes below.",
         priority: "medium",
       });
@@ -114,11 +120,15 @@ function mergeFallback(bundle: PhaseBundle): GrowthAuditReport {
         would_ai_recommend: bundle.aiVis.data.score >= 60,
         reason: bundle.aiVis.data.explanation,
         improvement: bundle.aiVis.data.suggestions.slice(0, 5).join(" "),
+        how_systems_see_site: bundle.aiVis.data.explanation,
+        concrete_improvements: bundle.aiVis.data.suggestions.slice(0, 8),
       }
     : {
         would_ai_recommend: false,
         reason: "AI discoverability phase did not complete.",
         improvement: "Re-run the audit or add clearer entity and proof on the page.",
+        how_systems_see_site: "",
+        concrete_improvements: [],
       };
 
   const failed: string[] = [];
