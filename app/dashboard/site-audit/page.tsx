@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Zap,
   CalendarDays,
+  ClipboardList,
   Copy,
   Check,
   LayoutDashboard,
@@ -29,6 +30,7 @@ import type {
   AuditContentPlanDay,
   AuditFixPackage,
   GrowthAuditReport,
+  GrowthSprintPlan,
   GrowthAuditTopIssue,
 } from "@/lib/site-audit/types";
 
@@ -50,6 +52,7 @@ type TabId =
   | "conversion"
   | "content"
   | "competitors"
+  | "sprint"
   | "actions";
 
 const PRI_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -65,6 +68,7 @@ const NAV: {
   { id: "conversion", label: "Conversion", icon: Target },
   { id: "content", label: "Content Opportunities", icon: Lightbulb },
   { id: "competitors", label: "Competitor Intelligence", icon: PanelRight },
+  { id: "sprint", label: "30-Day Growth Sprint", icon: ClipboardList },
   { id: "actions", label: "Actions", icon: Zap },
 ];
 
@@ -132,6 +136,33 @@ function PriorityBadge({ priority }: { priority: string }) {
       className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${styles}`}
     >
       {priority}
+    </span>
+  );
+}
+
+function Pill({
+  tone,
+  label,
+}: {
+  tone: "emerald" | "amber" | "zinc" | "violet" | "blue";
+  label: string;
+}) {
+  const styles =
+    tone === "emerald"
+      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+      : tone === "amber"
+        ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
+        : tone === "violet"
+          ? "border-violet-500/25 bg-violet-500/10 text-violet-200"
+          : tone === "blue"
+            ? "border-blue-500/25 bg-blue-500/10 text-blue-200"
+            : "border-white/10 bg-white/[0.04] text-zinc-300";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${styles}`}
+    >
+      {label}
     </span>
   );
 }
@@ -358,6 +389,10 @@ export default function AIGrowthAuditPage() {
   const [planDays, setPlanDays] = useState<AuditContentPlanDay[] | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
 
+  const [sprintLoading, setSprintLoading] = useState(false);
+  const [sprintPlan, setSprintPlan] = useState<GrowthSprintPlan | null>(null);
+  const [sprintError, setSprintError] = useState<string | null>(null);
+
   const sortedIssueIndices = useMemo(() => {
     if (!data) return [];
     return data.report.top_issues
@@ -389,6 +424,8 @@ export default function AIGrowthAuditPage() {
     setPlanDays(null);
     setPlanError(null);
     setFixByIssue({});
+    setSprintPlan(null);
+    setSprintError(null);
     setSelectedIssueIdx(null);
     setTab("overview");
     const trimmed = url.trim();
@@ -484,6 +521,35 @@ export default function AIGrowthAuditPage() {
       setPlanError("Network error.");
     } finally {
       setPlanLoading(false);
+    }
+  };
+
+  const runGrowthSprint = async () => {
+    if (!data) return;
+    setSprintLoading(true);
+    setSprintError(null);
+    try {
+      const res = await fetch("/api/growth-sprint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          report: data.report,
+          signals: data.signals,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSprintError(
+          typeof json.error === "string" ? json.error : "Sprint generation failed."
+        );
+        return;
+      }
+      const plan = json.plan as GrowthSprintPlan | undefined;
+      if (plan) setSprintPlan(plan);
+    } catch {
+      setSprintError("Network error.");
+    } finally {
+      setSprintLoading(false);
     }
   };
 
@@ -960,6 +1026,202 @@ export default function AIGrowthAuditPage() {
                 </div>
               </div>
             ) : null}
+          </div>
+        );
+      }
+
+      case "sprint": {
+        if (!sprintPlan) {
+          return (
+            <div className={`${panel} p-7 md:p-9`}>
+              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className={sectionLabel}>30-Day Growth Sprint</p>
+                  <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+                    A practical roadmap from your audit
+                  </h3>
+                  <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-zinc-500">
+                    Generate a week-by-week plan that sequences fixes, positioning,
+                    and content moves based on your audit, AI visibility, and
+                    competitor intelligence (if available).
+                  </p>
+                </div>
+                <motion.button
+                  type="button"
+                  onClick={runGrowthSprint}
+                  disabled={sprintLoading}
+                  whileTap={{ scale: sprintLoading ? 1 : 0.98 }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/[0.07] px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-black/30 transition hover:bg-white/[0.1] disabled:opacity-50"
+                >
+                  {sprintLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ClipboardList className="h-4 w-4" />
+                  )}
+                  Generate sprint
+                </motion.button>
+              </div>
+              {sprintError ? (
+                <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3.5 text-[14px] text-amber-100">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  {sprintError}
+                </div>
+              ) : null}
+              <div className="mt-8 grid gap-4 lg:grid-cols-3">
+                <div className="rounded-xl border border-white/[0.06] bg-black/30 p-5">
+                  <p className={sectionLabel}>Outputs</p>
+                  <p className="mt-2 text-[14px] text-zinc-300">
+                    4-week roadmap, quickest wins, and highest leverage moves.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-black/30 p-5">
+                  <p className={sectionLabel}>Designed for</p>
+                  <p className="mt-2 text-[14px] text-zinc-300">
+                    A small team shipping weekly improvements without busywork.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-black/30 p-5">
+                  <p className={sectionLabel}>Uses</p>
+                  <p className="mt-2 text-[14px] text-zinc-300">
+                    Issues, quick wins, content opportunities, AI visibility, and competitors.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-10">
+            <div className={`${panel} p-7 md:p-9`}>
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className={sectionLabel}>Sprint summary</p>
+                  <p className="mt-5 text-[15px] leading-[1.7] text-zinc-300">
+                    {sprintPlan.summary}
+                  </p>
+                </div>
+                <motion.button
+                  type="button"
+                  onClick={runGrowthSprint}
+                  disabled={sprintLoading}
+                  whileTap={{ scale: sprintLoading ? 1 : 0.98 }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 hover:shadow-emerald-500/25 disabled:opacity-50"
+                >
+                  {sprintLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Regenerate
+                </motion.button>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className={`${panel} p-7 md:p-9`}>
+                <p className={sectionLabel}>Quickest wins</p>
+                <ul className="mt-6 space-y-3">
+                  {sprintPlan.quickest_wins.map((w, i) => (
+                    <li
+                      key={i}
+                      className="rounded-xl border border-white/[0.06] bg-black/30 p-5"
+                    >
+                      <p className="text-[14px] font-medium text-white">
+                        {w.title}
+                      </p>
+                      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                        {w.reason}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className={`${panel} p-7 md:p-9`}>
+                <p className={sectionLabel}>Highest leverage moves</p>
+                <ul className="mt-6 space-y-3">
+                  {sprintPlan.highest_leverage_moves.map((m, i) => (
+                    <li
+                      key={i}
+                      className="rounded-xl border border-white/[0.06] bg-black/30 p-5"
+                    >
+                      <p className="text-[14px] font-medium text-white">
+                        {m.title}
+                      </p>
+                      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                        {m.reason}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {sprintPlan.weeks.map((w) => (
+                <section key={w.week} className={`${panel} p-7 md:p-9`}>
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className={sectionLabel}>Week {w.week}</p>
+                      <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
+                        {w.theme}
+                      </h3>
+                      <p className="mt-2 text-[14px] leading-relaxed text-zinc-500">
+                        Goal: <span className="text-zinc-300">{w.goal}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                    {w.tasks.map((t, i) => (
+                      <div
+                        key={`${t.title}-${i}`}
+                        className="group rounded-xl border border-white/[0.06] bg-black/30 p-5 transition-all duration-300 hover:border-white/[0.12] hover:bg-black/40"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-[14px] font-medium leading-snug text-white">
+                            {t.title}
+                          </p>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Pill
+                              tone={
+                                t.priority === "high"
+                                  ? "emerald"
+                                  : t.priority === "medium"
+                                    ? "amber"
+                                    : "zinc"
+                              }
+                              label={t.priority}
+                            />
+                            <Pill
+                              tone={
+                                t.effort === "low"
+                                  ? "blue"
+                                  : t.effort === "medium"
+                                    ? "violet"
+                                    : "zinc"
+                              }
+                              label={`effort: ${t.effort}`}
+                            />
+                          </div>
+                        </div>
+                        <p className="mt-3 text-[13px] leading-relaxed text-zinc-400">
+                          {t.description}
+                        </p>
+                        {t.estimated_impact ? (
+                          <div className="mt-4 rounded-lg border border-white/[0.06] bg-black/20 p-3">
+                            <p className={sectionLabel}>Estimated impact</p>
+                            <p className="mt-1 text-[13px] leading-relaxed text-zinc-500">
+                              {t.estimated_impact}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         );
       }

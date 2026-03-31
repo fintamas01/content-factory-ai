@@ -73,6 +73,28 @@ export type GrowthAuditCompetitorIntelligence = {
   }>;
 };
 
+export type GrowthSprintTask = {
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  estimated_impact: string;
+  effort: "low" | "medium" | "high";
+};
+
+export type GrowthSprintWeek = {
+  week: number;
+  theme: string;
+  goal: string;
+  tasks: GrowthSprintTask[];
+};
+
+export type GrowthSprintPlan = {
+  summary: string;
+  weeks: GrowthSprintWeek[];
+  quickest_wins: Array<{ title: string; reason: string }>;
+  highest_leverage_moves: Array<{ title: string; reason: string }>;
+};
+
 export interface GrowthAuditReport {
   summary: string;
   scores: GrowthAuditScores;
