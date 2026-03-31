@@ -98,7 +98,7 @@ export default async function PlatformDashboardPage() {
 
   if (!supabaseUrl || !supabaseAnon) {
     return (
-      <div className="max-w-6xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
         <p className="text-slate-500">Server configuration error.</p>
       </div>
     );
@@ -128,7 +128,7 @@ export default async function PlatformDashboardPage() {
   // If auth guard exists elsewhere, this is just a safe fallback.
   if (!user) {
     return (
-      <div className="max-w-6xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
         <p className="text-slate-500">Please sign in.</p>
       </div>
     );
@@ -220,8 +220,8 @@ export default async function PlatformDashboardPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#080c14] via-[#070b12] to-[#05070c] pb-24">
-      <div className="mx-auto max-w-6xl space-y-12 p-8">
-        <header className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0a0e14] p-8 shadow-[0_36px_90px_-56px_rgba(0,0,0,0.95)]">
+      <div className="mx-auto max-w-6xl space-y-10 p-4 sm:space-y-12 sm:p-6 lg:p-8">
+        <header className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0a0e14] p-5 sm:p-8 shadow-[0_36px_90px_-56px_rgba(0,0,0,0.95)]">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_55%_-20%,rgba(16,185,129,0.12),transparent)]" />
           <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/45 to-transparent" />
           <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -269,7 +269,7 @@ export default async function PlatformDashboardPage() {
               <ArrowRight className="h-3.5 w-3.5 opacity-80" />
             </Link>
           </div>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             label="SEO score"
             value={scores ? String(scores.seo) : "—"}
@@ -311,7 +311,7 @@ export default async function PlatformDashboardPage() {
               Launch points
             </h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/dashboard/site-audit"
             className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-[0_24px_60px_-40px_rgba(0,0,0,0.9)] transition hover:border-emerald-500/25 hover:bg-emerald-500/10"
@@ -600,7 +600,7 @@ export default async function PlatformDashboardPage() {
         </section>
 
         {/* Recent activity */}
-        <section className="rounded-2xl border border-white/[0.08] bg-[#0a0e14] p-7 shadow-[0_36px_90px_-56px_rgba(0,0,0,0.95)]">
+        <section className="rounded-2xl border border-white/[0.08] bg-[#0a0e14] p-5 sm:p-7 shadow-[0_36px_90px_-56px_rgba(0,0,0,0.95)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
@@ -612,7 +612,7 @@ export default async function PlatformDashboardPage() {
             </div>
             <Activity className="h-5 w-5 text-slate-300" />
           </div>
-          <ul className="mt-6 grid gap-4 md:grid-cols-2">
+          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
             {recentRes.items.map((it) => (
               <li
                 key={`${it.kind}-${it.id}`}

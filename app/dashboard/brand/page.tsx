@@ -102,7 +102,7 @@ export default function BrandProfilePage() {
     "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-white/10 dark:bg-black/30 dark:text-white";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-8">
+    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-4 sm:p-6 lg:p-8">
       <ModulePageHeader moduleId="brand" className="mb-2" />
 
       <header>
@@ -125,7 +125,7 @@ export default function BrandProfilePage() {
         </p>
       </header>
 
-      <div className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm dark:border-white/10 dark:bg-[#0b1220]">
+      <div className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-5 sm:p-6 lg:p-8 shadow-sm dark:border-white/10 dark:bg-[#0b1220]">
         <div>
           <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
             Brand name <span className="text-red-500">*</span>

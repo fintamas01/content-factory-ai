@@ -135,7 +135,7 @@ export default function DashboardHistoryPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-8">
+    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-4 sm:p-6 lg:p-8">
       <nav
         className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500"
         aria-label="Breadcrumb"

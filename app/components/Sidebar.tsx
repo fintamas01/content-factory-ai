@@ -51,17 +51,24 @@ function NavRow({
   href,
   exact,
   pathname,
+  onNavigate,
 }: {
   id: SidebarNavId;
   label: string;
   href: string;
   exact?: boolean;
   pathname: string;
+  onNavigate?: () => void;
 }) {
   const Icon = SIDEBAR_ICONS[id];
   const active = isNavActive(pathname, href, exact);
   return (
-    <Link href={href}>
+    <Link
+      href={href}
+      onClick={() => {
+        onNavigate?.();
+      }}
+    >
       <div
         className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm cursor-pointer ${
           active
@@ -76,26 +83,33 @@ function NavRow({
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({
+  className,
+  onNavigate,
+  inDrawer,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+  inDrawer?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (
-    pathname === "/" ||
-    pathname === "/maintenance" ||
-    pathname === "/onboarding" ||
-    pathname.startsWith("/onboarding/")
-  )
-    return null;
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    onNavigate?.();
     router.push("/");
     router.refresh();
   };
 
   return (
-    <aside className="w-64 bg-white dark:bg-[#020617] border-r border-slate-200 dark:border-white/10 flex flex-col h-screen sticky top-0 z-50">
+    <aside
+      className={`bg-white dark:bg-[#020617] ${
+        inDrawer ? "" : "border-r border-slate-200 dark:border-white/10"
+      } flex flex-col ${
+        inDrawer ? "h-full" : "h-screen"
+      } ${className ?? ""}`}
+    >
       <div className="flex flex-col gap-1 px-4 py-6">
         <Image
           src="/CF_logo.png"
@@ -122,6 +136,7 @@ export default function Sidebar() {
             href={item.href}
             exact={"exact" in item ? item.exact : undefined}
             pathname={pathname}
+            onNavigate={onNavigate}
           />
         ))}
       </nav>

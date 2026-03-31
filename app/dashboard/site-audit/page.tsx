@@ -1481,7 +1481,7 @@ export default function AIGrowthAuditPage() {
           <div className="mt-10 flex flex-col gap-8 lg:flex-row lg:items-start">
             <aside className="lg:sticky lg:top-6 lg:w-56 lg:shrink-0">
               <nav
-                className="flex flex-row gap-1 overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#0a0e14]/90 p-1.5 shadow-xl shadow-black/30 backdrop-blur-md lg:flex-col lg:overflow-visible"
+                className="sticky top-14 z-10 -mx-4 flex flex-row gap-1 overflow-x-auto rounded-none border-y border-white/[0.06] bg-[#0a0e14]/95 px-4 py-2 shadow-xl shadow-black/30 backdrop-blur-md sm:top-14 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:rounded-2xl lg:border lg:px-1.5 lg:py-1.5 lg:flex-col lg:overflow-visible"
                 aria-label="Audit sections"
               >
                 {NAV.map(({ id, label, icon: Icon }) => {
@@ -1493,7 +1493,7 @@ export default function AIGrowthAuditPage() {
                       layout
                       onClick={() => setTab(id)}
                       whileTap={{ scale: 0.98 }}
-                      className={`relative flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition-colors duration-200 lg:w-full ${
+                      className={`relative flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-3 text-left text-[13px] font-medium transition-colors duration-200 lg:w-full ${
                         active
                           ? "bg-white/[0.09] text-white shadow-sm"
                           : "text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-200"
