@@ -51,6 +51,7 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const report = coerceReport(body?.report);
+    const auditRunId = typeof body?.auditRunId === "string" ? body.auditRunId : "";
     const signals = body?.signals as
       | {
           url: string;
@@ -71,6 +72,20 @@ export async function POST(req: Request) {
     const result = await generateGrowthSprintPlan({ report, signals });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 502 });
+    }
+
+    if (auditRunId) {
+      const merged = {
+        ...(report as unknown as Record<string, unknown>),
+        growth_sprint: result.plan as unknown as Record<string, unknown>,
+        growth_sprint_generated_at: new Date().toISOString(),
+      };
+      const { error: upErr } = await supabase
+        .from("site_audit_runs")
+        .update({ report: merged })
+        .eq("id", auditRunId)
+        .eq("user_id", user.id);
+      if (upErr) console.error("growth-sprint save:", upErr);
     }
 
     return NextResponse.json({ plan: result.plan });

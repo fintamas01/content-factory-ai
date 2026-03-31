@@ -152,19 +152,22 @@ export async function POST(req: Request) {
       competitors: competitorsClean,
     };
 
-    const { error: saveAuditErr } = await supabase.from("site_audit_runs").insert({
-      user_id: user.id,
-      page_url: signals.url,
-      report: normalized as unknown as Record<string, unknown>,
-      signals: signalsPayload,
-    });
-    if (saveAuditErr) {
-      console.error("site_audit_runs insert:", saveAuditErr);
-    }
+    const { data: savedAudit, error: saveAuditErr } = await supabase
+      .from("site_audit_runs")
+      .insert({
+        user_id: user.id,
+        page_url: signals.url,
+        report: normalized as unknown as Record<string, unknown>,
+        signals: signalsPayload,
+      })
+      .select("id")
+      .maybeSingle();
+    if (saveAuditErr) console.error("site_audit_runs insert:", saveAuditErr);
 
     return NextResponse.json({
       report: normalized,
       signals: signalsPayload,
+      auditRunId: savedAudit?.id ?? null,
     });
   } catch (e) {
     console.error("site-audit:", e);

@@ -42,7 +42,9 @@ type ApiSuccess = {
     metaDescription: string | null;
     h1Count: number;
     h2Count: number;
+    competitors?: string[];
   };
+  auditRunId?: string | null;
 };
 
 type TabId =
@@ -535,6 +537,7 @@ export default function AIGrowthAuditPage() {
         body: JSON.stringify({
           report: data.report,
           signals: data.signals,
+          auditRunId: data.auditRunId ?? null,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -546,6 +549,12 @@ export default function AIGrowthAuditPage() {
       }
       const plan = json.plan as GrowthSprintPlan | undefined;
       if (plan) setSprintPlan(plan);
+      // If server saved the plan into the audit run report, keep local report in sync.
+      if (plan) {
+        setData((prev) =>
+          prev ? { ...prev, report: { ...prev.report, growth_sprint: plan } } : prev
+        );
+      }
     } catch {
       setSprintError("Network error.");
     } finally {

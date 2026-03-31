@@ -103,6 +103,8 @@ export interface GrowthAuditReport {
   content_opportunities: GrowthAuditContentOpportunity[];
   ai_visibility: GrowthAuditAiVisibility;
   competitor_intelligence?: GrowthAuditCompetitorIntelligence;
+  /** Optional saved 30-day sprint plan (generated on-demand). */
+  growth_sprint?: GrowthSprintPlan;
 }
 
 /** Ready-to-paste output from POST /api/audit-fix */
