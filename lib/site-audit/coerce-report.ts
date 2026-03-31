@@ -137,6 +137,128 @@ export function coerceReport(data: unknown): GrowthAuditReport | null {
     };
   }
 
+  const ciRaw = o.competitor_intelligence;
+  let competitor_intelligence: GrowthAuditReport["competitor_intelligence"] | undefined;
+  if (ciRaw && typeof ciRaw === "object") {
+    const ci = ciRaw as Record<string, unknown>;
+    const summary = typeof ci.summary === "string" ? ci.summary : "";
+    const arr = (v: unknown) => (Array.isArray(v) ? v : []);
+    const str = (v: unknown) => (typeof v === "string" ? v : "");
+    const sliceStrings = (v: unknown, n: number) =>
+      arr(v)
+        .filter((x): x is string => typeof x === "string")
+        .slice(0, n);
+
+    competitor_intelligence = {
+      summary,
+      competitor_advantages: arr(ci.competitor_advantages)
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const r = row as Record<string, unknown>;
+          const evidenceRaw = r.evidence;
+          const evidence =
+            evidenceRaw && typeof evidenceRaw === "object"
+              ? {
+                  competitor_quotes: sliceStrings(
+                    (evidenceRaw as Record<string, unknown>).competitor_quotes,
+                    4
+                  ),
+                  user_quotes: sliceStrings(
+                    (evidenceRaw as Record<string, unknown>).user_quotes,
+                    3
+                  ),
+                }
+              : undefined;
+          return {
+            competitor: str(r.competitor),
+            advantage: str(r.advantage),
+            why_it_matters: str(r.why_it_matters),
+            ...(evidence ? { evidence } : {}),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 8) as NonNullable<
+        GrowthAuditReport["competitor_intelligence"]
+      >["competitor_advantages"],
+      missing_opportunities: arr(ci.missing_opportunities)
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const r = row as Record<string, unknown>;
+          return {
+            opportunity: str(r.opportunity),
+            why_missing_matters: str(r.why_missing_matters),
+            what_to_ship: str(r.what_to_ship),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 8) as NonNullable<
+        GrowthAuditReport["competitor_intelligence"]
+      >["missing_opportunities"],
+      content_gaps: arr(ci.content_gaps)
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const r = row as Record<string, unknown>;
+          return {
+            topic: str(r.topic),
+            why_missing_matters: str(r.why_missing_matters),
+            suggested_angle: str(r.suggested_angle),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 10) as NonNullable<
+        GrowthAuditReport["competitor_intelligence"]
+      >["content_gaps"],
+      positioning_opportunities: arr(ci.positioning_opportunities)
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const r = row as Record<string, unknown>;
+          return { idea: str(r.idea), why_it_works: str(r.why_it_works) };
+        })
+        .filter(Boolean)
+        .slice(0, 8) as NonNullable<
+        GrowthAuditReport["competitor_intelligence"]
+      >["positioning_opportunities"],
+      cta_improvements: arr(ci.cta_improvements)
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const r = row as Record<string, unknown>;
+          return {
+            current_problem: str(r.current_problem),
+            suggested_rewrite: str(r.suggested_rewrite),
+            where_to_use: str(r.where_to_use),
+            why_it_works: str(r.why_it_works),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 12) as NonNullable<
+        GrowthAuditReport["competitor_intelligence"]
+      >["cta_improvements"],
+      messaging_swipes: arr(ci.messaging_swipes)
+        .map((row) => {
+          if (!row || typeof row !== "object") return null;
+          const r = row as Record<string, unknown>;
+          return {
+            competitor: str(r.competitor),
+            pattern: str(r.pattern),
+            example: str(r.example),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 10) as NonNullable<
+        GrowthAuditReport["competitor_intelligence"]
+      >["messaging_swipes"],
+    };
+    if (
+      !competitor_intelligence.summary &&
+      competitor_intelligence.competitor_advantages.length === 0 &&
+      competitor_intelligence.content_gaps.length === 0 &&
+      competitor_intelligence.positioning_opportunities.length === 0 &&
+      competitor_intelligence.cta_improvements.length === 0
+    ) {
+      competitor_intelligence = undefined;
+    }
+  }
+
   return {
     summary: summary || "Analysis complete.",
     scores: { seo, ai_discoverability: aiDisc, conversion: conv },
@@ -144,5 +266,6 @@ export function coerceReport(data: unknown): GrowthAuditReport | null {
     quick_wins,
     content_opportunities,
     ai_visibility,
+    ...(competitor_intelligence ? { competitor_intelligence } : {}),
   };
 }

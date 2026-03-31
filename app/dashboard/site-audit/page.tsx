@@ -49,6 +49,7 @@ type TabId =
   | "ai"
   | "conversion"
   | "content"
+  | "competitors"
   | "actions";
 
 const PRI_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -63,6 +64,7 @@ const NAV: {
   { id: "ai", label: "AI Visibility", icon: MessageCircleQuestion },
   { id: "conversion", label: "Conversion", icon: Target },
   { id: "content", label: "Content Opportunities", icon: Lightbulb },
+  { id: "competitors", label: "Competitor Intelligence", icon: PanelRight },
   { id: "actions", label: "Actions", icon: Zap },
 ];
 
@@ -333,6 +335,11 @@ function AiVisibilityPanel({ report }: { report: GrowthAuditReport }) {
 export default function AIGrowthAuditPage() {
   const m = MODULES.siteAudit;
   const [url, setUrl] = useState("");
+  const [competitors, setCompetitors] = useState<[string, string, string]>([
+    "",
+    "",
+    "",
+  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiSuccess | null>(null);
@@ -389,12 +396,16 @@ export default function AIGrowthAuditPage() {
       setError("Enter a website URL.");
       return;
     }
+    const competitorUrls = competitors
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 3);
     setLoading(true);
     try {
       const res = await fetch("/api/site-audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({ url: trimmed, competitors: competitorUrls }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -760,6 +771,199 @@ export default function AIGrowthAuditPage() {
           </div>
         );
 
+      case "competitors": {
+        const ci = report.competitor_intelligence;
+        if (!ci) {
+          return (
+            <div className={`${panel} p-7 md:p-9`}>
+              <p className={sectionLabel}>Competitor intelligence</p>
+              <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
+                Add competitors to unlock gap analysis
+              </h3>
+              <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-zinc-500">
+                Enter 1–3 competitor URLs in the audit form and re-run the audit.
+                If a competitor fails to load, the analysis still runs with the
+                remaining competitors.
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-10">
+            <div className={`${panel} p-7 md:p-9`}>
+              <p className={sectionLabel}>Summary</p>
+              <p className="mt-5 text-[15px] leading-[1.7] text-zinc-300">
+                {ci.summary}
+              </p>
+            </div>
+
+            {ci.competitor_advantages.length > 0 ? (
+              <div className={`${panel} p-7 md:p-9`}>
+                <p className={sectionLabel}>What competitors do better</p>
+                <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  {ci.competitor_advantages.map((row, i) => (
+                    <div
+                      key={`${row.competitor}-${i}`}
+                      className="group rounded-xl border border-white/[0.06] bg-black/30 p-5 transition-all duration-300 hover:border-white/[0.12] hover:bg-black/40"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-[13px] font-medium text-zinc-200">
+                          {row.competitor}
+                        </p>
+                        <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-200">
+                          Advantage
+                        </span>
+                      </div>
+                      <p className="mt-3 text-[14px] font-medium leading-relaxed text-white">
+                        {row.advantage}
+                      </p>
+                      <p className="mt-3 text-[13px] leading-relaxed text-zinc-500">
+                        {row.why_it_matters}
+                      </p>
+                      {row.evidence?.competitor_quotes?.length ? (
+                        <div className="mt-4 rounded-lg border border-white/[0.06] bg-black/20 p-3">
+                          <p className={`${sectionLabel} text-zinc-500`}>
+                            Evidence
+                          </p>
+                          <ul className="mt-2 space-y-1.5">
+                            {row.evidence.competitor_quotes
+                              .slice(0, 2)
+                              .map((q, qi) => (
+                                <li
+                                  key={qi}
+                                  className="text-[12px] leading-relaxed text-zinc-400"
+                                >
+                                  “{q}”
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              {ci.missing_opportunities.length > 0 ? (
+                <div className={`${panel} p-7 md:p-9`}>
+                  <p className={sectionLabel}>Missing opportunities</p>
+                  <ul className="mt-6 space-y-3">
+                    {ci.missing_opportunities.map((row, i) => (
+                      <li
+                        key={i}
+                        className="rounded-xl border border-white/[0.06] bg-black/30 p-5 transition-colors duration-300 hover:border-white/[0.12]"
+                      >
+                        <p className="text-[14px] font-medium text-white">
+                          {row.opportunity}
+                        </p>
+                        <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                          {row.why_missing_matters}
+                        </p>
+                        <p className="mt-3 text-[13px] leading-relaxed text-zinc-300">
+                          {row.what_to_ship}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {ci.positioning_opportunities.length > 0 ? (
+                <div className={`${panel} p-7 md:p-9`}>
+                  <p className={sectionLabel}>Positioning opportunities</p>
+                  <ul className="mt-6 space-y-3">
+                    {ci.positioning_opportunities.map((row, i) => (
+                      <li
+                        key={i}
+                        className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-violet-500/[0.06] to-transparent p-5 transition-colors duration-300 hover:border-violet-500/20"
+                      >
+                        <p className="text-[14px] font-medium text-white">
+                          {row.idea}
+                        </p>
+                        <p className="mt-2 text-[13px] leading-relaxed text-zinc-400">
+                          {row.why_it_works}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+
+            {ci.content_gaps.length > 0 ? (
+              <div className={`${panel} p-7 md:p-9`}>
+                <p className={sectionLabel}>Content gaps vs competitors</p>
+                <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  {ci.content_gaps.map((row, i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-white/[0.06] bg-black/30 p-5 transition-colors duration-300 hover:border-blue-500/20"
+                    >
+                      <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-blue-300/90">
+                        Topic
+                      </p>
+                      <p className="mt-2 text-[14px] font-medium text-white">
+                        {row.topic}
+                      </p>
+                      <p className="mt-3 text-[13px] leading-relaxed text-zinc-500">
+                        {row.why_missing_matters}
+                      </p>
+                      <p className="mt-3 text-[13px] leading-relaxed text-zinc-300">
+                        Suggested angle: {row.suggested_angle}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {ci.cta_improvements.length > 0 ? (
+              <div className={`${panel} p-7 md:p-9`}>
+                <p className={sectionLabel}>CTA upgrades (ready to paste)</p>
+                <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  {ci.cta_improvements.map((row, i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-5 transition-colors duration-300 hover:border-emerald-500/25"
+                    >
+                      <p className={`${sectionLabel} text-emerald-300/90`}>
+                        Suggested rewrite
+                      </p>
+                      <p className="mt-2 text-[15px] font-medium text-white">
+                        {row.suggested_rewrite}
+                      </p>
+                      <div className="mt-4 grid gap-2">
+                        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+                          <p className={sectionLabel}>Where to use</p>
+                          <p className="mt-1 text-[13px] text-zinc-300">
+                            {row.where_to_use}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+                          <p className={sectionLabel}>Why it works</p>
+                          <p className="mt-1 text-[13px] leading-relaxed text-zinc-500">
+                            {row.why_it_works}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+                          <p className={sectionLabel}>Current problem</p>
+                          <p className="mt-1 text-[13px] leading-relaxed text-zinc-500">
+                            {row.current_problem}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      }
+
       case "actions":
         return (
           <div>
@@ -950,6 +1154,36 @@ export default function AIGrowthAuditPage() {
                   disabled={loading}
                 />
               </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {competitors.map((val, idx) => (
+                  <div key={idx} className="min-w-0">
+                    <label
+                      htmlFor={`competitor-${idx}`}
+                      className={sectionLabel}
+                    >
+                      Competitor {idx + 1} (optional)
+                    </label>
+                    <input
+                      id={`competitor-${idx}`}
+                      type="url"
+                      placeholder="https://competitor.com"
+                      value={val}
+                      onChange={(e) =>
+                        setCompetitors((prev) => {
+                          const next = [...prev] as [string, string, string];
+                          next[idx] = e.target.value;
+                          return next;
+                        })
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition-[border,box-shadow] duration-200 focus:border-blue-500/40 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.12)] disabled:opacity-60"
+                      disabled={loading}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-[13px] leading-relaxed text-zinc-500">
+                Add up to 3 competitors to unlock <span className="text-zinc-300">Competitor Intelligence</span>. If one fails to load, the audit still completes.
+              </p>
             </div>
             <motion.button
               type="button"

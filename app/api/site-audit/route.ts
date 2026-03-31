@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { coerceReport } from "@/lib/site-audit/coerce-report";
 import { normalizeUrl } from "@/lib/site-audit/extract";
 import {
+  analyzeCompetitorGaps,
   extractWebsiteData,
   runSpecialistPhases,
   synthesizeReport,
@@ -62,6 +63,9 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const websiteInput = body?.url as string | undefined;
+    const competitorsInput = Array.isArray(body?.competitors)
+      ? (body.competitors as unknown[])
+      : [];
     if (!websiteInput || typeof websiteInput !== "string") {
       return NextResponse.json({ error: "Missing url." }, { status: 400 });
     }
@@ -86,13 +90,53 @@ export async function POST(req: Request) {
     const { seo, aiVis, conversion, gaps } = await runSpecialistPhases(signals);
 
     // Phase 6: synthesize final report (fallback merge inside synthesizeReport)
-    const report: GrowthAuditReport = await synthesizeReport({
+    let report: GrowthAuditReport = await synthesizeReport({
       extract: signals,
       seo,
       aiVis,
       conversion,
       gaps,
     });
+
+    // Phase 7 (optional): competitor intelligence (best-effort; never blocks main audit)
+    const competitorsClean = competitorsInput
+      .filter((c): c is string => typeof c === "string")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .map((u) => normalizeUrl(u))
+      .filter((u) => typeof u === "string" && u.length > 0)
+      .filter((u, i, arr) => arr.indexOf(u) === i)
+      .filter((u) => u !== signals.url);
+
+    if (competitorsClean.length > 0) {
+      const extractedCompetitors = await Promise.all(
+        competitorsClean.map(async (u) => {
+          const ex = await extractWebsiteData(u);
+          if (!ex.ok) return { url: u, ok: false as const, error: ex.error };
+          return { url: u, ok: true as const, extract: ex.data };
+        })
+      );
+      const okCount = extractedCompetitors.filter((c) => c.ok).length;
+      if (okCount > 0) {
+        const ci = await analyzeCompetitorGaps({
+          user: signals,
+          competitors: extractedCompetitors,
+          userAuditContext: {
+            scores: report.scores,
+            top_issues: report.top_issues,
+            quick_wins: report.quick_wins,
+            ai_visibility: report.ai_visibility,
+            content_opportunities: report.content_opportunities,
+          },
+        });
+        if (ci.ok) {
+          report = { ...report, competitor_intelligence: ci.competitor_intelligence };
+        } else {
+          console.warn("[site-audit] competitor intelligence failed:", ci.error);
+        }
+      }
+    }
 
     // Ensure coerce in case synthesis returned edge shapes (defensive)
     const normalized = coerceReport(report as unknown) ?? report;
@@ -105,6 +149,7 @@ export async function POST(req: Request) {
       metaDescription: signals.metaDescription,
       h1Count: signals.h1.length,
       h2Count: signals.h2.length,
+      competitors: competitorsClean,
     };
 
     const { error: saveAuditErr } = await supabase.from("site_audit_runs").insert({

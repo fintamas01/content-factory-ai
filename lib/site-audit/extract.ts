@@ -43,6 +43,22 @@ function stripTags(fragment: string): string {
     .trim();
 }
 
+function normalizeSpace(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extractHeadings(html: string, tag: "h1" | "h2"): string[] {
   const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
   const out: string[] = [];
@@ -59,6 +75,186 @@ function textSampleFromHtml(html: string): string {
   const chunk = bodyMatch?.[1] ?? html;
   const stripped = stripTags(chunk);
   return stripped.slice(0, MAX_TEXT_SAMPLE_CHARS);
+}
+
+function extractCtas(html: string): string[] {
+  const out: string[] = [];
+  // Grab common CTA-bearing elements. Keep it cheap + regex-based.
+  const re = /<(a|button)[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const raw = stripTags(m[2]);
+    const txt = decodeHtmlEntities(raw).slice(0, 120);
+    if (!txt) continue;
+    // Filter out nav noise.
+    const low = txt.toLowerCase();
+    if (low.length < 2) continue;
+    if (low === "menu" || low === "close" || low === "search") continue;
+    out.push(txt);
+    if (out.length >= 60) break;
+  }
+  return out;
+}
+
+function guessPrimaryCta(ctas: string[], title: string | null): string | null {
+  const verbs = [
+    "book",
+    "schedule",
+    "get",
+    "start",
+    "try",
+    "request",
+    "contact",
+    "talk",
+    "buy",
+    "pricing",
+    "quote",
+    "demo",
+    "call",
+    "join",
+    "subscribe",
+    "download",
+    "sign up",
+    "signup",
+    "register",
+  ];
+  const deny = [
+    "learn more",
+    "read more",
+    "view",
+    "explore",
+    "privacy",
+    "terms",
+    "cookies",
+    "login",
+    "log in",
+    "sign in",
+  ];
+  const scored = ctas
+    .map((t) => {
+      const low = t.toLowerCase();
+      let score = 0;
+      for (const d of deny) if (low.includes(d)) score -= 2;
+      for (const v of verbs) if (low.includes(v)) score += 3;
+      if (low.includes("free")) score += 2;
+      if (low.includes("trial")) score += 2;
+      if (low.includes("demo")) score += 3;
+      if (low.includes("quote")) score += 3;
+      if (t.length <= 22) score += 1;
+      if (t.length >= 60) score -= 1;
+      return { t, score };
+    })
+    .sort((a, b) => b.score - a.score);
+  const top = scored[0];
+  if (!top) return null;
+  if (top.score <= 0) return null;
+  // Slightly prefer CTAs that mention the title topic (if any).
+  if (title) {
+    const titleWords = title
+      .toLowerCase()
+      .split(/[^a-z0-9]+/i)
+      .filter((w) => w.length >= 4)
+      .slice(0, 8);
+    if (titleWords.some((w) => top.t.toLowerCase().includes(w))) return top.t;
+  }
+  return top.t;
+}
+
+function detectTrustIndicators(text: string): string[] {
+  const t = text.toLowerCase();
+  const hits: string[] = [];
+  const patterns: Array<[string, RegExp]> = [
+    ["Testimonials", /\btestimonials?\b/],
+    ["Reviews", /\breviews?\b/],
+    ["Case studies", /\bcase studies?\b|\bcase study\b/],
+    ["Client logos / trusted by", /\btrusted by\b|\bclients?\b|\blogos?\b/],
+    ["Guarantee", /\bguarantee\b/],
+    ["Certifications", /\bcertified\b|\bcertification\b|\biso\b/],
+    ["Awards", /\baward\b|\bawards\b/],
+    ["Press", /\bas seen in\b|\bpress\b/],
+    ["Security/compliance", /\bsoc 2\b|\bhipaa\b|\bgdpr\b|\bcompliance\b/],
+    ["Team expertise", /\bexperts?\b|\bteam\b|\bfounded\b|\byears?\b/],
+    ["Pricing transparency", /\bpricing\b|\bplans?\b/],
+  ];
+  for (const [label, re] of patterns) {
+    if (re.test(t)) hits.push(label);
+    if (hits.length >= 8) break;
+  }
+  return hits;
+}
+
+function topicPatternsFromSignals(args: {
+  title: string | null;
+  h1: string[];
+  h2: string[];
+  textSample: string;
+}): string[] {
+  const src = normalizeSpace(
+    [args.title ?? "", ...args.h1, ...args.h2, args.textSample].join(" ")
+  );
+  const raw = src
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const stop = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "that",
+    "this",
+    "your",
+    "you",
+    "our",
+    "are",
+    "was",
+    "were",
+    "have",
+    "has",
+    "will",
+    "can",
+    "not",
+    "but",
+    "all",
+    "any",
+    "their",
+    "they",
+    "them",
+    "what",
+    "when",
+    "where",
+    "why",
+    "how",
+    "who",
+    "about",
+    "into",
+    "over",
+    "under",
+    "more",
+    "less",
+    "best",
+    "top",
+    "new",
+    "free",
+  ]);
+
+  const words = raw
+    .split(" ")
+    .filter((w) => w.length >= 4 && w.length <= 22 && !stop.has(w))
+    .slice(0, 2500);
+
+  const freq = new Map<string, number>();
+  for (const w of words) freq.set(w, (freq.get(w) ?? 0) + 1);
+
+  const top = [...freq.entries()]
+    .filter(([, c]) => c >= 3)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([w]) => w);
+  return top;
 }
 
 export async function fetchAndExtractPage(
@@ -130,6 +326,25 @@ export async function fetchAndExtractPage(
     h2: extractHeadings(html, "h2"),
     textSample: textSampleFromHtml(html),
   };
+
+  // Best-effort “competitor intelligence” enrichments (heuristic, deterministic).
+  const ctas = extractCtas(html);
+  const cta_guess = guessPrimaryCta(ctas, title);
+  const trust_indicators = detectTrustIndicators(
+    [signals.title ?? "", signals.metaDescription ?? "", ...signals.h1, ...signals.h2, signals.textSample].join(
+      " "
+    )
+  );
+  const topic_patterns = topicPatternsFromSignals({
+    title: signals.title,
+    h1: signals.h1,
+    h2: signals.h2,
+    textSample: signals.textSample,
+  });
+
+  if (cta_guess) signals.cta_guess = cta_guess;
+  if (trust_indicators.length) signals.trust_indicators = trust_indicators;
+  if (topic_patterns.length) signals.topic_patterns = topic_patterns;
 
   return { ok: true, signals };
 }

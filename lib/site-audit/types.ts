@@ -35,6 +35,44 @@ export interface GrowthAuditAiVisibility {
   concrete_improvements: string[];
 }
 
+export type GrowthAuditCompetitorIntelligence = {
+  summary: string;
+  competitor_advantages: Array<{
+    competitor: string;
+    advantage: string;
+    why_it_matters: string;
+    evidence?: {
+      competitor_quotes?: string[];
+      user_quotes?: string[];
+    };
+  }>;
+  missing_opportunities: Array<{
+    opportunity: string;
+    why_missing_matters: string;
+    what_to_ship: string;
+  }>;
+  content_gaps: Array<{
+    topic: string;
+    why_missing_matters: string;
+    suggested_angle: string;
+  }>;
+  positioning_opportunities: Array<{
+    idea: string;
+    why_it_works: string;
+  }>;
+  cta_improvements: Array<{
+    current_problem: string;
+    suggested_rewrite: string;
+    where_to_use: string;
+    why_it_works: string;
+  }>;
+  messaging_swipes?: Array<{
+    competitor: string;
+    pattern: string;
+    example: string;
+  }>;
+};
+
 export interface GrowthAuditReport {
   summary: string;
   scores: GrowthAuditScores;
@@ -42,6 +80,7 @@ export interface GrowthAuditReport {
   quick_wins: GrowthAuditQuickWin[];
   content_opportunities: GrowthAuditContentOpportunity[];
   ai_visibility: GrowthAuditAiVisibility;
+  competitor_intelligence?: GrowthAuditCompetitorIntelligence;
 }
 
 /** Ready-to-paste output from POST /api/audit-fix */
@@ -84,4 +123,10 @@ export interface ExtractedPageSignals {
   h1: string[];
   h2: string[];
   textSample: string;
+  /** Best-effort guess from visible button/link text. */
+  cta_guess?: string | null;
+  /** Best-effort detected trust indicators from visible text. */
+  trust_indicators?: string[];
+  /** Best-effort topic patterns (frequent terms from headings/text). */
+  topic_patterns?: string[];
 }
