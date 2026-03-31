@@ -78,10 +78,39 @@ export async function GET() {
         .limit(LIMIT),
     ]);
 
-    if (genRes.error) console.error("history generations:", genRes.error);
-    if (prodRes.error) console.error("history product_generations:", prodRes.error);
-    if (auditRes.error) console.error("history site_audit_runs:", auditRes.error);
-    if (matrixRes.error) console.error("history matrix_generations:", matrixRes.error);
+    const errors: Array<{ table: string; message: string; code?: string }> = [];
+    if (genRes.error) {
+      console.error("history generations:", genRes.error);
+      errors.push({
+        table: "generations",
+        message: genRes.error.message,
+        code: (genRes.error as any).code,
+      });
+    }
+    if (prodRes.error) {
+      console.error("history product_generations:", prodRes.error);
+      errors.push({
+        table: "product_generations",
+        message: prodRes.error.message,
+        code: (prodRes.error as any).code,
+      });
+    }
+    if (auditRes.error) {
+      console.error("history site_audit_runs:", auditRes.error);
+      errors.push({
+        table: "site_audit_runs",
+        message: auditRes.error.message,
+        code: (auditRes.error as any).code,
+      });
+    }
+    if (matrixRes.error) {
+      console.error("history matrix_generations:", matrixRes.error);
+      errors.push({
+        table: "matrix_generations",
+        message: matrixRes.error.message,
+        code: (matrixRes.error as any).code,
+      });
+    }
 
     const items = mergeAndSort([
       ...(genRes.data ?? []).map((r) => mapContentRow(r as Record<string, unknown>)),
@@ -90,7 +119,7 @@ export async function GET() {
       ...(matrixRes.data ?? []).map((r) => mapMatrixRow(r as Record<string, unknown>)),
     ]);
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, errors: errors.length ? errors : undefined });
   } catch (e) {
     console.error("GET /api/history:", e);
     return NextResponse.json(

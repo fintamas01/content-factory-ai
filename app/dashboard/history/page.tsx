@@ -24,6 +24,7 @@ import {
 import { HistoryDetailModal } from "@/app/components/history/HistoryDetailModal";
 
 type FilterTab = "all" | HistoryKind;
+type HistoryApiError = { table: string; message: string; code?: string };
 
 const TABS: { id: FilterTab; label: string }[] = [
   { id: "all", label: "All" },
@@ -70,6 +71,7 @@ export default function DashboardHistoryPage() {
   const [items, setItems] = useState<HistoryListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<HistoryApiError[]>([]);
   const [tab, setTab] = useState<FilterTab>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<HistoryListItem | null>(null);
@@ -78,6 +80,7 @@ export default function DashboardHistoryPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setWarnings([]);
     try {
       const res = await fetch("/api/history");
       const json = await res.json().catch(() => ({}));
@@ -87,6 +90,7 @@ export default function DashboardHistoryPage() {
         return;
       }
       setItems(Array.isArray(json.items) ? json.items : []);
+      setWarnings(Array.isArray(json.errors) ? json.errors : []);
     } catch {
       setError("Network error.");
       setItems([]);
@@ -199,6 +203,17 @@ export default function DashboardHistoryPage() {
       ) : error ? (
         <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
           {error}
+        </div>
+      ) : warnings.length ? (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
+          <p className="font-semibold">Some history sources failed to load.</p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-200/80">
+            {warnings.slice(0, 4).map((w, idx) => (
+              <li key={`${w.table}-${idx}`}>
+                <span className="font-semibold">{w.table}</span>: {w.message}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] py-20 text-center">
