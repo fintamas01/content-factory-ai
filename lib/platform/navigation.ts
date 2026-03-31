@@ -12,6 +12,11 @@ export const SIDEBAR_NAV_ITEMS = [
     exact: true,
   },
   {
+    id: "playbooks",
+    label: "Playbooks",
+    href: "/dashboard/playbooks",
+  },
+  {
     id: "brand",
     label: "Brand",
     href: MODULES.brand.href,
