@@ -4,6 +4,7 @@ export interface ProductCopyResult {
   bullets: string[];
   seo_title: string;
   seo_description: string;
+  short_description?: string;
 }
 
 /** Form payload sent to /api/generate-product */
@@ -13,4 +14,8 @@ export interface ProductGeneratorInput {
   targetAudience?: string;
   tone?: string;
   keyBenefits?: string;
+  existingTitle?: string;
+  existingDescription?: string;
+  existingShortDescription?: string;
+  goal?: "generate" | "improve";
 }

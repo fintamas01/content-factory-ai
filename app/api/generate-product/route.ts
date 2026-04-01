@@ -72,17 +72,51 @@ export async function POST(req: Request) {
     const tone = typeof body.tone === "string" ? body.tone.trim() : "";
     const keyBenefits =
       typeof body.keyBenefits === "string" ? body.keyBenefits.trim() : "";
+    const existingTitle =
+      typeof body.existingTitle === "string" ? body.existingTitle.trim() : "";
+    const existingDescription =
+      typeof body.existingDescription === "string"
+        ? body.existingDescription.trim()
+        : "";
+    const existingShortDescription =
+      typeof body.existingShortDescription === "string"
+        ? body.existingShortDescription.trim()
+        : "";
+    const source =
+      typeof body.source === "string" && body.source.trim()
+        ? body.source.trim()
+        : "manual";
+    const sourceMeta =
+      body?.sourceMeta && typeof body.sourceMeta === "object" ? body.sourceMeta : null;
 
     const input_data = {
       productDetails: productDetails || undefined,
       targetAudience: targetAudience || undefined,
       tone: tone || undefined,
       keyBenefits: keyBenefits || undefined,
+      existingTitle: existingTitle || undefined,
+      existingDescription: existingDescription || undefined,
+      existingShortDescription: existingShortDescription || undefined,
+      source,
+      sourceMeta,
     };
 
     const unified = await fetchUserBrandProfile(supabase, user.id);
     const gen = await generateProductCopy({
-      input: { productName, ...input_data },
+      input: {
+        productName,
+        productDetails: productDetails || undefined,
+        targetAudience: targetAudience || undefined,
+        tone: tone || undefined,
+        keyBenefits: keyBenefits || undefined,
+        existingTitle: existingTitle || undefined,
+        existingDescription: existingDescription || undefined,
+        existingShortDescription: existingShortDescription || undefined,
+        goal:
+          existingTitle || existingDescription || existingShortDescription
+            ? "improve"
+            : "generate",
+      },
       brandProfile: unified,
       openaiApiKey: process.env.OPENAI_API_KEY,
       model: process.env.OPENAI_PRODUCT_MODEL ?? "gpt-4o-mini",

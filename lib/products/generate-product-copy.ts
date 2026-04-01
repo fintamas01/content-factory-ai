@@ -5,42 +5,75 @@ import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { mergeBrandProfileForContent } from "@/lib/brand-profile/merge";
 import { buildProductBrandIdentityAddendumEn } from "@/lib/brand-profile/prompts";
 
-const SYSTEM = `You are a senior ecommerce and B2B SaaS copy chief. Your job is copy that could ship on a real storefront or PDP: specific, benefit-led, and commercially credible—not template filler.
+const SYSTEM_BASE = `You are a senior e-commerce conversion copywriter and product marketer. You write copy that can ship on a real PDP: specific, benefit-led, and commercially credible—not template filler.
 
-INPUT: You receive JSON with productName plus optional productDetails, targetAudience, tone, keyBenefits. When brandVoiceContext is present, it is the saved brand profile (facts). If a BRAND IDENTITY section appears below in the system message, follow it for how to apply that context—natural voice, no robotic repetition across fields. Product-level JSON fields override for factual product details when they conflict.
+NON-NEGOTIABLES
+- Ground every claim in the provided input only. Do NOT invent certifications, awards, numbers, materials, warranties, compatibility, or guarantees unless provided.
+- Be concrete: prefer “what it is + who it’s for + what outcome it delivers” over adjectives.
+- Avoid generic AI language and empty hype.
 
-Ground every claim in that input. If details are thin, write tightly from what is given; do not invent certifications, awards, numbers, materials, or guarantees unless the user supplied them.
+STYLE
+- Premium, confident, human. Minimal fluff.
+- Use brand voice naturally if provided, without repeating slogans or forcing keywords.
 
-OUTPUT: Strictly valid JSON only. No markdown, no code fences, no keys beyond this schema (no extra keys):
+OUTPUT FORMAT (STRICT)
+Return ONLY valid JSON, no markdown, no code fences, no extra keys:
 {
   "title": "string",
+  "short_description": "string",
   "description": "string",
-  "bullets": ["string", ...],
+  "bullets": ["string"],
   "seo_title": "string",
   "seo_description": "string"
 }
 
-TITLE: Short, specific headline (listing or hero). Prefer concrete nouns and outcome over vague adjectives. Avoid “The ultimate…”, “Revolutionary…”, “Best-in-class…” unless the input supports it.
+FIELD RULES
+- title: 6–12 words, specific, no “Ultimate/Best/Revolutionary” unless supported by input.
+- short_description: 1–2 punchy sentences, \u2264 220 characters total. This must feel conversion-focused (clarity + outcome + differentiator).
+- description: 2–4 short paragraphs OR 4–7 sentences. No list formatting. Make it scannable with short lines.
+- bullets: exactly 5 bullets. Each bullet \u2264 120 characters. Each bullet must add a new angle (feature\u2192benefit, use case, objection handler, differentiator, proof-needed).
+- seo_title: 50–60 chars when possible. Reads like a real listing, not keyword stuffing.
+- seo_description: 150–160 chars when possible. Natural, commercially useful, includes a soft CTA.
 
-DESCRIPTION: 2–4 sentences. Lead with the clearest outcome for the buyer (who it’s for + what problem it removes or result it enables). Tie features to benefits using details from the input. No bullet list here. No empty hype.
+BANNED (unless explicitly supported)
+- “high quality”, “great value”, “best-in-class”, “game-changer”, “premium quality” (without specifics)
+- fabricated proof (“trusted by 10,000+”, “award-winning”, “#1”)
+- repeating the same idea across title/description/bullets with synonyms`;
 
-BULLETS: Exactly 4–6 items. Each line: one tight idea—prefer “[Concrete feature or fact] → [buyer payoff]” or a sharp standalone benefit. Under ~120 characters per bullet where possible. No “Lorem” style repeats; each line must add a new angle (use case, proof point from input, objection handled, differentiator).
+const SYSTEM_MODE_GENERATE = `MODE: GENERATE
+- Create fresh copy from the provided inputs.
+- If details are thin, write tightly and transparently. Prefer safe, universal benefits that follow from the input.
+- Do not add “features” that are not provided. If you need missing info, choose conservative wording.`;
 
-TONE: Honor the requested tone (professional, modern, persuasive, luxury, friendly) or default to confident and clear. Luxury = refined, not flowery. Persuasive = proof and specificity, not exclamation spam.
+const SYSTEM_MODE_IMPROVE = `MODE: IMPROVE
+You will receive existingTitle/existingDescription/existingShortDescription. Optimize them for conversion and clarity:
+- Preserve true product facts and meaning. Do NOT change specs.
+- Keep any genuinely strong phrases, but remove fluff, redundancy, and vague claims.
+- Improve scannability, specificity, and commercial clarity.
+- If the existing copy contains HTML, treat it as noisy input; output must be clean plain text.`;
 
-SEO_TITLE: ~50–60 characters when possible. Read like a real search result: primary intent + product type + differentiator if space. Clickable and human—no ALL CAPS, no pipe-stuffed keyword stuffing.
+function pickGoal(input: ProductGeneratorInput): "generate" | "improve" {
+  if (input.goal === "generate" || input.goal === "improve") return input.goal;
+  const hasExisting =
+    Boolean(input.existingTitle?.trim()) ||
+    Boolean(input.existingDescription?.trim()) ||
+    Boolean(input.existingShortDescription?.trim());
+  return hasExisting ? "improve" : "generate";
+}
 
-SEO_DESCRIPTION: ~150–160 characters. One natural sentence (or two very short ones) with benefit + light CTA or qualifier (“for …”, “with …”). Should read like a trustworthy snippet, not a keyword dump.
-
-BANNED: Generic phrases alone (“high quality”, “great value”, “perfect for everyone”) without tying to input. Repeated synonyms across fields. Fabricated stats.
-
-Plain text inside JSON strings only (no ** or HTML).`;
+function buildSystemPrompt(goal: "generate" | "improve", brandAppendix?: string) {
+  const mode = goal === "improve" ? SYSTEM_MODE_IMPROVE : SYSTEM_MODE_GENERATE;
+  const base = `${SYSTEM_BASE}\n\n${mode}`.trim();
+  return brandAppendix ? `${base}\n\n${brandAppendix}` : base;
+}
 
 function coerceProductCopy(data: unknown): ProductCopyResult | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
 
   const title = typeof o.title === "string" ? o.title.trim() : "";
+  const shortDesc =
+    typeof o.short_description === "string" ? o.short_description.trim() : "";
   const description =
     typeof o.description === "string" ? o.description.trim() : "";
   const bulletsRaw = Array.isArray(o.bullets) ? o.bullets : [];
@@ -57,6 +90,7 @@ function coerceProductCopy(data: unknown): ProductCopyResult | null {
 
   return {
     title: title || "Product",
+    short_description: shortDesc || undefined,
     description: description || "",
     bullets,
     seo_title: seo_title || title.slice(0, 60),
@@ -78,17 +112,23 @@ export async function generateProductCopy(args: {
   const openai = new OpenAI({ apiKey: args.openaiApiKey });
 
   const effectiveBrand = mergeBrandProfileForContent(undefined, args.brandProfile);
-  const systemContent =
+  const goal = pickGoal(args.input);
+  const brandAppendix =
     args.brandProfile && effectiveBrand.name.trim()
-      ? `${SYSTEM}\n\n${buildProductBrandIdentityAddendumEn(effectiveBrand)}`
-      : SYSTEM;
+      ? buildProductBrandIdentityAddendumEn(effectiveBrand)
+      : "";
+  const systemContent = buildSystemPrompt(goal, brandAppendix || undefined);
 
   const userPayload: Record<string, unknown> = {
     productName,
+    goal,
     productDetails: args.input.productDetails?.trim() || undefined,
     targetAudience: args.input.targetAudience?.trim() || undefined,
     tone: args.input.tone?.trim() || undefined,
     keyBenefits: args.input.keyBenefits?.trim() || undefined,
+    existingTitle: args.input.existingTitle?.trim() || undefined,
+    existingDescription: args.input.existingDescription?.trim() || undefined,
+    existingShortDescription: args.input.existingShortDescription?.trim() || undefined,
   };
 
   if (args.brandProfile) {
@@ -104,7 +144,7 @@ export async function generateProductCopy(args: {
 
   const completion = await openai.chat.completions.create({
     model: args.model ?? process.env.OPENAI_PRODUCT_MODEL ?? "gpt-4o-mini",
-    temperature: 0.45,
+    temperature: goal === "improve" ? 0.35 : 0.5,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: systemContent },
