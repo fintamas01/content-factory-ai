@@ -20,6 +20,7 @@ import Image from "next/image";
 import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { SIDEBAR_NAV_ITEMS, type SidebarNavId } from "@/lib/platform/navigation";
 import { SidebarPlanBadge } from "@/app/components/SidebarPlanBadge";
+import { ClientSwitcher } from "@/app/components/ClientSwitcher";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,6 +174,9 @@ export default function Sidebar({
         </div>
         <div className="pt-2">
           <SidebarPlanBadge />
+        </div>
+        <div className="pt-3">
+          <ClientSwitcher />
         </div>
       </div>
 
