@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, type ComponentType, type ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
+import { stripHtmlForAnalysis, type ProductHealthResult } from "@/lib/products/product-health";
 import {
   Loader2,
   Package,
@@ -17,6 +18,8 @@ import {
   Plug,
   RefreshCcw,
   Link as LinkIcon,
+  Activity,
+  Columns2,
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
@@ -79,7 +82,7 @@ export default function ProductGeniePage() {
   const m = MODULES.products;
   const [mode, setMode] = useState<"manual" | "store">("manual");
   const [activeTab, setActiveTab] = useState<
-    "description" | "bullets" | "seo" | "marketplace" | "sync"
+    "description" | "bullets" | "seo" | "marketplace" | "sync" | "compare"
   >("description");
 
   const [productName, setProductName] = useState("");
@@ -125,6 +128,17 @@ export default function ProductGeniePage() {
     short: true,
   });
 
+  const [healthResult, setHealthResult] = useState<ProductHealthResult | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [optimizeLoading, setOptimizeLoading] = useState(false);
+  const [wooInsights, setWooInsights] = useState<{
+    connected: boolean;
+    total: number;
+    needOptimization: number;
+    weakShort: number;
+    queue: Array<{ id: number; name: string; heuristicScore: number; sku?: string | null }>;
+  } | null>(null);
+
   useCopilotPageContext({
     page: "products",
     data: {
@@ -144,6 +158,7 @@ export default function ProductGeniePage() {
         selectedId: wooSelectedId ?? undefined,
         syncStatus: wooSyncStatus,
       },
+      healthScore: healthResult?.score,
       result,
       savedId,
     },
@@ -165,18 +180,24 @@ export default function ProductGeniePage() {
 
   useEffect(() => {
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from("user_brand_profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setUnifiedBrand(data ?? null);
+      const res = await fetch("/api/brand-profile");
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.profile) setUnifiedBrand(json.profile as UserBrandProfileRow);
+      else setUnifiedBrand(null);
     })();
   }, []);
+
+  useEffect(() => {
+    if (mode !== "store" || !wooConnected) {
+      setWooInsights(null);
+      return;
+    }
+    void (async () => {
+      const res = await fetch("/api/woocommerce/products/insights");
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) setWooInsights(json);
+    })();
+  }, [mode, wooConnected, wooLastRefreshAt]);
 
   useEffect(() => {
     (async () => {
@@ -346,6 +367,7 @@ export default function ProductGeniePage() {
       setExistingTitle(String(p?.name ?? ""));
       setExistingDescription(String(p?.description ?? ""));
       setExistingShortDescription(String(p?.short_description ?? ""));
+      setHealthResult(null);
       setWooSyncStatus({
         state: "ready",
         storeUrl: String(wooStoreUrl || ""),
@@ -355,6 +377,79 @@ export default function ProductGeniePage() {
       setError("Network error fetching product.");
     } finally {
       setWooProductLoading(false);
+    }
+  };
+
+  const runHealthAnalysis = async () => {
+    if (!wooSelectedId) {
+      setError("Select a WooCommerce product first.");
+      return;
+    }
+    setError(null);
+    setHealthLoading(true);
+    try {
+      const res = await fetch(`/api/woocommerce/products/${wooSelectedId}/health`, {
+        method: "POST",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (json.code === "USAGE_LIMIT") {
+          setError(
+            `${typeof json.error === "string" ? json.error : "Limit reached."} Upgrade on the Billing page for a higher quota.`
+          );
+          return;
+        }
+        setError(typeof json.error === "string" ? json.error : "Health analysis failed.");
+        return;
+      }
+      if (json.health) setHealthResult(json.health as ProductHealthResult);
+      setUsageBump((n) => n + 1);
+    } catch {
+      setError("Network error running health analysis.");
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  const runWooOptimize = async () => {
+    if (!wooSelectedId) {
+      setError("Select a WooCommerce product first.");
+      return;
+    }
+    setError(null);
+    setOptimizeLoading(true);
+    setResult(null);
+    setSavedId(null);
+    try {
+      const res = await fetch(`/api/woocommerce/products/${wooSelectedId}/optimize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ health: healthResult ?? undefined }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (json.code === "USAGE_LIMIT") {
+          setError(
+            `${typeof json.error === "string" ? json.error : "Limit reached."} Upgrade on the Billing page for a higher quota.`
+          );
+          return;
+        }
+        setError(typeof json.error === "string" ? json.error : "Optimization failed.");
+        return;
+      }
+      if (json.result) {
+        setResult(json.result as ProductCopyResult);
+        setActiveTab("compare");
+      } else {
+        setError("Unexpected response.");
+        return;
+      }
+      if (typeof json.savedId === "string") setSavedId(json.savedId);
+      setUsageBump((n) => n + 1);
+    } catch {
+      setError("Network error optimizing product.");
+    } finally {
+      setOptimizeLoading(false);
     }
   };
 
@@ -663,9 +758,11 @@ export default function ProductGeniePage() {
                         const n = Number(e.target.value);
                         if (!n) {
                           setWooSelectedId(null);
+                          setHealthResult(null);
                           return;
                         }
                         setWooSelectedId(n);
+                        setHealthResult(null);
                         void loadWooProduct(n);
                       }}
                       className="w-full rounded-2xl border border-white/[0.10] bg-black/30 px-4 py-3.5 text-sm font-semibold text-white outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-white/[0.14] focus:shadow-[0_0_0_3px_var(--ring)] cursor-pointer"
@@ -698,6 +795,114 @@ export default function ProductGeniePage() {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+
+                  {wooInsights?.connected ? (
+                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.06] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200/90">
+                            Optimization queue
+                          </p>
+                          <p className="mt-1 text-xs text-white/55 leading-relaxed">
+                            Heuristic preview — lowest scores first. Select a row to open the product.
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[10px] font-mono text-white/60">
+                          {wooInsights.total} synced
+                        </span>
+                      </div>
+                      <ul className="mt-3 max-h-48 space-y-1.5 overflow-y-auto pr-1">
+                        {wooInsights.queue.slice(0, 10).map((q) => (
+                          <li key={q.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWooSelectedId(q.id);
+                                setHealthResult(null);
+                                void loadWooProduct(q.id);
+                              }}
+                              className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
+                                wooSelectedId === q.id
+                                  ? "border-violet-400/40 bg-violet-500/15 text-white"
+                                  : "border-white/10 bg-black/25 text-white/75 hover:border-white/20"
+                              }`}
+                            >
+                              <span className="min-w-0 truncate font-semibold">{q.name}</span>
+                              <span className="shrink-0 font-mono text-[10px] text-white/45">
+                                {q.heuristicScore}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-200">
+                        <Activity className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200/90">
+                          Auto-optimization
+                        </p>
+                        <p className="mt-1 text-xs text-white/55 leading-relaxed">
+                          Analyze listing health, then generate improved copy aligned with your brand profile.
+                          Store updates are always explicit — use Sync / Update.
+                        </p>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            type="button"
+                            onClick={() => void runHealthAnalysis()}
+                            disabled={!wooSelectedId || healthLoading || optimizeLoading}
+                            variant="secondary"
+                            className="h-11 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.18em]"
+                          >
+                            {healthLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Activity className="h-4 w-4" />
+                            )}
+                            {healthLoading ? "Analyzing…" : "Analyze health"}
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => void runWooOptimize()}
+                            disabled={!wooSelectedId || optimizeLoading || healthLoading}
+                            variant="primary"
+                            className="h-11 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.18em]"
+                          >
+                            {optimizeLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-4 w-4" />
+                            )}
+                            {optimizeLoading ? "Generating…" : "Full optimize"}
+                          </Button>
+                        </div>
+                        {healthResult ? (
+                          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/80">
+                            <p className="font-mono text-[11px] text-emerald-200/90">
+                              Score {healthResult.score}/100
+                            </p>
+                            {healthResult.issues.length ? (
+                              <ul className="mt-2 list-disc space-y-1 pl-4 text-white/65">
+                                {healthResult.issues.slice(0, 4).map((i, idx) => (
+                                  <li key={`${idx}-${i.title}`}>
+                                    <span className="font-semibold text-white/85">{i.title}</span>
+                                    {i.impact ? (
+                                      <span className="text-white/45"> · {i.impact}</span>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -884,15 +1089,16 @@ export default function ProductGeniePage() {
 
               <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-4 sm:p-5 shadow-sm">
                 <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      { id: "description", label: "Description" },
-                      { id: "bullets", label: "Bullet points" },
-                      { id: "seo", label: "SEO" },
-                      { id: "marketplace", label: "Marketplace copy" },
-                      { id: "sync", label: "Sync / Update" },
-                    ] as const
-                  ).map((t) => (
+                  {[
+                    ...(mode === "store" && result && wooSelectedId
+                      ? [{ id: "compare" as const, label: "Compare" }]
+                      : []),
+                    { id: "description" as const, label: "Description" },
+                    { id: "bullets" as const, label: "Bullet points" },
+                    { id: "seo" as const, label: "SEO" },
+                    { id: "marketplace" as const, label: "Marketplace copy" },
+                    { id: "sync" as const, label: "Sync / Update" },
+                  ].map((t) => (
                     <button
                       key={t.id}
                       type="button"
@@ -908,6 +1114,131 @@ export default function ProductGeniePage() {
                   ))}
                 </div>
               </div>
+
+              {activeTab === "compare" && result && mode === "store" ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/60">
+                    <Columns2 className="h-4 w-4 text-violet-300" />
+                    <span>
+                      Current store copy vs AI proposal. Copy any block, then use{" "}
+                      <span className="font-semibold text-white/85">Sync / Update</span> to push changes explicitly.
+                    </span>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-4 sm:p-5">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                        Current (WooCommerce)
+                      </p>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">Title</p>
+                          <p className="text-sm font-semibold text-white">{existingTitle || "—"}</p>
+                          <button
+                            type="button"
+                            onClick={() => copy(existingTitle, "cur-title")}
+                            className="mt-2 text-xs font-bold text-violet-400 hover:text-violet-300"
+                          >
+                            {copiedKey === "cur-title" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">
+                            Short description
+                          </p>
+                          <p className="text-sm leading-relaxed text-white/75 whitespace-pre-wrap">
+                            {stripHtmlForAnalysis(existingShortDescription) || "—"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => copy(stripHtmlForAnalysis(existingShortDescription), "cur-short")}
+                            className="mt-2 text-xs font-bold text-violet-400 hover:text-violet-300"
+                          >
+                            {copiedKey === "cur-short" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">
+                            Long description
+                          </p>
+                          <p className="text-sm leading-relaxed text-white/75 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                            {stripHtmlForAnalysis(existingDescription) || "—"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => copy(stripHtmlForAnalysis(existingDescription), "cur-long")}
+                            className="mt-2 text-xs font-bold text-violet-400 hover:text-violet-300"
+                          >
+                            {copiedKey === "cur-long" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4 rounded-[24px] border border-violet-500/20 bg-violet-500/[0.06] p-4 sm:p-5">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200/90">
+                        AI proposal
+                      </p>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">Title</p>
+                          <p className="text-sm font-semibold text-white">{result.title}</p>
+                          <button
+                            type="button"
+                            onClick={() => copy(result.title, "ai-title")}
+                            className="mt-2 text-xs font-bold text-violet-400 hover:text-violet-300"
+                          >
+                            {copiedKey === "ai-title" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">
+                            Short description
+                          </p>
+                          <p className="text-sm leading-relaxed text-white/85 whitespace-pre-wrap">
+                            {result.short_description ?? "—"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => copy(result.short_description ?? "", "ai-short")}
+                            className="mt-2 text-xs font-bold text-violet-400 hover:text-violet-300"
+                          >
+                            {copiedKey === "ai-short" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">
+                            Long description
+                          </p>
+                          <p className="text-sm leading-relaxed text-white/85 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                            {result.description}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => copy(result.description, "ai-long")}
+                            className="mt-2 text-xs font-bold text-violet-400 hover:text-violet-300"
+                          >
+                            {copiedKey === "ai-long" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">
+                            Bullets
+                          </p>
+                          <ul className="space-y-2 text-sm text-white/85">
+                            {result.bullets.map((b, i) => (
+                              <li key={i}>• {b}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 mb-1">SEO</p>
+                          <p className="text-xs font-semibold text-white">{result.seo_title}</p>
+                          <p className="mt-1 text-xs text-white/70">{result.seo_description}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {activeTab === "description" ? (
                 <div className="space-y-6">
@@ -1085,13 +1416,39 @@ export default function ProductGeniePage() {
                           <span className="font-semibold">Short description</span>
                         </label>
                       </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <button
+                          type="button"
+                          onClick={() => updateInStore({ title: false, description: true, short: false })}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-white/[0.1]"
+                        >
+                          Long only
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateInStore({ title: false, description: false, short: true })}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-white/[0.1]"
+                        >
+                          Short only
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateInStore({ title: false, description: true, short: true })}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-white/[0.1]"
+                        >
+                          Both bodies
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        SEO title/description stay in-app for now; Woo SEO plugins often use separate meta fields — a dedicated sync hook can be added later.
+                      </p>
                       <button
                         type="button"
                         onClick={() => updateInStore(wooUpdateFields)}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-500"
                       >
                         <RefreshCcw className="h-4 w-4" />
-                        Update in store
+                        Update in store (selected fields)
                       </button>
                       {wooSyncStatus.state === "updated" ? (
                         <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">

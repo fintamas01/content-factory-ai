@@ -20,7 +20,40 @@ export function mapContentRow(row: Record<string, unknown>): HistoryListItem {
 
 export function mapProductRow(row: Record<string, unknown>): HistoryListItem {
   const name = String(row.product_name ?? "Product");
+  const inp = row.input_data as Record<string, unknown> | undefined;
+  const phase = typeof inp?.phase === "string" ? inp.phase : "";
   const out = row.output_data as Record<string, unknown> | undefined;
+
+  if (phase === "health_analysis" && out?.kind === "health_analysis") {
+    const health = out.health as Record<string, unknown> | undefined;
+    const score =
+      typeof health?.score === "number"
+        ? health.score
+        : Number(health?.score);
+    const scoreLabel = Number.isFinite(score) ? `${Math.round(score)}/100` : "—";
+    return {
+      id: String(row.id),
+      kind: "product",
+      title: `Product health · ${name}`,
+      preview: clip(`Score ${scoreLabel} · analysis saved`, 160),
+      created_at: String(row.created_at ?? ""),
+      data: row,
+    };
+  }
+
+  if (phase === "woo_optimize") {
+    const desc = typeof out?.description === "string" ? out.description : "";
+    const titleStr = typeof out?.title === "string" ? out.title : name;
+    return {
+      id: String(row.id),
+      kind: "product",
+      title: `Woo optimize · ${titleStr || name}`,
+      preview: clip(desc || titleStr, 160),
+      created_at: String(row.created_at ?? ""),
+      data: row,
+    };
+  }
+
   const desc = typeof out?.description === "string" ? out.description : "";
   const titleStr = typeof out?.title === "string" ? out.title : name;
   return {

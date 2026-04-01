@@ -96,6 +96,9 @@ export function buildProductBrandIdentityAddendumEn(b: EffectiveBrandProfile): s
   lines.push(
     `Write as if this PDP belongs to "${name}" — credible, human, specific; avoid corporate filler and repeated slogans.`
   );
+  lines.push(
+    "Match the buyer’s decision stage: above-the-fold copy earns the scroll; long copy earns trust with concrete, non-repetitive detail."
+  );
 
   if (b.desc.trim()) {
     lines.push(`What the brand stands for: ${b.desc.trim()}`);

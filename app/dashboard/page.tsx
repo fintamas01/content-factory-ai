@@ -27,6 +27,7 @@ import {
   mergeAndSort,
 } from "@/lib/history/map-rows";
 import type { GrowthAuditReport, GrowthSprintPlan } from "@/lib/site-audit/types";
+import { fetchWooOptimizationInsights } from "@/lib/woocommerce/insights";
 
 function pillClass(tone: "emerald" | "blue" | "violet" | "amber" | "zinc") {
   if (tone === "emerald")
@@ -148,7 +149,7 @@ export default async function PlatformDashboardPage() {
     );
   }
 
-  const [usage, latestAuditRes, recentRes, latestAutopilotRes] = await Promise.all([
+  const [usage, latestAuditRes, recentRes, latestAutopilotRes, wooInsights] = await Promise.all([
     buildUsageSummary(supabase, user.id, clientId),
     supabase
       .from("site_audit_runs")
@@ -202,6 +203,7 @@ export default async function PlatformDashboardPage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    fetchWooOptimizationInsights(supabase, clientId),
   ]);
 
   const latestAuditRow = latestAuditRes.data as
@@ -324,6 +326,43 @@ export default async function PlatformDashboardPage() {
           />
           </div>
         </section>
+
+        {wooInsights ? (
+          <section className="rounded-2xl border border-violet-500/15 bg-gradient-to-r from-violet-500/[0.07] to-transparent p-5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-500/25 bg-violet-500/10 text-violet-200">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
+                    Product listings
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold tracking-tight text-white">
+                    {wooInsights.needOptimization === 0
+                      ? "Synced catalog looks healthy"
+                      : `${wooInsights.needOptimization} product${wooInsights.needOptimization === 1 ? "" : "s"} may need optimization`}
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-500">
+                    {wooInsights.weakShort > 0
+                      ? `${wooInsights.weakShort} listing${wooInsights.weakShort === 1 ? "" : "s"} with a weak short description (heuristic). `
+                      : ""}
+                    {wooInsights.total > 0
+                      ? `${wooInsights.total} product${wooInsights.total === 1 ? "" : "s"} synced from WooCommerce.`
+                      : "Connect WooCommerce in Products to scan your catalog."}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard/products"
+                className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-violet-500 px-5 py-2.5 text-[11px] font-semibold text-violet-950 shadow-[0_18px_44px_-28px_rgba(139,92,246,0.55)] transition hover:bg-violet-400 active:scale-[0.98] sm:self-center"
+              >
+                Open Products
+                <ArrowRight className="h-3.5 w-3.5 opacity-80" />
+              </Link>
+            </div>
+          </section>
+        ) : null}
 
         {/* AutoPilot highlight */}
         <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
