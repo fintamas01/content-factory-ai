@@ -10,6 +10,7 @@ import {
 } from "@/lib/site-audit/pipeline";
 import { coerceReport } from "@/lib/site-audit/coerce-report";
 import type { GrowthAuditReport } from "@/lib/site-audit/types";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { buildAutopilotInsights, type AutopilotFocus } from "@/lib/autopilot/insights";
@@ -19,14 +20,14 @@ import {
   buildAutopilotInsightsUserPrompt,
 } from "@/lib/autopilot/prompt";
 
-async function getSupabase() {
+async function getRouteCtx() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnon =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
   if (!supabaseUrl || !supabaseAnon) return null;
   const cookieStore = await cookies();
-  return createServerClient(supabaseUrl, supabaseAnon, {
+  const supabase = createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -42,6 +43,7 @@ async function getSupabase() {
       },
     },
   });
+  return { supabase, cookieStore };
 }
 
 export async function POST(req: Request) {
@@ -53,10 +55,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = await getSupabase();
-    if (!supabase) {
+    const ctx = await getRouteCtx();
+    if (!ctx) {
       return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
     }
+    const { supabase, cookieStore } = ctx;
 
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user;
@@ -64,7 +67,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
 
-    const usageDenied = await enforceUsageLimit(supabase, user.id, "audit");
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "audit", clientId);
     if (usageDenied) return usageDenied;
 
     const body = await req.json().catch(() => ({}));
@@ -75,9 +86,11 @@ export async function POST(req: Request) {
       .from("autopilot_jobs")
       .select("*")
       .eq("id", jobId)
-      .eq("user_id", user.id)
       .maybeSingle();
     if (jobErr || !job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+    if (String((job as { client_id?: string }).client_id) !== clientId) {
+      return NextResponse.json({ error: "Job not found." }, { status: 404 });
+    }
     if (job.enabled === false) {
       return NextResponse.json({ error: "AutoPilot is disabled for this job." }, { status: 400 });
     }
@@ -184,6 +197,7 @@ export async function POST(req: Request) {
       .from("autopilot_results")
       .insert({
         user_id: user.id,
+        client_id: clientId,
         job_id: job.id,
         summary,
         insights: insights as unknown as Record<string, unknown>,
@@ -198,10 +212,9 @@ export async function POST(req: Request) {
     await supabase
       .from("autopilot_jobs")
       .update({ last_run_at: new Date().toISOString() })
-      .eq("id", job.id)
-      .eq("user_id", user.id);
+      .eq("id", job.id);
 
-    await incrementUsage(supabase, "audit");
+    await incrementUsage(supabase, "audit", clientId);
 
     return NextResponse.json({ ok: true, result: saved });
   } catch (e) {

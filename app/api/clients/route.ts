@@ -47,13 +47,27 @@ export async function GET() {
   const active = await requireActiveClientId(supabase, cookieStore, user.id);
 
   const { data, error } = await supabase
-    .from("clients")
-    .select("id, name, website_url, created_at")
+    .from("client_members")
+    .select("role, clients(id, name, website_url, created_at, user_id)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: "Failed to load clients." }, { status: 500 });
 
-  return NextResponse.json({ clients: data ?? [], activeClientId: active.clientId });
+  const clients = (data ?? []).map((row: Record<string, unknown>) => {
+    const c = row.clients as Record<string, unknown> | null;
+    const role = typeof row.role === "string" ? row.role : "member";
+    if (!c?.id) return null;
+    return {
+      id: c.id,
+      name: c.name,
+      website_url: c.website_url ?? null,
+      created_at: c.created_at,
+      owner_user_id: c.user_id,
+      role,
+    };
+  }).filter(Boolean);
+
+  return NextResponse.json({ clients, activeClientId: active.clientId });
 }
 
 export async function POST(req: Request) {
@@ -116,7 +130,6 @@ export async function PATCH(req: Request) {
     .from("clients")
     .update(patch)
     .eq("id", id)
-    .eq("user_id", user.id)
     .select("id, name, website_url, created_at")
     .maybeSingle();
   if (error) return NextResponse.json({ error: "Could not update client." }, { status: 500 });

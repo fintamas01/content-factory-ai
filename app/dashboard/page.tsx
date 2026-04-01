@@ -17,6 +17,7 @@ import {
   PanelRight,
 } from "lucide-react";
 import { MODULES, PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { buildUsageSummary } from "@/lib/usage/usage-service";
 import {
   mapAuditRow,
@@ -135,12 +136,24 @@ export default async function PlatformDashboardPage() {
     );
   }
 
+  let clientId: string;
+  try {
+    const active = await requireActiveClientId(supabase, cookieStore, user.id);
+    clientId = active.clientId;
+  } catch {
+    return (
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        <p className="text-slate-500">Could not resolve active client.</p>
+      </div>
+    );
+  }
+
   const [usage, latestAuditRes, recentRes, latestAutopilotRes] = await Promise.all([
-    buildUsageSummary(supabase, user.id),
+    buildUsageSummary(supabase, user.id, clientId),
     supabase
       .from("site_audit_runs")
       .select("id, page_url, report, created_at, signals")
-      .eq("user_id", user.id)
+      .eq("client_id", clientId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -150,25 +163,25 @@ export default async function PlatformDashboardPage() {
         supabase
           .from("generations")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("client_id", clientId)
           .order("created_at", { ascending: false })
           .limit(LIMIT),
         supabase
           .from("product_generations")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("client_id", clientId)
           .order("created_at", { ascending: false })
           .limit(LIMIT),
         supabase
           .from("site_audit_runs")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("client_id", clientId)
           .order("created_at", { ascending: false })
           .limit(LIMIT),
         supabase
           .from("matrix_generations")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("client_id", clientId)
           .order("created_at", { ascending: false })
           .limit(LIMIT),
       ]);
@@ -185,7 +198,7 @@ export default async function PlatformDashboardPage() {
     supabase
       .from("autopilot_results")
       .select("id, summary, insights, created_at")
-      .eq("user_id", user.id)
+      .eq("client_id", clientId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),

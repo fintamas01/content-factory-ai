@@ -8,6 +8,7 @@ import {
   mapProductRow,
   mergeAndSort,
 } from "@/lib/history/map-rows";
+import { requireActiveClientId } from "@/lib/clients/server";
 import type { HistoryKind } from "@/lib/history/types";
 
 const LIMIT = 120;
@@ -51,29 +52,37 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const [genRes, prodRes, auditRes, matrixRes] = await Promise.all([
       supabase
         .from("generations")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(LIMIT),
       supabase
         .from("product_generations")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(LIMIT),
       supabase
         .from("site_audit_runs")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(LIMIT),
       supabase
         .from("matrix_generations")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(LIMIT),
     ]);

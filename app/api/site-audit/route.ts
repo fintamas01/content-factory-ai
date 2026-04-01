@@ -10,6 +10,7 @@ import {
   synthesizeReport,
 } from "@/lib/site-audit/pipeline";
 import type { GrowthAuditReport } from "@/lib/site-audit/types";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 
@@ -58,7 +59,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
 
-    const usageDenied = await enforceUsageLimit(supabase, user.id, "audit");
+    let activeClientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      activeClientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "audit", activeClientId);
     if (usageDenied) return usageDenied;
 
     const body = await req.json().catch(() => ({}));
@@ -141,8 +150,6 @@ export async function POST(req: Request) {
     // Ensure coerce in case synthesis returned edge shapes (defensive)
     const normalized = coerceReport(report as unknown) ?? report;
 
-    await incrementUsage(supabase, "audit");
-
     const signalsPayload = {
       url: signals.url,
       title: signals.title,
@@ -156,6 +163,7 @@ export async function POST(req: Request) {
       .from("site_audit_runs")
       .insert({
         user_id: user.id,
+        client_id: activeClientId,
         page_url: signals.url,
         report: normalized as unknown as Record<string, unknown>,
         signals: signalsPayload,
@@ -163,6 +171,8 @@ export async function POST(req: Request) {
       .select("id")
       .maybeSingle();
     if (saveAuditErr) console.error("site_audit_runs insert:", saveAuditErr);
+
+    await incrementUsage(supabase, "audit", activeClientId);
 
     return NextResponse.json({
       report: normalized,

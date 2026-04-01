@@ -1,15 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 
-async function getSupabase() {
+async function getRouteCtx() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnon =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
   if (!supabaseUrl || !supabaseAnon) return null;
   const cookieStore = await cookies();
-  return createServerClient(supabaseUrl, supabaseAnon, {
+  const supabase = createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -25,16 +26,26 @@ async function getSupabase() {
       },
     },
   });
+  return { supabase, cookieStore };
 }
 
 export async function GET(req: Request) {
-  const supabase = await getSupabase();
-  if (!supabase) {
+  const ctx = await getRouteCtx();
+  if (!ctx) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
+  const { supabase, cookieStore } = ctx;
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  let clientId: string;
+  try {
+    const active = await requireActiveClientId(supabase, cookieStore, user.id);
+    clientId = active.clientId;
+  } catch {
+    return NextResponse.json({ error: "No active client." }, { status: 400 });
+  }
 
   const { searchParams } = new URL(req.url);
   const jobId = searchParams.get("jobId");
@@ -43,7 +54,7 @@ export async function GET(req: Request) {
   let q = supabase
     .from("autopilot_results")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("client_id", clientId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -53,4 +64,3 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: "Failed to load results." }, { status: 500 });
   return NextResponse.json({ results: data ?? [] });
 }
-

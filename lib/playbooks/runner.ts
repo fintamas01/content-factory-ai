@@ -97,6 +97,7 @@ export async function runPlaybook(args: {
   params: PlaybookRunParams;
   supabase: SupabaseClient;
   userId: string;
+  clientId: string;
 }): Promise<PlaybookRunResult> {
   const def = getPlaybookDefinition(args.playbookId);
   if (!def) throw new Error("Unknown playbook.");
@@ -255,7 +256,11 @@ export async function runPlaybook(args: {
             typeof args.params.product_name === "string" ? args.params.product_name.trim() : "";
           if (!productName) throw new Error("Product name is required.");
 
-          const unified = await fetchUserBrandProfile(args.supabase, args.userId);
+          const unified = await fetchUserBrandProfile(
+            args.supabase,
+            args.userId,
+            args.clientId
+          );
           const gen = await generateProductCopy({
             input: { productName },
             brandProfile: unified,

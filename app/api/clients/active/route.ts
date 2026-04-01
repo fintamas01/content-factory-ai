@@ -39,12 +39,7 @@ export async function POST(req: Request) {
   const clientId = typeof body?.clientId === "string" ? body.clientId : "";
   if (!clientId) return NextResponse.json({ error: "Missing clientId." }, { status: 400 });
 
-  const { data, error } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("id", clientId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data, error } = await supabase.from("clients").select("id").eq("id", clientId).maybeSingle();
   if (error || !data?.id) return NextResponse.json({ error: "Client not found." }, { status: 404 });
 
   cookieStore.set(ACTIVE_CLIENT_COOKIE, clientId, { path: "/", sameSite: "lax" });

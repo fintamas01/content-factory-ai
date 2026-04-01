@@ -1,15 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 
-async function getSupabase() {
+async function getRouteCtx() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnon =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
   if (!supabaseUrl || !supabaseAnon) return null;
   const cookieStore = await cookies();
-  return createServerClient(supabaseUrl, supabaseAnon, {
+  const supabase = createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -25,34 +26,53 @@ async function getSupabase() {
       },
     },
   });
+  return { supabase, cookieStore };
 }
 
 export async function GET() {
-  const supabase = await getSupabase();
-  if (!supabase) {
+  const ctx = await getRouteCtx();
+  if (!ctx) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
+  const { supabase, cookieStore } = ctx;
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
+  let clientId: string;
+  try {
+    const active = await requireActiveClientId(supabase, cookieStore, user.id);
+    clientId = active.clientId;
+  } catch {
+    return NextResponse.json({ error: "No active client." }, { status: 400 });
+  }
+
   const { data, error } = await supabase
     .from("autopilot_jobs")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("client_id", clientId)
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Failed to load jobs." }, { status: 500 });
   return NextResponse.json({ jobs: data ?? [] });
 }
 
 export async function POST(req: Request) {
-  const supabase = await getSupabase();
-  if (!supabase) {
+  const ctx = await getRouteCtx();
+  if (!ctx) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
+  const { supabase, cookieStore } = ctx;
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  let clientId: string;
+  try {
+    const active = await requireActiveClientId(supabase, cookieStore, user.id);
+    clientId = active.clientId;
+  } catch {
+    return NextResponse.json({ error: "No active client." }, { status: 400 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const url = typeof body?.url === "string" ? body.url.trim() : "";
@@ -74,6 +94,7 @@ export async function POST(req: Request) {
     .from("autopilot_jobs")
     .insert({
       user_id: user.id,
+      client_id: clientId,
       url,
       competitors,
       frequency,
@@ -87,13 +108,20 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const supabase = await getSupabase();
-  if (!supabase) {
+  const ctx = await getRouteCtx();
+  if (!ctx) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
+  const { supabase, cookieStore } = ctx;
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  try {
+    await requireActiveClientId(supabase, cookieStore, user.id);
+  } catch {
+    return NextResponse.json({ error: "No active client." }, { status: 400 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const id = typeof body?.id === "string" ? body.id : null;
@@ -126,7 +154,6 @@ export async function PATCH(req: Request) {
     .from("autopilot_jobs")
     .update(patch)
     .eq("id", id)
-    .eq("user_id", user.id)
     .select("*")
     .maybeSingle();
   if (error) return NextResponse.json({ error: "Could not update job." }, { status: 500 });
@@ -134,24 +161,26 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const supabase = await getSupabase();
-  if (!supabase) {
+  const ctx = await getRouteCtx();
+  if (!ctx) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
+  const { supabase, cookieStore } = ctx;
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  try {
+    await requireActiveClientId(supabase, cookieStore, user.id);
+  } catch {
+    return NextResponse.json({ error: "No active client." }, { status: 400 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const id = typeof body?.id === "string" ? body.id : null;
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
 
-  const { error } = await supabase
-    .from("autopilot_jobs")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
+  const { error } = await supabase.from("autopilot_jobs").delete().eq("id", id);
   if (error) return NextResponse.json({ error: "Could not delete." }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
-

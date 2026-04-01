@@ -62,12 +62,14 @@ type UsageRow = {
 export async function getCurrentUsage(
   supabase: SupabaseClient,
   userId: string,
-  monthKey: string
+  monthKey: string,
+  clientId: string
 ): Promise<MonthlyUsageCounts> {
   const { data, error } = await supabase
     .from("monthly_usage")
     .select("content_count, product_count, audit_count")
     .eq("user_id", userId)
+    .eq("client_id", clientId)
     .eq("month_key", monthKey)
     .maybeSingle();
 
@@ -101,22 +103,24 @@ function limitForFeature(
 
 export async function buildUsageSummary(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  clientId: string
 ): Promise<UsageSummary> {
   const monthKey = getCurrentMonthKeyUtc();
   const sub = await fetchSubscriptionRow(supabase, userId);
   const plan = getUserPlanTier(sub);
   const limits = getSaasLimitsForTier(plan);
-  const usage = await getCurrentUsage(supabase, userId, monthKey);
+  const usage = await getCurrentUsage(supabase, userId, monthKey, clientId);
   return { monthKey, plan, limits, usage };
 }
 
 export async function canUseFeature(
   supabase: SupabaseClient,
   userId: string,
-  feature: UsageFeature
+  feature: UsageFeature,
+  clientId: string
 ): Promise<UsageCheckResult> {
-  const summary = await buildUsageSummary(supabase, userId);
+  const summary = await buildUsageSummary(supabase, userId, clientId);
   const used = countForFeature(summary.usage, feature);
   const cap = limitForFeature(summary.limits, feature);
   if (used >= cap) {
@@ -136,10 +140,12 @@ export async function canUseFeature(
 
 export async function incrementUsage(
   supabase: SupabaseClient,
-  feature: UsageFeature
+  feature: UsageFeature,
+  clientId: string
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.rpc("increment_monthly_usage", {
     p_feature: feature,
+    p_client_id: clientId,
   });
   if (error) {
     console.error("increment_monthly_usage:", error);

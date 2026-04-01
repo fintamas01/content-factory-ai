@@ -3,12 +3,14 @@ import type { UserBrandProfileRow } from "./types";
 
 export async function fetchUserBrandProfile(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  clientId: string
 ): Promise<UserBrandProfileRow | null> {
   const { data, error } = await supabase
     .from("user_brand_profiles")
     .select("*")
     .eq("user_id", userId)
+    .eq("client_id", clientId)
     .maybeSingle();
 
   if (error) {

@@ -24,25 +24,21 @@ export async function requireActiveClientId(
       .from("clients")
       .select("id, user_id, name, website_url, created_at")
       .eq("id", fromCookie)
-      .eq("user_id", userId)
       .maybeSingle();
     if (!error && data?.id) return { clientId: data.id, client: data as ClientRow };
   }
 
-  // Fallback: first client for user (or create a Default client if none exist yet).
-  const { data: first, error: firstErr } = await supabase
-    .from("clients")
-    .select("id, user_id, name, website_url, created_at")
+  // Fallback: first workspace membership (or create a Default client if none exist yet).
+  const { data: membership, error: memErr } = await supabase
+    .from("client_members")
+    .select("clients(id, user_id, name, website_url, created_at)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  let active = first as ClientRow | null;
-  if (firstErr) {
-    // ignore and try create
-    active = null;
-  }
+  const nested = membership as { clients: ClientRow | null } | null;
+  let active = (!memErr && nested?.clients?.id ? nested.clients : null) as ClientRow | null;
 
   if (!active?.id) {
     const { data: created, error: createErr } = await supabase

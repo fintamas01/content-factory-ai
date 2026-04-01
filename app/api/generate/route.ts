@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getBrandMemory, saveBrandMemory } from "@/lib/agent/brand-memory";
 import { fetchUserBrandProfile } from "@/lib/brand-profile/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { mergeBrandProfileForContent } from "@/lib/brand-profile/merge";
 import {
   buildContentBrandCritiqueHintHu,
@@ -103,6 +104,14 @@ export async function POST(req: Request) {
       );
     }
 
+    let activeClientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      activeClientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const { content, tone, lang, platforms, brandProfile, useResearch } =
       await req.json();
 
@@ -117,7 +126,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const unifiedProfile = await fetchUserBrandProfile(supabase, user.id);
+    const unifiedProfile = await fetchUserBrandProfile(supabase, user.id, activeClientId);
     const effectiveBrand = mergeBrandProfileForContent(brandProfile, unifiedProfile);
     if (!effectiveBrand.name.trim()) {
       return NextResponse.json(
@@ -130,7 +139,7 @@ export async function POST(req: Request) {
     }
     const contentBrandSection = buildContentBrandSystemSectionHu(effectiveBrand);
 
-    const usageDenied = await enforceUsageLimit(supabase, user.id, "content");
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "content", activeClientId);
     if (usageDenied) return usageDenied;
 
     let memoryBlock = "Nincs korábbi memória.";
@@ -271,7 +280,7 @@ Add vissza KIZÁRÓLAG JSON-t:
       console.error("Critique JSON parse hiba. RAW:", critiqueRaw);
       // ha a critique elhasal, még mindig visszaadhatjuk a draftot
       // de próbáljunk továbbmenni drafttal
-      await incrementUsage(supabase, "content");
+      await incrementUsage(supabase, "content", activeClientId);
       return NextResponse.json(draft);
     }
     const critique = critiqueParsed.value;
@@ -307,7 +316,7 @@ Feladat: írd újra a posztokat úgy, hogy a score minél közelebb legyen 100-h
     const finalParsed = safeJsonParse(finalRaw);
     if (!finalParsed.ok) {
       console.error("Final JSON parse hiba. RAW:", finalRaw);
-      await incrementUsage(supabase, "content");
+      await incrementUsage(supabase, "content", activeClientId);
       // fallback: draft
       return NextResponse.json(draft);
     }
@@ -320,6 +329,7 @@ Feladat: írd újra a posztokat úgy, hogy a score minél közelebb legyen 100-h
         tone,
         results: result,
         user_id: user.id,
+        client_id: activeClientId,
         metadata: {
           research: !!useResearch,
           model,
@@ -358,7 +368,7 @@ Feladat: írd újra a posztokat úgy, hogy a score minél közelebb legyen 100-h
       console.error("Brand memory mentés hiba:", e);
     }
 
-    await incrementUsage(supabase, "content");
+    await incrementUsage(supabase, "content", activeClientId);
 
     // visszaadjuk a FINAL posztot + opcionálisan a score-t (ha UI-ban akarod mutatni)
     return NextResponse.json({

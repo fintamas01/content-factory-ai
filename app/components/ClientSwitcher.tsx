@@ -11,12 +11,14 @@ import {
   Plus,
   X,
 } from "lucide-react";
+import { canManageClientSettings, parseClientRole } from "@/lib/clients/roles";
 
 type Client = {
   id: string;
   name: string;
   website_url: string | null;
   created_at: string;
+  role?: string;
 };
 
 export function ClientSwitcher({ className = "" }: { className?: string }) {
@@ -376,15 +378,19 @@ export function ClientSwitcher({ className = "" }: { className?: string }) {
                             <p className="truncate text-[11px] text-white/45">{c.website_url}</p>
                           ) : null}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => openRename(c)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/60 opacity-0 transition group-hover:opacity-100 hover:text-white"
-                          aria-label="Rename client"
-                          disabled={busy}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
+                        {canManageClientSettings(
+                          parseClientRole(c.role) ?? "owner"
+                        ) ? (
+                          <button
+                            type="button"
+                            onClick={() => openRename(c)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/60 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                            aria-label="Rename client"
+                            disabled={busy}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })

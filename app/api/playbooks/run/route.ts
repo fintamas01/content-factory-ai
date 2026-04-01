@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { getPlaybookDefinition } from "@/lib/playbooks/definitions";
@@ -50,6 +51,14 @@ export async function POST(req: Request) {
     const user = authData?.user;
     if (!user) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
 
+    let activeClientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      activeClientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const playbook_id = typeof body?.playbook_id === "string" ? body.playbook_id : "";
     const params = body?.params && typeof body.params === "object" ? body.params : {};
@@ -58,7 +67,12 @@ export async function POST(req: Request) {
     const def = getPlaybookDefinition(playbook_id);
     if (!def) return badRequest("Unknown playbook_id.");
 
-    const usageDenied = await enforceUsageLimit(supabase, user.id, def.usageFeature);
+    const usageDenied = await enforceUsageLimit(
+      supabase,
+      user.id,
+      def.usageFeature,
+      activeClientId
+    );
     if (usageDenied) return usageDenied;
 
     const result = await runPlaybook({
@@ -66,9 +80,10 @@ export async function POST(req: Request) {
       params,
       supabase,
       userId: user.id,
+      clientId: activeClientId,
     });
 
-    await incrementUsage(supabase, def.usageFeature);
+    await incrementUsage(supabase, def.usageFeature, activeClientId);
 
     return NextResponse.json({ ok: true, result }, { status: 200 });
   } catch (e: any) {

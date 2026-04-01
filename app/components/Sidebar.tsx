@@ -14,6 +14,7 @@ import {
   Palette,
   Sparkles,
   Orbit,
+  Users,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
@@ -37,6 +38,7 @@ const SIDEBAR_ICONS: Record<
   ComponentType<{ className?: string }>
 > = {
   dashboard: LayoutDashboard,
+  team: Users,
   autopilot: Orbit,
   playbooks: Sparkles,
   brand: Palette,

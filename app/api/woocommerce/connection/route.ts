@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
@@ -42,10 +43,18 @@ export async function GET() {
     const user = authData?.user;
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from("woocommerce_connections")
       .select("store_url, created_at, updated_at")
-      .eq("user_id", user.id)
+      .eq("client_id", clientId)
       .maybeSingle();
     if (error) {
       console.error("woocommerce connection fetch:", error);
@@ -88,6 +97,14 @@ export async function POST(req: Request) {
     const user = authData?.user;
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const store_url = typeof body?.store_url === "string" ? body.store_url : "";
     const consumer_key = typeof body?.consumer_key === "string" ? body.consumer_key : "";
@@ -100,6 +117,7 @@ export async function POST(req: Request) {
 
     const row = {
       user_id: user.id,
+      client_id: clientId,
       store_url: normalizeStoreUrl(store_url),
       consumer_key: consumer_key.trim(),
       consumer_secret: consumer_secret.trim(),
@@ -107,7 +125,7 @@ export async function POST(req: Request) {
 
     const { error } = await supabase
       .from("woocommerce_connections")
-      .upsert(row, { onConflict: "user_id" });
+      .upsert(row, { onConflict: "user_id,client_id" });
     if (error) {
       console.error("woocommerce connection upsert:", error);
       return NextResponse.json({ error: "Could not save connection." }, { status: 500 });
@@ -153,10 +171,18 @@ export async function DELETE() {
     const user = authData?.user;
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const { error } = await supabase
       .from("woocommerce_connections")
       .delete()
-      .eq("user_id", user.id);
+      .eq("client_id", clientId);
     if (error) {
       console.error("woocommerce connection delete:", error);
       return NextResponse.json({ error: "Could not disconnect." }, { status: 500 });

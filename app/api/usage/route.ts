@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { buildUsageSummary } from "@/lib/usage/usage-service";
 
 export async function GET() {
@@ -42,7 +43,15 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const summary = await buildUsageSummary(supabase, user.id);
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
+    const summary = await buildUsageSummary(supabase, user.id, clientId);
     return NextResponse.json(summary);
   } catch (e) {
     console.error("GET /api/usage:", e);

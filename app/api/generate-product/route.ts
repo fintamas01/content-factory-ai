@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { ProductCopyResult } from "@/lib/products/types";
 import { fetchUserBrandProfile } from "@/lib/brand-profile/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { generateProductCopy } from "@/lib/products/generate-product-copy";
@@ -52,7 +53,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
 
-    const usageDenied = await enforceUsageLimit(supabase, user.id, "product");
+    let activeClientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      activeClientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
+    const usageDenied = await enforceUsageLimit(supabase, user.id, "product", activeClientId);
     if (usageDenied) return usageDenied;
 
     const body = await req.json().catch(() => ({}));
@@ -101,7 +110,7 @@ export async function POST(req: Request) {
       sourceMeta,
     };
 
-    const unified = await fetchUserBrandProfile(supabase, user.id);
+    const unified = await fetchUserBrandProfile(supabase, user.id, activeClientId);
     const gen = await generateProductCopy({
       input: {
         productName,
@@ -130,6 +139,7 @@ export async function POST(req: Request) {
       .from("product_generations")
       .insert({
         user_id: user.id,
+        client_id: activeClientId,
         product_name: productName,
         input_data,
         output_data: result,
@@ -143,7 +153,7 @@ export async function POST(req: Request) {
       savedId = inserted.id;
     }
 
-    await incrementUsage(supabase, "product");
+    await incrementUsage(supabase, "product", activeClientId);
 
     return NextResponse.json({ result, savedId });
   } catch (e) {

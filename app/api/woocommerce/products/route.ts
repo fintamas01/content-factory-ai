@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { requireActiveClientId } from "@/lib/clients/server";
 import { wooFetch, type WooProductListItem } from "@/lib/woocommerce/client";
 
 function badRequest(message: string) {
@@ -37,10 +38,18 @@ export async function GET(req: Request) {
     const user = authData?.user;
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    let clientId: string;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      clientId = active.clientId;
+    } catch {
+      return NextResponse.json({ error: "No active client." }, { status: 400 });
+    }
+
     const { data: conn, error: connErr } = await supabase
       .from("woocommerce_connections")
       .select("store_url, consumer_key, consumer_secret")
-      .eq("user_id", user.id)
+      .eq("client_id", clientId)
       .maybeSingle();
     if (connErr) {
       console.error("woocommerce conn read:", connErr);

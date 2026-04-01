@@ -20,9 +20,10 @@ export type UsageLimitBody = {
 export async function enforceUsageLimit(
   supabase: SupabaseClient,
   userId: string,
-  feature: UsageFeature
+  feature: UsageFeature,
+  clientId: string
 ): Promise<NextResponse | null> {
-  const check = await canUseFeature(supabase, userId, feature);
+  const check = await canUseFeature(supabase, userId, feature, clientId);
   if (check.allowed) return null;
 
   const s = check.summary;
