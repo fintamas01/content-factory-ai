@@ -102,7 +102,9 @@ export default function ProductGeniePage() {
   const [wooCk, setWooCk] = useState("");
   const [wooCs, setWooCs] = useState("");
   const [wooSaving, setWooSaving] = useState(false);
+  const [wooEditing, setWooEditing] = useState(false);
   const [wooLoadingList, setWooLoadingList] = useState(false);
+  const [wooLastRefreshAt, setWooLastRefreshAt] = useState<string | null>(null);
   const [wooQuery, setWooQuery] = useState("");
   const [wooItems, setWooItems] = useState<Array<any>>([]);
   const [wooSelectedId, setWooSelectedId] = useState<number | null>(null);
@@ -113,6 +115,11 @@ export default function ProductGeniePage() {
     | { state: "updated"; fields: string[]; at: string }
     | { state: "error"; message: string }
   >({ state: "idle" });
+  const [wooUpdateFields, setWooUpdateFields] = useState({
+    title: true,
+    description: true,
+    short: true,
+  });
 
   const canGenerate = useMemo(() => {
     if (mode === "manual") return productName.trim().length > 0;
@@ -150,6 +157,7 @@ export default function ProductGeniePage() {
       if (res.ok && json.connected) {
         setWooConnected(true);
         if (typeof json.connection?.store_url === "string") setWooStoreUrl(json.connection.store_url);
+        setWooEditing(false);
       } else {
         setWooConnected(false);
       }
@@ -233,11 +241,35 @@ export default function ProductGeniePage() {
         return;
       }
       setWooConnected(true);
+      setWooEditing(false);
       setWooCk("");
       setWooCs("");
       setWooSyncStatus({ state: "idle" });
     } catch {
       setError("Network error connecting store.");
+    } finally {
+      setWooSaving(false);
+    }
+  };
+
+  const disconnectWoo = async () => {
+    setError(null);
+    setWooSaving(true);
+    try {
+      const res = await fetch("/api/woocommerce/connection", { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof json.error === "string" ? json.error : "Could not disconnect.");
+        return;
+      }
+      setWooConnected(false);
+      setWooEditing(false);
+      setWooItems([]);
+      setWooSelectedId(null);
+      setWooQuery("");
+      setWooSyncStatus({ state: "idle" });
+    } catch {
+      setError("Network error disconnecting store.");
     } finally {
       setWooSaving(false);
     }
@@ -256,6 +288,7 @@ export default function ProductGeniePage() {
         return;
       }
       setWooItems(Array.isArray(json.items) ? json.items : []);
+      setWooLastRefreshAt(new Date().toISOString());
     } catch {
       setError("Network error fetching products.");
     } finally {
@@ -357,32 +390,40 @@ export default function ProductGeniePage() {
       <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
         {/* Left: Source + inputs */}
         <div className="space-y-6">
-          <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
+          <div className="relative overflow-hidden rounded-[28px] border border-slate-200 dark:border-white/[0.10] bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
+              aria-hidden
+              style={{
+                background:
+                  "radial-gradient(1000px 420px at 35% -10%, rgba(124,58,237,0.18), transparent 55%), radial-gradient(900px 420px at 110% 10%, rgba(59,130,246,0.12), transparent 52%)",
+              }}
+            />
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-violet-500 mb-1">
+              <div className="relative">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-500 mb-1">
                   {m.productName}
                 </p>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white uppercase italic">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                   Product AI workspace
                 </h1>
-                <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium text-sm">
+                <p className="mt-2 text-slate-500 dark:text-slate-300/80 font-medium text-sm leading-relaxed">
                   Generate or optimize listings. Manual or connected store.
                 </p>
               </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-600">
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-500/15 bg-violet-600/10 text-violet-600 dark:text-violet-300 shadow-inner">
                 <Package className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="mt-5 flex gap-2">
+            <div className="relative mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-black/25 p-2">
               <button
                 type="button"
                 onClick={() => setMode("manual")}
-                className={`flex-1 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
+                className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
                   mode === "manual"
-                    ? "bg-violet-600 text-white shadow-lg shadow-violet-600/25"
-                    : "border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
+                    ? "bg-violet-600 text-white shadow-[0_18px_50px_-28px_rgba(124,58,237,0.75)]"
+                    : "text-slate-600 dark:text-slate-200/80 hover:bg-white/70 dark:hover:bg-white/[0.06]"
                 }`}
               >
                 Manual
@@ -390,10 +431,10 @@ export default function ProductGeniePage() {
               <button
                 type="button"
                 onClick={() => setMode("store")}
-                className={`flex-1 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
+                className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
                   mode === "store"
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
-                    : "border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
+                    ? "bg-blue-600 text-white shadow-[0_18px_50px_-28px_rgba(37,99,235,0.7)]"
+                    : "text-slate-600 dark:text-slate-200/80 hover:bg-white/70 dark:hover:bg-white/[0.06]"
                 }`}
               >
                 Connected store
@@ -402,30 +443,47 @@ export default function ProductGeniePage() {
           </div>
 
           {mode === "store" ? (
-            <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
+            <div className="relative overflow-hidden rounded-[28px] border border-slate-200 dark:border-white/[0.10] bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
+                aria-hidden
+                style={{
+                  background:
+                    "radial-gradient(950px 420px at 20% -10%, rgba(59,130,246,0.16), transparent 55%), radial-gradient(900px 420px at 120% 20%, rgba(16,185,129,0.10), transparent 60%)",
+                }}
+              />
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-600 dark:text-blue-400">
+                <div className="relative flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-500/15 bg-blue-600/10 text-blue-600 dark:text-blue-300 shadow-inner">
                     <Plug className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
                       WooCommerce
                     </p>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
                       Store connection
                     </h3>
                   </div>
                 </div>
                 {wooConnected && wooStoreUrl ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
                     <LinkIcon className="h-3.5 w-3.5" /> Connected
                   </span>
                 ) : null}
               </div>
 
-              {!wooConnected ? (
+              {!wooConnected || wooEditing ? (
                 <div className="mt-5 grid gap-4">
+                  {wooConnected ? (
+                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
+                      You’re updating connection details. This won’t change anything until you save.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 leading-relaxed">
+                      Connect your WooCommerce store to sync products and push updates back safely.
+                    </div>
+                  )}
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
                       Store URL
@@ -462,52 +520,106 @@ export default function ProductGeniePage() {
                       disabled={wooSaving}
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={connectWoo}
-                    disabled={wooSaving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/25 hover:bg-blue-500 disabled:opacity-50 transition-colors w-full"
-                  >
-                    {wooSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-                    {wooSaving ? "Saving…" : "Connect store"}
-                  </button>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={connectWoo}
+                      disabled={wooSaving}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-[0_18px_50px_-28px_rgba(37,99,235,0.8)] hover:bg-blue-500 disabled:opacity-50 transition-colors w-full"
+                    >
+                      {wooSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plug className="h-4 w-4" />
+                      )}
+                      {wooSaving ? "Saving…" : wooConnected ? "Save changes" : "Connect store"}
+                    </button>
+                    {wooConnected ? (
+                      <button
+                        type="button"
+                        onClick={() => setWooEditing(false)}
+                        disabled={wooSaving}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition-colors w-full"
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Credentials are stored in your Supabase project with row-level security. For production hardening, encrypt secrets at rest.
+                    Stored in your Supabase project with row-level security. For additional hardening,
+                    encrypt secrets at rest.
                   </p>
                 </div>
               ) : (
                 <div className="mt-5 grid gap-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Connected to
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Connected domain
+                    </p>
+                    <p className="mt-1 truncate text-sm font-mono text-slate-700 dark:text-slate-300">
+                      {wooStoreUrl}
+                    </p>
+                    {wooLastRefreshAt ? (
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Last refreshed{" "}
+                        <span className="font-mono">
+                          {new Date(wooLastRefreshAt).toLocaleString()}
+                        </span>
                       </p>
-                      <p className="mt-1 truncate text-sm font-mono text-slate-600 dark:text-slate-400">
-                        {wooStoreUrl}
+                    ) : (
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Refresh to load your latest catalog.
                       </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => loadWooProducts()}
+                      disabled={wooLoadingList || wooSaving}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-[0_18px_50px_-28px_rgba(37,99,235,0.8)] hover:bg-blue-500 disabled:opacity-50 transition"
+                    >
+                      {wooLoadingList ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCcw className="h-4 w-4" />
+                      )}
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWooEditing(true)}
+                      disabled={wooSaving}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition"
+                    >
+                      Change store
+                    </button>
+                    <button
+                      type="button"
+                      onClick={disconnectWoo}
+                      disabled={wooSaving}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-xs font-black uppercase tracking-widest text-red-700 hover:bg-red-500/10 disabled:opacity-50 transition dark:text-red-200"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                      <input
+                        value={wooQuery}
+                        onChange={(e) => setWooQuery(e.target.value)}
+                        placeholder="Search products…"
+                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 py-3.5 pl-10 pr-4 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
                     </div>
                     <button
                       type="button"
                       onClick={() => loadWooProducts()}
                       disabled={wooLoadingList}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5"
-                    >
-                      {wooLoadingList ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                      Refresh
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <input
-                      value={wooQuery}
-                      onChange={(e) => setWooQuery(e.target.value)}
-                      placeholder="Search products…"
-                      className="flex-1 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => loadWooProducts()}
-                      className="rounded-2xl bg-blue-600 px-5 py-3.5 text-xs font-black uppercase tracking-widest text-white hover:bg-blue-500"
+                      className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-5 py-3.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition"
                     >
                       Search
                     </button>
@@ -540,7 +652,23 @@ export default function ProductGeniePage() {
                       ))}
                     </select>
                     {wooProductLoading ? (
-                      <p className="text-xs text-slate-500">Loading product…</p>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                          Loading product…
+                        </div>
+                      </div>
+                    ) : wooItems.length === 0 && !wooLoadingList ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 text-sm text-slate-400">
+                        No products loaded yet. Click <span className="text-slate-200">Refresh</span> to pull your latest catalog.
+                      </div>
+                    ) : wooLoadingList ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                          Loading products…
+                        </div>
+                      </div>
                     ) : null}
                   </div>
                 </div>
@@ -899,29 +1027,37 @@ export default function ProductGeniePage() {
                         Choose exactly what you want to update in your store. Nothing is overwritten silently.
                       </p>
                       <div className="grid gap-3 sm:grid-cols-3">
-                        {([
-                          { id: "title", label: "Title" },
-                          { id: "description", label: "Long description" },
-                          { id: "short", label: "Short description" },
-                        ] as const).map((f) => (
-                          <label
-                            key={f.id}
-                            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200"
-                          >
-                            <input type="checkbox" defaultChecked className="h-4 w-4" id={`upd-${f.id}`} />
-                            <span className="font-semibold">{f.label}</span>
-                          </label>
-                        ))}
+                        <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={wooUpdateFields.title}
+                            onChange={(e) => setWooUpdateFields((p) => ({ ...p, title: e.target.checked }))}
+                            className="h-4 w-4"
+                          />
+                          <span className="font-semibold">Title</span>
+                        </label>
+                        <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={wooUpdateFields.description}
+                            onChange={(e) => setWooUpdateFields((p) => ({ ...p, description: e.target.checked }))}
+                            className="h-4 w-4"
+                          />
+                          <span className="font-semibold">Long description</span>
+                        </label>
+                        <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={wooUpdateFields.short}
+                            onChange={(e) => setWooUpdateFields((p) => ({ ...p, short: e.target.checked }))}
+                            className="h-4 w-4"
+                          />
+                          <span className="font-semibold">Short description</span>
+                        </label>
                       </div>
                       <button
                         type="button"
-                        onClick={() =>
-                          updateInStore({
-                            title: (document.getElementById("upd-title") as HTMLInputElement | null)?.checked ?? true,
-                            description: (document.getElementById("upd-description") as HTMLInputElement | null)?.checked ?? true,
-                            short: (document.getElementById("upd-short") as HTMLInputElement | null)?.checked ?? true,
-                          })
-                        }
+                        onClick={() => updateInStore(wooUpdateFields)}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-500"
                       >
                         <RefreshCcw className="h-4 w-4" />

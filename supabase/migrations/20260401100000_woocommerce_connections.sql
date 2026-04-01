@@ -53,4 +53,3 @@ create trigger woocommerce_connections_set_updated_at
   execute function public.woocommerce_connections_set_updated_at();
 
 comment on table public.woocommerce_connections is 'Per-user WooCommerce REST API credentials (MVP). Consider encrypting secrets for production hardening.';
-
