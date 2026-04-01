@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ClipboardList,
   LayoutDashboard,
+  Orbit,
   Megaphone,
   Package,
   Radar,
@@ -134,7 +135,7 @@ export default async function PlatformDashboardPage() {
     );
   }
 
-  const [usage, latestAuditRes, recentRes] = await Promise.all([
+  const [usage, latestAuditRes, recentRes, latestAutopilotRes] = await Promise.all([
     buildUsageSummary(supabase, user.id),
     supabase
       .from("site_audit_runs")
@@ -181,6 +182,13 @@ export default async function PlatformDashboardPage() {
 
       return { items };
     })(),
+    supabase
+      .from("autopilot_results")
+      .select("id, summary, insights, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const latestAuditRow = latestAuditRes.data as
@@ -197,6 +205,9 @@ export default async function PlatformDashboardPage() {
   const scores = latestReport?.scores;
   const ci = latestReport?.competitor_intelligence;
   const sprint = (latestReport as any)?.growth_sprint as GrowthSprintPlan | undefined;
+  const latestAutopilot = (latestAutopilotRes as any)?.data as
+    | { id: string; summary: string; insights: any; created_at: string }
+    | null;
 
   const topActions = (() => {
     if (!latestReport) return [];
@@ -298,6 +309,59 @@ export default async function PlatformDashboardPage() {
             tone={usage.plan === "pro" ? "violet" : "zinc"}
             helper={`Audits ${usage.usage.audit}/${usage.limits.audits_per_month} · Content ${usage.usage.content}/${usage.limits.content_generations_per_month}`}
           />
+          </div>
+        </section>
+
+        {/* AutoPilot highlight */}
+        <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0e14] p-6 shadow-[0_36px_90px_-56px_rgba(0,0,0,0.95)]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_15%_-10%,rgba(34,211,238,0.10),transparent)]" />
+            <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/45 to-transparent" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
+                  AutoPilot monitoring
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                  {latestAutopilot ? "New opportunity detected" : "Enable AutoPilot"}
+                </h2>
+                <p className="mt-3 text-[14px] leading-relaxed text-slate-500">
+                  {latestAutopilot
+                    ? latestAutopilot.summary
+                    : "Weekly monitoring that generates actionable insights—even when you don’t log in."}
+                </p>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-200 shadow-inner">
+                <Orbit className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="relative mt-5 flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/autopilot"
+                className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-[11px] font-semibold text-cyan-950 shadow-[0_18px_44px_-28px_rgba(34,211,238,0.6)] transition hover:bg-cyan-400 active:scale-[0.98]"
+              >
+                Open AutoPilot
+                <ArrowRight className="h-3.5 w-3.5 opacity-80" />
+              </Link>
+              <Link
+                href="/dashboard/site-audit"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[11px] font-semibold text-white transition hover:border-white/[0.16] hover:bg-white/[0.06] active:scale-[0.98]"
+              >
+                Run Audit
+                <ArrowRight className="h-3.5 w-3.5 opacity-70" />
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/[0.08] bg-black/25 p-6">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
+              Last AutoPilot run
+            </p>
+            <p className="mt-3 font-mono text-[12px] text-slate-300">
+              {latestAutopilot ? latestAutopilot.created_at : "—"}
+            </p>
+            <p className="mt-4 text-sm text-slate-500">
+              Tip: Run AutoPilot after major site changes or new competitor launches.
+            </p>
           </div>
         </section>
 
