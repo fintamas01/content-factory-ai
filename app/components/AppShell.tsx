@@ -44,24 +44,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (hide) return <>{children}</>;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#020617] overflow-x-hidden">
+    <div className="cf-app-bg flex min-h-screen overflow-x-hidden">
+      <div className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100" aria-hidden />
       {/* Desktop sidebar */}
-      <Sidebar className="hidden md:flex w-64 h-screen sticky top-0 z-40" />
+      <Sidebar className="hidden md:flex w-72 h-screen sticky top-0 z-40" />
 
       {/* Mobile header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 border-b border-white/10 bg-[#020617]/85 backdrop-blur supports-[backdrop-filter]:bg-[#020617]/65">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 border-b border-white/[0.08] bg-black/35 backdrop-blur-xl supports-[backdrop-filter]:bg-black/25">
         <div className="h-full px-4 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 active:scale-[0.98]"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.04] text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-white/[0.16] hover:bg-white/[0.06] active:scale-[0.98]"
             aria-label="Open menu"
             aria-expanded={mobileOpen}
           >
             <Menu className="h-5 w-5" />
           </button>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{PLATFORM_DISPLAY_NAME}</p>
+            <p className="truncate text-sm font-semibold tracking-tight text-white">
+              {PLATFORM_DISPLAY_NAME}
+            </p>
             <p className="truncate text-[11px] font-medium text-white/50">
               Command Center
             </p>
@@ -78,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-hidden={!mobileOpen}
       >
         <div
-          className={`absolute inset-0 bg-black/70 transition-opacity duration-200 ${
+          className={`absolute inset-0 bg-black/80 transition-opacity duration-200 ${
             mobileOpen ? "opacity-100" : "opacity-0"
           }`}
           onMouseDown={(e) => {
@@ -92,15 +95,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="h-full bg-white dark:bg-[#020617] shadow-2xl shadow-black/40">
-            <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-slate-200 dark:border-white/10">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                Menu
-              </p>
+          <div className="h-full border-r border-white/[0.08] bg-[#05070c]/75 shadow-2xl shadow-black/55 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-white/[0.08]">
+              <p className="text-sm font-semibold tracking-tight text-white">Menu</p>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 active:scale-[0.98]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.04] text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-white/[0.16] hover:bg-white/[0.06] active:scale-[0.98]"
                 aria-label="Close menu"
               >
                 <X className="h-5 w-5" />
@@ -116,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <main className="flex-1 min-w-0 w-full overflow-y-auto">
+      <main className="relative z-[1] flex-1 min-w-0 w-full overflow-y-auto">
         {/* Push content below fixed mobile header */}
         <div className="pt-14 md:pt-0">{children}</div>
       </main>

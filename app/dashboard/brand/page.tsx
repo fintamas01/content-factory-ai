@@ -3,9 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
-import { Loader2, Save, ExternalLink } from "lucide-react";
+import { Save, ExternalLink, Palette } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
+import { Page, PageHero } from "@/app/components/ui/Page";
+import { Card } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Input } from "@/app/components/ui/Input";
+import { Textarea } from "@/app/components/ui/Textarea";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,53 +92,51 @@ export default function BrandProfilePage() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+        <Spinner className="h-10 w-10" />
       </div>
     );
   }
 
   if (!userId) {
     return (
-      <div className="mx-auto max-w-lg p-10 text-center text-slate-500">
-        Sign in to manage your brand profile.
-      </div>
+      <Page className="max-w-3xl">
+        <EmptyState
+          title="Sign in to manage your brand profile."
+          description="Your saved brand profile is reused across Content and Products."
+        />
+      </Page>
     );
   }
 
-  const inputClass =
-    "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-white/10 dark:bg-black/30 dark:text-white";
-
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-4 sm:p-6 lg:p-8">
+    <Page className="max-w-3xl">
       <ModulePageHeader moduleId="brand" className="mb-2" />
 
-      <header>
-        <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-          {MODULES.brand.productName}
-        </p>
-        <h1 className="text-3xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white">
-          Brand profile
-        </h1>
-        <p className="mt-2 max-w-xl text-sm font-medium text-slate-500 dark:text-slate-400">
-          Saved once and reused across{" "}
-          <Link href={MODULES.content.href} className="text-blue-600 hover:underline">
-            Content
-          </Link>{" "}
-          and{" "}
-          <Link href={MODULES.products.href} className="text-blue-600 hover:underline">
-            Products
-          </Link>{" "}
-          AI generation.
-        </p>
-      </header>
+      <PageHero
+        icon={<Palette className="h-6 w-6" aria-hidden />}
+        eyebrow={MODULES.brand.productName}
+        title="Brand profile"
+        description={
+          <>
+            Saved once and reused across{" "}
+            <Link href={MODULES.content.href} className="text-cyan-200/90 hover:text-white underline-offset-4 hover:underline">
+              Content
+            </Link>{" "}
+            and{" "}
+            <Link href={MODULES.products.href} className="text-cyan-200/90 hover:text-white underline-offset-4 hover:underline">
+              Products
+            </Link>{" "}
+            AI generation.
+          </>
+        }
+      />
 
-      <div className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-5 sm:p-6 lg:p-8 shadow-sm dark:border-white/10 dark:bg-[#0b1220]">
+      <Card className="p-5 sm:p-6 lg:p-8">
         <div>
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-            Brand name <span className="text-red-500">*</span>
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+            Brand name <span className="text-red-300">*</span>
           </label>
-          <input
-            className={inputClass}
+          <Input
             value={form.brand_name}
             onChange={(e) => setForm((f) => ({ ...f, brand_name: e.target.value }))}
             placeholder="Your company or product line"
@@ -139,11 +144,11 @@ export default function BrandProfilePage() {
         </div>
 
         <div>
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
             Brand description
           </label>
-          <textarea
-            className={`${inputClass} min-h-[100px] resize-y`}
+          <Textarea
+            className="min-h-[100px] resize-y"
             value={form.brand_description}
             onChange={(e) => setForm((f) => ({ ...f, brand_description: e.target.value }))}
             placeholder="What you do, positioning, personality."
@@ -151,11 +156,11 @@ export default function BrandProfilePage() {
         </div>
 
         <div>
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
             Target audience
           </label>
-          <textarea
-            className={`${inputClass} min-h-[80px] resize-y`}
+          <Textarea
+            className="min-h-[80px] resize-y"
             value={form.target_audience}
             onChange={(e) => setForm((f) => ({ ...f, target_audience: e.target.value }))}
             placeholder="Who you serve and their context."
@@ -163,11 +168,10 @@ export default function BrandProfilePage() {
         </div>
 
         <div>
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
             Tone of voice
           </label>
-          <input
-            className={inputClass}
+          <Input
             value={form.tone_of_voice}
             onChange={(e) => setForm((f) => ({ ...f, tone_of_voice: e.target.value }))}
             placeholder="e.g. confident, warm, direct, premium"
@@ -175,11 +179,11 @@ export default function BrandProfilePage() {
         </div>
 
         <div>
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
             Key selling points
           </label>
-          <textarea
-            className={`${inputClass} min-h-[100px] resize-y`}
+          <Textarea
+            className="min-h-[100px] resize-y"
             value={form.key_selling_points}
             onChange={(e) => setForm((f) => ({ ...f, key_selling_points: e.target.value }))}
             placeholder="Proof points, differentiators, guarantees — one per line or short notes."
@@ -187,11 +191,10 @@ export default function BrandProfilePage() {
         </div>
 
         <div>
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-            Website URL <span className="font-bold text-slate-400">(optional)</span>
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+            Website URL <span className="font-bold text-white/35">(optional)</span>
           </label>
-          <input
-            className={inputClass}
+          <Input
             type="url"
             value={form.website_url}
             onChange={(e) => setForm((f) => ({ ...f, website_url: e.target.value }))}
@@ -199,15 +202,17 @@ export default function BrandProfilePage() {
           />
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={save}
           disabled={saving || !form.brand_name.trim()}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-8 py-3.5 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/25 transition-colors hover:bg-blue-500 disabled:opacity-50"
+          variant="primary"
+          size="lg"
+          className="rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
         >
           {saving ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner className="h-4 w-4" />
               Saving…
             </>
           ) : (
@@ -216,14 +221,14 @@ export default function BrandProfilePage() {
               Save brand profile
             </>
           )}
-        </button>
-      </div>
+        </Button>
+      </Card>
 
-      <p className="flex items-center gap-2 text-xs font-medium text-slate-400">
+      <p className="flex items-center gap-2 text-xs font-medium text-white/40">
         <ExternalLink className="h-3.5 w-3.5 shrink-0" />
         Multi-brand assets from Settings remain available for other tools; this profile is the shared default for
         Content and Products.
       </p>
-    </div>
+    </Page>
   );
 }

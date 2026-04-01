@@ -16,17 +16,17 @@ export function ModulePageHeader({
   const m = MODULES[moduleId];
   return (
     <nav
-      className={`flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 ${className}`}
+      className={`flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-white/45 ${className}`}
       aria-label="Module breadcrumb"
     >
       <Link
         href="/dashboard"
-        className="text-slate-500 hover:text-blue-600 transition-colors"
+        className="text-white/40 hover:text-white/70 transition-colors"
       >
         {PLATFORM_DISPLAY_NAME}
       </Link>
       <ChevronRight className="h-3 w-3 opacity-50 shrink-0" aria-hidden />
-      <span className="text-blue-600 dark:text-blue-400">{m.productName}</span>
+      <span className="text-cyan-200/90">{m.productName}</span>
     </nav>
   );
 }

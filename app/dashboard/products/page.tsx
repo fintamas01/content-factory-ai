@@ -22,6 +22,9 @@ import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import type { ProductCopyResult } from "@/lib/products/types";
+import { Button } from "@/app/components/ui/Button";
+import { Input } from "@/app/components/ui/Input";
+import { Textarea } from "@/app/components/ui/Textarea";
 
 const TONE_OPTIONS = [
   { value: "", label: "Default (balanced)" },
@@ -51,17 +54,17 @@ function SectionCard({
   actions?: ReactNode;
 }) {
   return (
-    <div className="rounded-[24px] border border-slate-200/90 dark:border-white/[0.08] bg-white dark:bg-[#0b1220] p-6 md:p-8 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] dark:shadow-[0_12px_40px_-20px_rgba(0,0,0,0.5)]">
+    <div className="rounded-[24px] border border-white/[0.08] bg-white/[0.03] p-6 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm md:p-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-600 dark:text-violet-400">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-violet-200 shadow-inner">
             <Icon className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
               {eyebrow}
             </p>
-            <h3 className="text-lg font-black text-slate-900 dark:text-white">{title}</h3>
+            <h3 className="text-lg font-semibold tracking-tight text-white">{title}</h3>
           </div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
@@ -376,13 +379,13 @@ export default function ProductGeniePage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20 p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-6xl space-y-8 pb-20 p-4 sm:p-6 lg:p-8 text-white">
       <ModulePageHeader moduleId="products" />
 
       <ModuleUsageBanner feature="product" bump={usageBump} />
 
       {unifiedBrand ? (
-        <p className="mb-4 text-xs font-semibold text-emerald-700/90 dark:text-emerald-400/90">
+        <p className="mb-4 text-xs font-semibold text-emerald-200/90">
           Using your saved brand profile
         </p>
       ) : null}
@@ -390,7 +393,7 @@ export default function ProductGeniePage() {
       <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
         {/* Left: Source + inputs */}
         <div className="space-y-6">
-          <div className="relative overflow-hidden rounded-[28px] border border-slate-200 dark:border-white/[0.10] bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
+          <div className="relative overflow-hidden rounded-[28px] border border-white/[0.10] bg-white/[0.03] p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
             <div
               className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
               aria-hidden
@@ -401,49 +404,43 @@ export default function ProductGeniePage() {
             />
             <div className="flex items-start justify-between gap-4">
               <div className="relative">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-500 mb-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.26em] text-violet-200/90 mb-1">
                   {m.productName}
                 </p>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
                   Product AI workspace
                 </h1>
-                <p className="mt-2 text-slate-500 dark:text-slate-300/80 font-medium text-sm leading-relaxed">
+                <p className="mt-2 text-white/55 font-medium text-sm leading-relaxed">
                   Generate or optimize listings. Manual or connected store.
                 </p>
               </div>
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-500/15 bg-violet-600/10 text-violet-600 dark:text-violet-300 shadow-inner">
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-violet-200 shadow-inner">
                 <Package className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="relative mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-black/25 p-2">
-              <button
+            <div className="relative mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/25 p-2">
+              <Button
                 type="button"
                 onClick={() => setMode("manual")}
-                className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
-                  mode === "manual"
-                    ? "bg-violet-600 text-white shadow-[0_18px_50px_-28px_rgba(124,58,237,0.75)]"
-                    : "text-slate-600 dark:text-slate-200/80 hover:bg-white/70 dark:hover:bg-white/[0.06]"
-                }`}
+                variant={mode === "manual" ? "primary" : "secondary"}
+                className="h-11 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
               >
                 Manual
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setMode("store")}
-                className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
-                  mode === "store"
-                    ? "bg-blue-600 text-white shadow-[0_18px_50px_-28px_rgba(37,99,235,0.7)]"
-                    : "text-slate-600 dark:text-slate-200/80 hover:bg-white/70 dark:hover:bg-white/[0.06]"
-                }`}
+                variant={mode === "store" ? "primary" : "secondary"}
+                className="h-11 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
               >
                 Connected store
-              </button>
+              </Button>
             </div>
           </div>
 
           {mode === "store" ? (
-            <div className="relative overflow-hidden rounded-[28px] border border-slate-200 dark:border-white/[0.10] bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
+            <div className="relative overflow-hidden rounded-[28px] border border-white/[0.10] bg-white/[0.03] p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
               <div
                 className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
                 aria-hidden
@@ -454,20 +451,20 @@ export default function ProductGeniePage() {
               />
               <div className="flex items-center justify-between gap-3">
                 <div className="relative flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-500/15 bg-blue-600/10 text-blue-600 dark:text-blue-300 shadow-inner">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-cyan-200 shadow-inner">
                     <Plug className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
                       WooCommerce
                     </p>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                    <h3 className="text-lg font-semibold tracking-tight text-white leading-tight">
                       Store connection
                     </h3>
                   </div>
                 </div>
                 {wooConnected && wooStoreUrl ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-200">
                     <LinkIcon className="h-3.5 w-3.5" /> Connected
                   </span>
                 ) : null}
@@ -480,52 +477,53 @@ export default function ProductGeniePage() {
                       You’re updating connection details. This won’t change anything until you save.
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 leading-relaxed">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65 leading-relaxed">
                       Connect your WooCommerce store to sync products and push updates back safely.
                     </div>
                   )}
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
                       Store URL
                     </label>
-                    <input
+                    <Input
                       value={wooStoreUrl}
                       onChange={(e) => setWooStoreUrl(e.target.value)}
                       placeholder="https://yourstore.com"
-                      className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                      className="rounded-2xl"
                       disabled={wooSaving}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
                       Consumer key
                     </label>
-                    <input
+                    <Input
                       value={wooCk}
                       onChange={(e) => setWooCk(e.target.value)}
                       placeholder="ck_..."
-                      className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                      className="rounded-2xl"
                       disabled={wooSaving}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
                       Consumer secret
                     </label>
-                    <input
+                    <Input
                       value={wooCs}
                       onChange={(e) => setWooCs(e.target.value)}
                       placeholder="cs_..."
-                      className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                      className="rounded-2xl"
                       disabled={wooSaving}
                     />
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button
+                    <Button
                       type="button"
                       onClick={connectWoo}
                       disabled={wooSaving}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-[0_18px_50px_-28px_rgba(37,99,235,0.8)] hover:bg-blue-500 disabled:opacity-50 transition-colors w-full"
+                      variant="primary"
+                      className="h-12 w-full rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                     >
                       {wooSaving ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -533,52 +531,54 @@ export default function ProductGeniePage() {
                         <Plug className="h-4 w-4" />
                       )}
                       {wooSaving ? "Saving…" : wooConnected ? "Save changes" : "Connect store"}
-                    </button>
+                    </Button>
                     {wooConnected ? (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => setWooEditing(false)}
                         disabled={wooSaving}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition-colors w-full"
+                        variant="secondary"
+                        className="h-12 w-full rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs text-white/40 leading-relaxed">
                     Stored in your Supabase project with row-level security. For additional hardening,
                     encrypt secrets at rest.
                   </p>
                 </div>
               ) : (
                 <div className="mt-5 grid gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
                       Connected domain
                     </p>
-                    <p className="mt-1 truncate text-sm font-mono text-slate-700 dark:text-slate-300">
+                    <p className="mt-1 truncate text-sm font-mono text-white/70">
                       {wooStoreUrl}
                     </p>
                     {wooLastRefreshAt ? (
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-[11px] text-white/40">
                         Last refreshed{" "}
-                        <span className="font-mono">
+                        <span className="font-mono text-white/60">
                           {new Date(wooLastRefreshAt).toLocaleString()}
                         </span>
                       </p>
                     ) : (
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-[11px] text-white/40">
                         Refresh to load your latest catalog.
                       </p>
                     )}
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => loadWooProducts()}
                       disabled={wooLoadingList || wooSaving}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-[0_18px_50px_-28px_rgba(37,99,235,0.8)] hover:bg-blue-500 disabled:opacity-50 transition"
+                      variant="primary"
+                      className="h-12 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                     >
                       {wooLoadingList ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -586,47 +586,50 @@ export default function ProductGeniePage() {
                         <RefreshCcw className="h-4 w-4" />
                       )}
                       Refresh
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={() => setWooEditing(true)}
                       disabled={wooSaving}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition"
+                      variant="secondary"
+                      className="h-12 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                     >
                       Change store
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={disconnectWoo}
                       disabled={wooSaving}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-xs font-black uppercase tracking-widest text-red-700 hover:bg-red-500/10 disabled:opacity-50 transition dark:text-red-200"
+                      variant="danger"
+                      className="h-12 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                     >
                       Disconnect
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                     <div className="relative">
-                      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                      <input
+                      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+                      <Input
                         value={wooQuery}
                         onChange={(e) => setWooQuery(e.target.value)}
                         placeholder="Search products…"
-                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 py-3.5 pl-10 pr-4 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                        className="rounded-2xl pl-10"
                       />
                     </div>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => loadWooProducts()}
                       disabled={wooLoadingList}
-                      className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-5 py-3.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition"
+                      variant="secondary"
+                      className="h-11 rounded-2xl px-5 text-[11px] font-black uppercase tracking-[0.22em]"
                     >
                       Search
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
                       Select product
                     </label>
                     <select
@@ -640,7 +643,7 @@ export default function ProductGeniePage() {
                         setWooSelectedId(n);
                         void loadWooProduct(n);
                       }}
-                      className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer"
+                      className="w-full rounded-2xl border border-white/[0.10] bg-black/30 px-4 py-3.5 text-sm font-semibold text-white outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-white/[0.14] focus:shadow-[0_0_0_3px_var(--ring)] cursor-pointer"
                       disabled={wooProductLoading || wooLoadingList}
                     >
                       <option value="">Choose a product…</option>
@@ -652,18 +655,18 @@ export default function ProductGeniePage() {
                       ))}
                     </select>
                     {wooProductLoading ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
                         <div className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
                           Loading product…
                         </div>
                       </div>
                     ) : wooItems.length === 0 && !wooLoadingList ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 text-sm text-slate-400">
-                        No products loaded yet. Click <span className="text-slate-200">Refresh</span> to pull your latest catalog.
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/15 px-4 py-4 text-sm text-white/45">
+                        No products loaded yet. Click <span className="text-white/80">Refresh</span> to pull your latest catalog.
                       </div>
                     ) : wooLoadingList ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
                         <div className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
                           Loading products…
@@ -676,47 +679,47 @@ export default function ProductGeniePage() {
             </div>
           ) : null}
 
-          <div className="rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1220] p-5 sm:p-6 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+          <div className="rounded-[28px] border border-white/[0.10] bg-white/[0.03] p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40 mb-2">
               Inputs
             </p>
             <div className="grid gap-4">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                  Product name <span className="text-violet-500">*</span>
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
+                  Product name <span className="text-violet-200">*</span>
                 </label>
-                <input
+                <Input
                   type="text"
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder="e.g. AeroBrew Smart Kettle"
-                  className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/40"
+                  className="rounded-2xl"
                   disabled={loading}
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                    Target audience <span className="text-slate-400 font-bold">(optional)</span>
+                  <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
+                    Target audience <span className="text-white/35 font-bold">(optional)</span>
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={targetAudience}
                     onChange={(e) => setTargetAudience(e.target.value)}
                     placeholder="e.g. remote teams, new parents"
-                    className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/40"
+                    className="rounded-2xl"
                     disabled={loading}
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                    Tone <span className="text-slate-400 font-bold">(optional)</span>
+                  <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
+                    Tone <span className="text-white/35 font-bold">(optional)</span>
                   </label>
                   <select
                     value={tone}
                     onChange={(e) => setTone(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/40 cursor-pointer"
+                    className="w-full rounded-2xl border border-white/[0.10] bg-black/30 px-4 py-3.5 text-sm font-semibold text-white outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-white/[0.14] focus:shadow-[0_0_0_3px_var(--ring)] cursor-pointer"
                     disabled={loading}
                   >
                     {TONE_OPTIONS.map((p) => (
@@ -729,88 +732,90 @@ export default function ProductGeniePage() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                  Key benefits <span className="text-slate-400 font-bold">(optional)</span>
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
+                  Key benefits <span className="text-white/35 font-bold">(optional)</span>
                 </label>
-                <textarea
+                <Textarea
                   value={keyBenefits}
                   onChange={(e) => setKeyBenefits(e.target.value)}
                   placeholder="One per line or short notes — e.g. saves 2h/week, lifetime warranty…"
                   rows={4}
-                  className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/40 resize-y min-h-[100px]"
+                  className="rounded-2xl resize-y min-h-[100px]"
                   disabled={loading}
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-                  Product details / notes <span className="text-slate-400 font-bold">(optional)</span>
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
+                  Product details / notes <span className="text-white/35 font-bold">(optional)</span>
                 </label>
-                <textarea
+                <Textarea
                   value={productDetails}
                   onChange={(e) => setProductDetails(e.target.value)}
                   placeholder="Materials, size, category, differentiators…"
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/40 resize-y min-h-[88px]"
+                  className="rounded-2xl resize-y min-h-[88px]"
                   disabled={loading}
                 />
               </div>
 
-              <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-slate-50/60 dark:bg-black/20 p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
                   Improve existing product (optional)
                 </p>
                 <div className="mt-3 grid gap-3">
-                  <input
+                  <Input
                     value={existingTitle}
                     onChange={(e) => setExistingTitle(e.target.value)}
                     placeholder="Existing title (optional)"
-                    className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 px-4 py-3 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/30"
+                    className="rounded-2xl bg-black/25"
                     disabled={loading}
                   />
-                  <textarea
+                  <Textarea
                     value={existingShortDescription}
                     onChange={(e) => setExistingShortDescription(e.target.value)}
                     placeholder="Existing short description (optional)"
                     rows={2}
-                    className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 px-4 py-3 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/30 resize-y"
+                    className="rounded-2xl bg-black/25 resize-y"
                     disabled={loading}
                   />
-                  <textarea
+                  <Textarea
                     value={existingDescription}
                     onChange={(e) => setExistingDescription(e.target.value)}
                     placeholder="Existing long description (optional)"
                     rows={4}
-                    className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 px-4 py-3 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/30 resize-y"
+                    className="rounded-2xl bg-black/25 resize-y"
                     disabled={loading}
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
-                <button
+                <Button
                   type="button"
                   onClick={() => runGeneration("generate")}
                   disabled={loading || !canGenerate}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-violet-600/25 hover:bg-violet-500 disabled:opacity-50 transition-colors"
+                  variant="primary"
+                  className="h-12 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   Generate
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => runGeneration("improve")}
                   disabled={loading || !canImprove}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition-colors"
+                  variant="secondary"
+                  className="h-12 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                   Improve
-                </button>
+                </Button>
               </div>
             </div>
 
             {error && (
-              <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-300">
+              <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/[0.08] px-4 py-3 text-sm font-medium text-red-200">
                 {error}
               </div>
             )}

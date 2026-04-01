@@ -22,6 +22,8 @@ import {
   formatHistoryDate,
 } from "@/lib/history/kind-styles";
 import { HistoryDetailModal } from "@/app/components/history/HistoryDetailModal";
+import { Input } from "@/app/components/ui/Input";
+import { Card } from "@/app/components/ui/Card";
 
 type FilterTab = "all" | HistoryKind;
 type HistoryApiError = { table: string; message: string; code?: string };
@@ -139,32 +141,32 @@ export default function DashboardHistoryPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-3xl space-y-8 pb-24 p-4 sm:p-6 lg:p-8 text-white">
       <nav
-        className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500"
+        className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-white/45"
         aria-label="Breadcrumb"
       >
         <Link
           href="/dashboard"
-          className="text-slate-500 transition hover:text-blue-500 dark:hover:text-blue-400"
+          className="text-white/40 transition hover:text-white/70"
         >
           {PLATFORM_DISPLAY_NAME}
         </Link>
         <ChevronRight className="h-3 w-3 opacity-50" aria-hidden />
-        <span className="text-blue-600 dark:text-blue-400">History</span>
+        <span className="text-cyan-200/90">History</span>
       </nav>
 
-      <header className="space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800/80 to-[#0b1220] shadow-inner shadow-black/40">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/15 to-transparent" />
-            <History className="relative h-7 w-7 text-blue-400" />
+      <header className="cf-hero rounded-[28px] p-6 sm:p-8">
+        <div className="relative flex items-center gap-4">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/15 via-violet-500/10 to-transparent" />
+            <History className="relative h-7 w-7 text-cyan-200" />
           </div>
-          <div>
-            <h1 className="text-3xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-semibold tracking-tight text-white">
               History
             </h1>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-sm font-medium text-white/55">
               Everything you&apos;ve generated — organized by module.
             </p>
           </div>
@@ -185,13 +187,13 @@ export default function DashboardHistoryPage() {
           ))}
         </div>
         <div className="relative w-full sm:max-w-[280px]">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          <input
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+          <Input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search…"
-            className="w-full rounded-2xl border border-white/10 bg-[#0b1220] py-3 pl-11 pr-4 text-sm text-slate-200 placeholder:text-slate-600 outline-none ring-0 transition focus:border-blue-500/40 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.12)]"
+            className="pl-11 rounded-2xl"
           />
         </div>
       </div>
@@ -216,7 +218,7 @@ export default function DashboardHistoryPage() {
           </ul>
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] py-20 text-center">
+        <div className="rounded-[28px] border border-dashed border-white/10 bg-black/15 py-20 text-center">
           <FileText className="mx-auto mb-4 h-12 w-12 text-slate-600" />
           <p className="font-bold text-slate-400">No saved activity yet</p>
           <p className="mt-2 text-sm text-slate-500">
@@ -224,7 +226,7 @@ export default function DashboardHistoryPage() {
           </p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] py-16 text-center">
+        <div className="rounded-[28px] border border-dashed border-white/10 bg-black/15 py-16 text-center">
           <p className="font-bold text-slate-400">No matches</p>
           <p className="mt-2 text-sm text-slate-500">
             Try another tab or clear the search.
@@ -240,11 +242,8 @@ export default function DashboardHistoryPage() {
               : { primary: "—", sub: "" };
             return (
               <li key={`${item.kind}-${item.id}`}>
-                <button
-                  type="button"
-                  onClick={() => setSelected(item)}
-                  className={`group relative flex w-full gap-0 overflow-hidden rounded-[22px] border border-white/[0.07] bg-gradient-to-br from-[#0f172a]/90 to-[#070d18] text-left shadow-[0_12px_40px_-24px_rgba(0,0,0,0.7)] transition hover:border-white/[0.12] hover:shadow-[0_16px_48px_-20px_rgba(59,130,246,0.15)]`}
-                >
+                <button type="button" onClick={() => setSelected(item)} className="w-full">
+                  <Card className="group flex w-full gap-0 rounded-[22px] text-left">
                   <div
                     className={`w-1 shrink-0 bg-gradient-to-b ${vis.leftBar}`}
                     aria-hidden
@@ -298,6 +297,7 @@ export default function DashboardHistoryPage() {
                       </button>
                     </div>
                   </div>
+                  </Card>
                 </button>
               </li>
             );

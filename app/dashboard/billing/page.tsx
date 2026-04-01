@@ -1,27 +1,29 @@
 import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import { BillingDashboardClient } from "@/app/components/billing/BillingDashboardClient";
+import { Page, PageHero } from "@/app/components/ui/Page";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 function BillingFallback() {
   return (
-    <div className="flex min-h-[50vh] items-center justify-center bg-[#030712] p-8">
-      <Loader2 className="h-10 w-10 animate-spin text-blue-400" aria-hidden />
+    <div className="flex min-h-[50vh] items-center justify-center p-8">
+      <Spinner className="h-10 w-10" />
     </div>
   );
 }
 
 export default function DashboardBillingPage() {
   return (
-    <div className="relative min-h-full w-full bg-[#030712] text-slate-100">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,130,246,0.14),transparent)]"
-        aria-hidden
+    <Page>
+      <PageHero
+        icon={<CreditCard className="h-6 w-6" aria-hidden />}
+        eyebrow="Billing"
+        title="Plans & usage"
+        description="Upgrade, manage subscription, and track your monthly allowances across modules."
       />
-      <div className="relative p-6 md:p-8 lg:p-10">
-        <Suspense fallback={<BillingFallback />}>
-          <BillingDashboardClient />
-        </Suspense>
-      </div>
-    </div>
+      <Suspense fallback={<BillingFallback />}>
+        <BillingDashboardClient />
+      </Suspense>
+    </Page>
   );
 }
