@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type ContentBuilderResponse = {
   url: string;
@@ -753,6 +754,23 @@ export default function ContentBuilderPage() {
       .filter(Boolean)
       .slice(0, 8);
   }, [serviceFocusText]);
+
+  useCopilotPageContext({
+    page: "content-builder",
+    data: {
+      url,
+      language,
+      tone,
+      serviceFocus,
+      maxPages,
+      timeoutMsPerPage,
+      viewMode,
+      loading,
+      error: err,
+      diagnostics: data?.diagnostics ?? null,
+      hasResult: Boolean(data?.result),
+    },
+  });
 
   const canRun = useMemo(() => {
     if (loading) return false;

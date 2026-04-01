@@ -6,6 +6,7 @@ import PosterCanvas from "@/app/components/poster/PosterCanvas";
 import { getTemplateById } from "@/lib/poster/templates/registry";
 import { createBrowserClient } from "@supabase/ssr";
 import Link from "next/link";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type BrandProfileRow = {
   id: string;
@@ -107,6 +108,25 @@ function PosterStudioContent() {
 
   const tone = "szakmai";
   const lang = "hu";
+
+  useCopilotPageContext({
+    page: "poster",
+    data: {
+      template: { id: template?.id, name: template?.name, platform: template?.platform },
+      selectedBrand: selectedBrand
+        ? { id: selectedBrand.id, brand_name: selectedBrand.brand_name }
+        : null,
+      colors: { primary, secondary, accent },
+      hasLogo: Boolean(logoUrl),
+      hasBackground: Boolean(bgImageUrl),
+      hasPhotoSlots,
+      ai: {
+        descriptionPreview: description.slice(0, 900),
+        linkUrl: linkUrl.trim() || null,
+        generating,
+      },
+    },
+  });
 
   // --- 1) Load brands ---
   useEffect(() => {

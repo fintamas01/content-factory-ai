@@ -24,6 +24,7 @@ import {
 import { HistoryDetailModal } from "@/app/components/history/HistoryDetailModal";
 import { Input } from "@/app/components/ui/Input";
 import { Card } from "@/app/components/ui/Card";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type FilterTab = "all" | HistoryKind;
 type HistoryApiError = { table: string; message: string; code?: string };
@@ -118,6 +119,20 @@ export default function DashboardHistoryPage() {
         i.preview.toLowerCase().includes(q)
     );
   }, [items, tab, query]);
+
+  useCopilotPageContext({
+    page: "history",
+    data: {
+      tab,
+      query,
+      loading,
+      error,
+      warningsCount: warnings.length,
+      totalItems: items.length,
+      filteredCount: filtered.length,
+      selected: selected ? { id: selected.id, kind: selected.kind, title: selected.title } : null,
+    },
+  });
 
   const deleteItem = async (e: React.MouseEvent, item: HistoryListItem) => {
     e.stopPropagation();

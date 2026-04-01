@@ -33,6 +33,7 @@ import type {
   GrowthSprintPlan,
   GrowthAuditTopIssue,
 } from "@/lib/site-audit/types";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type ApiSuccess = {
   report: GrowthAuditReport;
@@ -394,6 +395,46 @@ export default function AIGrowthAuditPage() {
   const [sprintLoading, setSprintLoading] = useState(false);
   const [sprintPlan, setSprintPlan] = useState<GrowthSprintPlan | null>(null);
   const [sprintError, setSprintError] = useState<string | null>(null);
+
+  const selectedKeyForCopilot =
+    selectedIssueIdx !== null ? `issue-${selectedIssueIdx}` : null;
+
+  useCopilotPageContext({
+    page: "audit",
+    data: {
+      url,
+      competitors: competitors.map((c) => c.trim()).filter(Boolean).slice(0, 3),
+      tab,
+      signals: data?.signals ?? null,
+      report: data
+        ? {
+            summary: data.report.summary,
+            scores: data.report.scores,
+            top_issues: (data.report.top_issues ?? []).slice(0, 8).map((x) => ({
+              title: x.title,
+              priority: x.priority,
+              impact: x.impact,
+              fix: x.fix,
+            })),
+            ai_visibility: data.report.ai_visibility,
+            quick_wins: (data.report.quick_wins ?? []).slice(0, 6),
+            competitor_intelligence: data.report.competitor_intelligence
+              ? {
+                  summary: data.report.competitor_intelligence.summary,
+                }
+              : null,
+          }
+        : null,
+      selectedIssueIdx,
+      selectedFix: selectedKeyForCopilot
+        ? fixByIssue[selectedKeyForCopilot] ?? null
+        : null,
+      contentPlanDays: planDays ? planDays.slice(0, 4) : null,
+      sprintPlan: sprintPlan
+        ? { summary: sprintPlan.summary, weeks: sprintPlan.weeks?.slice(0, 1) ?? [] }
+        : null,
+    },
+  });
 
   const sortedIssueIndices = useMemo(() => {
     if (!data) return [];

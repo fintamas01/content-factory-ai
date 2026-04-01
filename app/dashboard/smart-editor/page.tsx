@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 function clsx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -144,6 +145,22 @@ export default function SmartEditorPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
+
+  useCopilotPageContext({
+    page: "smart-editor",
+    data: {
+      url,
+      language,
+      tone,
+      focus,
+      timeoutMs,
+      loading,
+      error: err,
+      outputPreview: data?.variants
+        ? { hasVariants: true, keywordsCount: Array.isArray(data?.keywords) ? data.keywords.length : null }
+        : null,
+    },
+  });
 
   const canRun = useMemo(() => !loading && url.trim().length > 0, [loading, url]);
 

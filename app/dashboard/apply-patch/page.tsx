@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type PatchFile = { path: string; content: string };
 
@@ -199,6 +200,23 @@ export default function ApplyPatchPage() {
   const [activeFilePath, setActiveFilePath] = useState<string>("");
 
   const canRun = useMemo(() => !loading && goal.trim().length > 5, [loading, goal]);
+
+  useCopilotPageContext({
+    page: "apply-patch",
+    data: {
+      goal,
+      siteName,
+      loading,
+      zipLoading,
+      error: err,
+      filesCount: data?.files ? data.files.length : null,
+      tasksCount: data?.tasks ? data.tasks.length : null,
+      activeFilePath: activeFilePath || null,
+      fileQuery: fileQuery || null,
+      summaryPreview: data?.summary ? data.summary.slice(0, 700) : null,
+      risksPreview: data?.risks ? data.risks.slice(0, 6) : null,
+    },
+  });
 
   async function run() {
     setErr(null);

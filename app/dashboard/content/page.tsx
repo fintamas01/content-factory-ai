@@ -9,6 +9,7 @@ import {
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,6 +63,31 @@ export default function DashboardPage() {
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
   const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
   const [usageBump, setUsageBump] = useState(0);
+
+  useCopilotPageContext({
+    page: "content",
+    data: {
+      lang,
+      tone,
+      useResearch,
+      selectedTemplate: { id: selectedTemplate?.id, name: selectedTemplate?.name },
+      selectedPlatforms,
+      hasUnifiedBrand: Boolean(unifiedBrand),
+      selectedBrand: selectedBrand
+        ? { id: selectedBrand.id, brand_name: selectedBrand.brand_name }
+        : null,
+      inputPreview: input.slice(0, 1200),
+      resultsPreview: results
+        ? Object.fromEntries(
+            Object.entries(results).slice(0, 6).map(([k, v]: any) => [
+              k,
+              typeof v?.text === "string" ? v.text.slice(0, 900) : String(v ?? "").slice(0, 900),
+            ])
+          )
+        : null,
+      loading,
+    },
+  });
 
   useEffect(() => {
     const fetchBrands = async () => {

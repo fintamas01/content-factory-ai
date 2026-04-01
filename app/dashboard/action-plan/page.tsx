@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type ActionPlanResponse = {
   url: string;
@@ -229,6 +230,26 @@ export default function ActionPlanPage() {
     x,
     threads,
   ]);
+
+  useCopilotPageContext({
+    page: "action-plan",
+    data: {
+      url,
+      maxPages,
+      timeoutMsPerPage,
+      loading,
+      error: err,
+      companyFactsProvided: Boolean(companyFacts),
+      scores: data
+        ? {
+            before: data.scoreBefore,
+            after: data.estimatedScoreAfter,
+          }
+        : null,
+      tasksPreview: data?.tasks ? data.tasks.slice(0, 6) : null,
+      schemaSnippetsCount: data?.schemaSnippets ? data.schemaSnippets.length : null,
+    },
+  });
 
   async function run() {
     setErr(null);

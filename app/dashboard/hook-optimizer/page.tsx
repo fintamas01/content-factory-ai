@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import HookPostPreview from "@/app/components/HookPostPreview";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 function clsx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -37,6 +38,22 @@ export default function HookOptimizerPage() {
     if (loading) return false;
     return topic.trim().length > 0;
   }, [topic, loading]);
+
+  useCopilotPageContext({
+    page: "hook-optimizer",
+    data: {
+      topic,
+      platform,
+      loading,
+      error: err,
+      hooksPreview: hooks.slice(0, 6).map((h) => ({
+        type: h.type,
+        headline: h.headline,
+        cta: h.cta,
+      })),
+      selectedHook: selectedHook ? { type: selectedHook.type, headline: selectedHook.headline } : null,
+    },
+  });
 
   async function run() {
     setErr(null);

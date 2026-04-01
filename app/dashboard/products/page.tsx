@@ -25,6 +25,7 @@ import type { ProductCopyResult } from "@/lib/products/types";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Textarea } from "@/app/components/ui/Textarea";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 const TONE_OPTIONS = [
   { value: "", label: "Default (balanced)" },
@@ -122,6 +123,30 @@ export default function ProductGeniePage() {
     title: true,
     description: true,
     short: true,
+  });
+
+  useCopilotPageContext({
+    page: "products",
+    data: {
+      mode,
+      activeTab,
+      productName,
+      productDetails,
+      targetAudience,
+      tone,
+      keyBenefits,
+      existingTitle,
+      existingDescription,
+      existingShortDescription,
+      woo: {
+        connected: wooConnected,
+        storeUrl: wooStoreUrl || undefined,
+        selectedId: wooSelectedId ?? undefined,
+        syncStatus: wooSyncStatus,
+      },
+      result,
+      savedId,
+    },
   });
 
   const canGenerate = useMemo(() => {

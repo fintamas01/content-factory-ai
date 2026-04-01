@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2, Copy, Check } from "lucide-react";
 import { PLAYBOOKS, type PlaybookDefinition } from "@/lib/playbooks/definitions";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type RunResponse =
   | { ok: true; result: { playbookId: string; meta: any; steps: any[] } }
@@ -80,6 +81,27 @@ export default function PlaybooksPage() {
   const [url, setUrl] = useState("");
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [productName, setProductName] = useState("");
+
+  useCopilotPageContext({
+    page: "playbooks",
+    data: {
+      open,
+      active: active ? { id: active.id, title: active.title } : null,
+      inputs: {
+        url: url.trim() || null,
+        competitor_url: competitorUrl.trim() || null,
+        product_name: productName.trim() || null,
+      },
+      loading,
+      error,
+      resultPreview: result
+        ? {
+            playbookId: result.playbookId,
+            stepsCount: Array.isArray(result.steps) ? result.steps.length : null,
+          }
+        : null,
+    },
+  });
 
   const requiredOk = useMemo(() => {
     if (!active) return false;

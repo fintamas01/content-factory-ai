@@ -10,6 +10,7 @@ import { Input } from "@/app/components/ui/Input";
 import { Textarea } from "@/app/components/ui/Textarea";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type Focus = "seo" | "content" | "conversion" | "ai_visibility";
 const FOCUS: { id: Focus; label: string; desc: string }[] = [
@@ -75,6 +76,36 @@ export default function AutoPilotPage() {
       .filter(Boolean)
       .slice(0, 3);
   }, [competitorsText]);
+
+  useCopilotPageContext({
+    page: "autopilot",
+    data: {
+      loading,
+      saving,
+      runningId,
+      error,
+      job: primaryJob
+        ? {
+            id: primaryJob.id,
+            url: primaryJob.url,
+            enabled: primaryJob.enabled,
+            focus: primaryJob.focus,
+            last_run_at: primaryJob.last_run_at,
+          }
+        : null,
+      draft: {
+        url,
+        competitors,
+        focus,
+        enabled,
+      },
+      resultsPreview: results.slice(0, 4).map((r) => ({
+        id: r.id,
+        summary: r.summary?.slice(0, 280),
+        created_at: r.created_at,
+      })),
+    },
+  });
 
   const load = async () => {
     setLoading(true);

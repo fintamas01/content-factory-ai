@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 function clsx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -118,6 +119,17 @@ export default function PatchViewerPage() {
       return [];
     }
   }, [filesJson]);
+
+  useCopilotPageContext({
+    page: "patch-viewer",
+    data: {
+      loading,
+      error: err,
+      filesJsonPreview: filesJson.slice(0, 1800),
+      filesCount: files.length,
+      hasDiff: Boolean(data?.unifiedDiff),
+    },
+  });
 
   const canRun = !loading && files.length > 0;
 

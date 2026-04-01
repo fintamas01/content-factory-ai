@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 interface MatrixItem {
   day: string;
@@ -100,6 +101,32 @@ export default function ContentMatrix() {
     }
     loadInitialData();
   }, [supabase]);
+
+  useCopilotPageContext({
+    page: "matrix",
+    data: {
+      plan: userPlan,
+      generating,
+      useResearch,
+      formData,
+      matrixCount: matrixData.length,
+      matrixPreview: matrixData.slice(0, 6).map((it) => ({
+        day: it.day,
+        platform: it.platform,
+        title: it.title,
+        outline: it.outline?.slice(0, 240),
+      })),
+      selectedPost: selectedPost
+        ? {
+            day: selectedPost.day,
+            platform: selectedPost.platform,
+            title: selectedPost.title,
+            viewMode,
+          }
+        : null,
+      showHistory,
+    },
+  });
 
   // --- JAVÍTOTT PDF EXPORT (MAGYAR KARAKTEREKKEL) ---
   const handleExportPDF = async () => {

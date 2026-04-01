@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type AnalyzeResponse = {
   tone: string;
@@ -25,6 +26,26 @@ export default function BrandVoiceAnalyzerPage() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+
+  useCopilotPageContext({
+    page: "brand-voice",
+    data: {
+      platform,
+      brandName: brandName.trim() || null,
+      textPreview: text.slice(0, 1200),
+      loading,
+      error,
+      resultPreview: result
+        ? {
+            tone: result.tone,
+            strengths: result.strengths.slice(0, 5),
+            risks: result.risks.slice(0, 5),
+            suggestions: result.suggestions.slice(0, 5),
+            improvedTextPreview: result.improvedText.slice(0, 900),
+          }
+        : null,
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

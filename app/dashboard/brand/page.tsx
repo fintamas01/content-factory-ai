@@ -13,6 +13,7 @@ import { Input } from "@/app/components/ui/Input";
 import { Textarea } from "@/app/components/ui/Textarea";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,6 +31,23 @@ export default function BrandProfilePage() {
     tone_of_voice: "",
     key_selling_points: "",
     website_url: "",
+  });
+
+  useCopilotPageContext({
+    page: "brand",
+    data: {
+      loading,
+      saving,
+      hasUser: Boolean(userId),
+      form: {
+        brand_name: form.brand_name,
+        brand_description: form.brand_description?.slice(0, 700),
+        target_audience: form.target_audience?.slice(0, 700),
+        tone_of_voice: form.tone_of_voice,
+        key_selling_points: form.key_selling_points?.slice(0, 900),
+        website_url: form.website_url,
+      },
+    },
   });
 
   useEffect(() => {

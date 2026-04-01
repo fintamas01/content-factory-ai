@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type CompareResult = {
   mainUrl: string;
@@ -325,6 +326,19 @@ export default function ComparePage() {
       .filter(Boolean)
       .slice(0, 3);
   }, [competitorsText]);
+
+  useCopilotPageContext({
+    page: "compare",
+    data: {
+      mainUrl,
+      competitors,
+      loading,
+      error: err,
+      hasData: Boolean(data),
+      rankingTop: data?.ranking ? data.ranking.slice(0, 4) : null,
+      insightsPreview: data?.insights ? data.insights : null,
+    },
+  });
 
   const canRun = !loading && mainUrl.trim().length > 0 && competitors.length > 0;
 

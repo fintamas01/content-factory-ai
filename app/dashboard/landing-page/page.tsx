@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 function clsx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -92,6 +93,19 @@ export default function LandingPageAgent() {
       .filter(Boolean)
       .slice(0, 8);
   }, [serviceFocusText]);
+
+  useCopilotPageContext({
+    page: "landing-page",
+    data: {
+      url,
+      language,
+      tone,
+      serviceFocus,
+      loading,
+      error: err,
+      hasLayout: Boolean(data?.layout),
+    },
+  });
 
   async function run() {
     setErr(null);

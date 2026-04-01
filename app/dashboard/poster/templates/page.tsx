@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import PosterCanvas from "@/app/components/poster/PosterCanvas";
 import { POSTER_TEMPLATES } from "@/lib/poster/templates/registry";
 import { Lock, Search, Sparkles } from "lucide-react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type Plan = "free" | "basic" | "pro";
 
@@ -63,6 +64,22 @@ export default function PosterTemplatesPage() {
   const filtered = POSTER_TEMPLATES.filter((t) => {
     const hay = `${t.name} ${t.id} ${t.platform}`.toLowerCase();
     return hay.includes(query.toLowerCase());
+  });
+
+  useCopilotPageContext({
+    page: "poster-templates",
+    data: {
+      plan,
+      unlockedCount,
+      query,
+      filteredCount: filtered.length,
+      totalCount: POSTER_TEMPLATES.length,
+      topTemplates: filtered.slice(0, 6).map((t) => ({
+        id: t.id,
+        name: t.name,
+        platform: t.platform,
+      })),
+    },
   });
 
   return (

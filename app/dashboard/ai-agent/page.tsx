@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
 type Goal = "geo_audit" | "content_plan" | "brand_voice";
 type Platform = "web" | "instagram" | "tiktok" | "linkedin";
@@ -459,6 +460,25 @@ export default function AIAgentPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AgentResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  useCopilotPageContext({
+    page: "ai-agent",
+    data: {
+      goal,
+      platform,
+      url: url.trim() || null,
+      brandName: brandName.trim() || null,
+      notesPreview: notes.slice(0, 900),
+      loading,
+      error: err,
+      resultPreview: data
+        ? {
+            webContextUsed: data.webContextUsed ?? null,
+            crawlUsed: data.crawlUsed ?? null,
+          }
+        : null,
+    },
+  });
 
   const canRun = useMemo(() => {
     if (loading) return false;
