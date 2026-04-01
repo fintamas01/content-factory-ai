@@ -510,9 +510,9 @@ export default function ProductGeniePage() {
         </p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-        {/* Left: Source + inputs */}
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        {/* Left: Source + inputs — min-w-0 lets the column shrink inside grid without horizontal overflow */}
+        <div className="min-w-0 space-y-6">
           <div className="relative overflow-hidden rounded-[28px] border border-white/[0.10] bg-white/[0.03] p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
             <div
               className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
@@ -560,7 +560,7 @@ export default function ProductGeniePage() {
           </div>
 
           {mode === "store" ? (
-            <div className="relative overflow-hidden rounded-[28px] border border-white/[0.10] bg-white/[0.03] p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
+            <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-white/[0.10] bg-white/[0.03] p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset,0_36px_90px_-56px_rgba(0,0,0,0.95)] backdrop-blur-sm sm:p-6">
               <div
                 className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
                 aria-hidden
@@ -637,18 +637,18 @@ export default function ProductGeniePage() {
                       disabled={wooSaving}
                     />
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Button
                       type="button"
                       onClick={connectWoo}
                       disabled={wooSaving}
                       variant="primary"
-                      className="h-12 w-full rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                     >
                       {wooSaving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                       ) : (
-                        <Plug className="h-4 w-4" />
+                        <Plug className="h-4 w-4 shrink-0" />
                       )}
                       {wooSaving ? "Saving…" : wooConnected ? "Save changes" : "Connect store"}
                     </Button>
@@ -658,7 +658,7 @@ export default function ProductGeniePage() {
                         onClick={() => setWooEditing(false)}
                         disabled={wooSaving}
                         variant="secondary"
-                        className="h-12 w-full rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                        className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                       >
                         Cancel
                       </Button>
@@ -670,12 +670,12 @@ export default function ProductGeniePage() {
                   </p>
                 </div>
               ) : (
-                <div className="mt-5 grid gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                <div className="mt-5 grid min-w-0 gap-4">
+                  <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
                       Connected domain
                     </p>
-                    <p className="mt-1 truncate text-sm font-mono text-white/70">
+                    <p className="mt-1 break-all text-sm font-mono text-white/70 leading-snug">
                       {wooStoreUrl}
                     </p>
                     {wooLastRefreshAt ? (
@@ -692,18 +692,18 @@ export default function ProductGeniePage() {
                     )}
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Button
                       type="button"
                       onClick={() => loadWooProducts()}
                       disabled={wooLoadingList || wooSaving}
                       variant="primary"
-                      className="h-12 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                     >
                       {wooLoadingList ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                       ) : (
-                        <RefreshCcw className="h-4 w-4" />
+                        <RefreshCcw className="h-4 w-4 shrink-0" />
                       )}
                       Refresh
                     </Button>
@@ -712,7 +712,7 @@ export default function ProductGeniePage() {
                       onClick={() => setWooEditing(true)}
                       disabled={wooSaving}
                       variant="secondary"
-                      className="h-12 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                     >
                       Change store
                     </Button>
@@ -721,20 +721,20 @@ export default function ProductGeniePage() {
                       onClick={disconnectWoo}
                       disabled={wooSaving}
                       variant="danger"
-                      className="h-12 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                     >
                       Disconnect
                     </Button>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                    <div className="relative">
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <div className="relative min-w-0">
                       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
                       <Input
                         value={wooQuery}
                         onChange={(e) => setWooQuery(e.target.value)}
                         placeholder="Search products…"
-                        className="rounded-2xl pl-10"
+                        className="min-w-0 rounded-2xl pl-10"
                       />
                     </div>
                     <Button
@@ -742,7 +742,7 @@ export default function ProductGeniePage() {
                       onClick={() => loadWooProducts()}
                       disabled={wooLoadingList}
                       variant="secondary"
-                      className="h-11 rounded-2xl px-5 text-[11px] font-black uppercase tracking-[0.22em]"
+                      className="h-11 w-full shrink-0 whitespace-normal rounded-2xl px-4 text-[11px] font-black uppercase leading-tight tracking-[0.18em] sm:w-auto sm:self-start"
                     >
                       Search
                     </Button>
@@ -798,9 +798,9 @@ export default function ProductGeniePage() {
                   </div>
 
                   {wooInsights?.connected ? (
-                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.06] p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
+                    <div className="min-w-0 rounded-2xl border border-violet-500/20 bg-violet-500/[0.06] p-4">
+                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                        <div className="min-w-0">
                           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200/90">
                             Optimization queue
                           </p>
@@ -808,7 +808,7 @@ export default function ProductGeniePage() {
                             Heuristic preview — lowest scores first. Select a row to open the product.
                           </p>
                         </div>
-                        <span className="shrink-0 rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[10px] font-mono text-white/60">
+                        <span className="w-fit shrink-0 rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[10px] font-mono text-white/60">
                           {wooInsights.total} synced
                         </span>
                       </div>
@@ -839,8 +839,8 @@ export default function ProductGeniePage() {
                     </div>
                   ) : null}
 
-                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4">
-                    <div className="flex items-start gap-3">
+                  <div className="min-w-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4">
+                    <div className="flex min-w-0 items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-200">
                         <Activity className="h-5 w-5" />
                       </div>
@@ -852,18 +852,18 @@ export default function ProductGeniePage() {
                           Analyze listing health, then generate improved copy aligned with your brand profile.
                           Store updates are always explicit — use Sync / Update.
                         </p>
-                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <div className="mt-3 flex min-w-0 flex-col gap-2">
                           <Button
                             type="button"
                             onClick={() => void runHealthAnalysis()}
                             disabled={!wooSelectedId || healthLoading || optimizeLoading}
                             variant="secondary"
-                            className="h-11 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.18em]"
+                            className="h-11 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                           >
                             {healthLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                             ) : (
-                              <Activity className="h-4 w-4" />
+                              <Activity className="h-4 w-4 shrink-0" />
                             )}
                             {healthLoading ? "Analyzing…" : "Analyze health"}
                           </Button>
@@ -872,12 +872,12 @@ export default function ProductGeniePage() {
                             onClick={() => void runWooOptimize()}
                             disabled={!wooSelectedId || optimizeLoading || healthLoading}
                             variant="primary"
-                            className="h-11 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.18em]"
+                            className="h-11 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                           >
                             {optimizeLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                             ) : (
-                              <Sparkles className="h-4 w-4" />
+                              <Sparkles className="h-4 w-4 shrink-0" />
                             )}
                             {optimizeLoading ? "Generating…" : "Full optimize"}
                           </Button>
@@ -1053,7 +1053,7 @@ export default function ProductGeniePage() {
         </div>
 
         {/* Right: Results */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {result ? (
             <>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-[20px] border border-emerald-500/20 bg-emerald-500/[0.06] px-5 py-4 dark:bg-emerald-500/10">
