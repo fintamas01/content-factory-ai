@@ -18,6 +18,16 @@ function clip(s: string, n: number) {
   return `${t.slice(0, n - 1)}…`;
 }
 
+function moduleLabel(source: string): string {
+  if (source === "autopilot") return "AutoPilot";
+  if (source === "products") return "Products";
+  if (source === "audit") return "Audit";
+  if (source === "sprint") return "Sprint";
+  if (source === "competitor") return "Competitors";
+  if (source === "playbooks") return "Playbooks";
+  return "System";
+}
+
 function formatWhen(iso: string): string {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return "";
@@ -154,14 +164,19 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
                     <div className="flex items-start gap-3">
                       <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${severityDot(n.severity)}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white/90">
-                          {n.title}
-                          {!n.is_read ? (
-                            <span className="ml-2 align-middle text-[10px] font-black uppercase tracking-[0.18em] text-violet-300/90">
-                              New
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 text-sm font-semibold text-white/90">
+                            <span className="block truncate">{n.title}</span>
+                          </p>
+                          <div className="shrink-0 flex items-center gap-2">
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-white/55">
+                              {moduleLabel(n.source_module)}
                             </span>
-                          ) : null}
-                        </p>
+                            <span className="text-[10px] font-mono text-white/35">
+                              {n.created_at ? formatWhen(n.created_at) : ""}
+                            </span>
+                          </div>
+                        </div>
                         <p className="mt-1 text-xs leading-relaxed text-white/55">
                           {clip(n.message, 170)}
                         </p>
@@ -184,14 +199,11 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
                               onClick={() => void markRead(n.id)}
                               className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-white/20 hover:bg-white/[0.06]"
                             >
-                              Dismiss
+                              Mark seen
                             </button>
                           ) : null}
                         </div>
                       </div>
-                      <p className="shrink-0 text-[10px] font-mono text-white/35">
-                        {n.created_at ? formatWhen(n.created_at) : ""}
-                      </p>
                     </div>
                   </li>
                 ))}

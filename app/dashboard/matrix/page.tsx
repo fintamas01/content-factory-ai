@@ -137,7 +137,8 @@ export default function ContentMatrix() {
     document.body.style.cursor = 'wait';
 
     try {
-        const doc = new jsPDF();
+        // Keep the same export approach (jsPDF + autoTable), just improve layout/typography.
+        const doc = new jsPDF({ unit: "pt", format: "a4" });
 
         // 1. Font letöltése (Roboto - ez ismeri az ő/ű betűket)
         const fontResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf');
@@ -155,14 +156,98 @@ export default function ContentMatrix() {
                 doc.addFileToVFS("Roboto-Regular.ttf", base64data);
                 doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
                 doc.setFont("Roboto"); // Beállítjuk aktívnak
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const marginX = 54;
+                const contentW = pageW - marginX * 2;
 
-                // Fejléc
-                doc.setFontSize(18);
-                doc.text(`Tartalomterv: ${formData.brand || 'Márka'}`, 14, 22);
-                
+                const brand = (formData.brand || "Márka").trim();
+                const topic = (formData.topic || "").trim();
+                const audience = (formData.audience || "").trim();
+                const tone = (formData.tone || "").trim();
+                const generatedAt = new Date().toLocaleDateString("hu-HU");
+
+                const safeFile = (s: string) =>
+                  (s || "export")
+                    .trim()
+                    .toLowerCase()
+                    .replace(/\s+/g, "_")
+                    .replace(/[^a-z0-9_\-]+/g, "")
+                    .slice(0, 60) || "export";
+
+                // ----------------
+                // COVER (premium)
+                // ----------------
+                doc.setFillColor(7, 10, 16);
+                doc.rect(0, 0, pageW, pageH, "F");
+                doc.setFillColor(139, 92, 246);
+                doc.rect(0, 0, pageW, 6, "F");
+
+                doc.setTextColor(165, 176, 196);
+                doc.setFontSize(10);
+                doc.text("CONTENT MATRIX · CLIENT EXPORT", marginX, 64);
+
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(30);
+                doc.text(brand, marginX, 110, { maxWidth: contentW });
+
+                doc.setFontSize(14);
+                doc.setTextColor(216, 225, 238);
+                if (topic) doc.text(topic, marginX, 140, { maxWidth: contentW });
+
                 doc.setFontSize(11);
-                doc.setTextColor(100);
-                doc.text(`Téma: ${formData.topic} | Generálva: ${new Date().toLocaleDateString('hu-HU')}`, 14, 30);
+                doc.setTextColor(150, 160, 180);
+                const metaLine = [
+                  `Generálva: ${generatedAt}`,
+                  matrixData.length ? `Bejegyzések: ${matrixData.length}` : null,
+                  tone ? `Hangnem: ${tone}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+                doc.text(metaLine, marginX, 166, { maxWidth: contentW });
+
+                // Two info tiles
+                const tileY = 220;
+                const tileH = 86;
+                const tileGap = 12;
+                const tileW = (contentW - tileGap) / 2;
+
+                const tile = (x: number, label: string, value: string) => {
+                  doc.setFillColor(12, 16, 24);
+                  doc.roundedRect(x, tileY, tileW, tileH, 14, 14, "F");
+                  doc.setTextColor(165, 176, 196);
+                  doc.setFontSize(10);
+                  doc.text(label.toUpperCase(), x + 18, tileY + 28);
+                  doc.setTextColor(255, 255, 255);
+                  doc.setFontSize(14);
+                  doc.text(value || "—", x + 18, tileY + 54, { maxWidth: tileW - 36 });
+                };
+
+                tile(marginX, "Célközönség", audience);
+                tile(marginX + tileW + tileGap, "Fókusz", topic || "Tartalomterv");
+
+                doc.setTextColor(120, 130, 155);
+                doc.setFontSize(10);
+                doc.text(
+                  "Megjegyzés: Ez a dokumentum automatikusan generált. Kérdés esetén jelezd a csapatnak.",
+                  marginX,
+                  pageH - 56,
+                  { maxWidth: contentW }
+                );
+
+                // ----------------
+                // TABLE PAGES
+                // ----------------
+                doc.addPage();
+                doc.setFillColor(255, 255, 255);
+                doc.rect(0, 0, pageW, pageH, "F");
+                doc.setTextColor(15, 23, 42);
+                doc.setFontSize(18);
+                doc.text("Tartalomterv", marginX, 56);
+
+                doc.setFontSize(11);
+                doc.setTextColor(71, 85, 105);
+                doc.text(`${brand} · ${generatedAt}`, marginX, 74);
 
                 // Táblázat adatok
                 const tableRows = matrixData.map(post => [
@@ -176,24 +261,45 @@ export default function ContentMatrix() {
                 autoTable(doc, {
                     head: [['Nap', 'Platform', 'Cím', 'Tartalom']],
                     body: tableRows,
-                    startY: 40,
-                    styles: { 
-                        font: "Roboto", // Fontos: a táblázat is ezt használja!
-                        fontSize: 10, 
-                        cellPadding: 3,
-                        overflow: 'linebreak' // Sortörés, ha hosszú a szöveg
+                    startY: 92,
+                    theme: "grid",
+                    styles: {
+                        font: "Roboto",
+                        fontSize: 9.5,
+                        cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+                        overflow: 'linebreak',
+                        textColor: [15, 23, 42],
+                        lineColor: [226, 232, 240],
+                        lineWidth: 0.5,
+                        valign: "top",
                     },
-                    headStyles: { fillColor: [37, 99, 235] },
+                    headStyles: {
+                        fillColor: [15, 23, 42],
+                        textColor: [241, 245, 249],
+                        fontStyle: "bold",
+                        halign: "left",
+                        lineColor: [15, 23, 42],
+                    },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
                     columnStyles: {
-                        0: { cellWidth: 20 }, // Nap
-                        1: { cellWidth: 20 }, // Platform
-                        2: { cellWidth: 40 }, // Cím
-                        3: { cellWidth: 'auto' } // Tartalom (maradék hely)
-                    }
+                        0: { cellWidth: 44 }, // Nap
+                        1: { cellWidth: 72 }, // Platform
+                        2: { cellWidth: 150 }, // Cím
+                        3: { cellWidth: 'auto' } // Tartalom
+                    },
+                    didDrawPage: (data) => {
+                      // Footer
+                      const pageNumber = doc.getNumberOfPages();
+                      doc.setFont("Roboto", "normal");
+                      doc.setFontSize(9);
+                      doc.setTextColor(148, 163, 184);
+                      doc.text(`${brand} · Content Matrix`, marginX, pageH - 22);
+                      doc.text(`Oldal ${pageNumber - 1}`, pageW - marginX, pageH - 22, { align: "right" });
+                    },
                 });
 
                 // Mentés
-                doc.save(`${formData.brand}_heti_terv.pdf`);
+                doc.save(`${safeFile(brand)}_content_matrix_${generatedAt.replace(/\./g, "-")}.pdf`);
             }
             document.body.style.cursor = originalText;
         };
