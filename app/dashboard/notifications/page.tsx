@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { ArrowRight, Bell, CheckCheck } from "lucide-react";
 import { requireActiveClientId } from "@/lib/clients/server";
 import type { NotificationRow, NotificationSeverity } from "@/lib/notifications/types";
+import { NotificationSettingsCard } from "@/app/components/NotificationSettingsCard";
 
 function severityPill(sev: NotificationSeverity) {
   if (sev === "critical") return "border-red-500/25 bg-red-500/10 text-red-200";
@@ -108,6 +109,8 @@ export default async function NotificationsPage() {
           </Link>
         </div>
       </header>
+
+      <NotificationSettingsCard />
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-20 text-center">

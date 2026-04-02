@@ -8,6 +8,7 @@ import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { CopilotProvider } from "@/app/components/copilot/CopilotProvider";
 import { CopilotPanel } from "@/app/components/copilot/CopilotPanel";
 import { NotificationBell } from "@/app/components/NotificationBell";
+import { PushClient } from "@/app/components/PushClient";
 
 function shouldHideShell(pathname: string) {
   return (
@@ -48,6 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CopilotProvider>
+      <PushClient />
       <div className="cf-app-bg flex min-h-screen overflow-x-hidden">
         <div className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100" aria-hidden />
         {/* Desktop sidebar */}
