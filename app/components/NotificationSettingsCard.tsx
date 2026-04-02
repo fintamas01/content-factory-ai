@@ -8,6 +8,7 @@ import { enablePushNotifications } from "@/app/components/PushClient";
 type Settings = {
   email_enabled: boolean;
   email_digest_frequency: "off" | "instant" | "daily" | "weekly";
+  weekly_growth_report_enabled: boolean;
   push_enabled: boolean;
   push_instant_severity: "info" | "success" | "warning" | "critical";
 };
@@ -19,6 +20,7 @@ export function NotificationSettingsCard() {
   const [settings, setSettings] = useState<Settings>({
     email_enabled: true,
     email_digest_frequency: "daily",
+    weekly_growth_report_enabled: true,
     push_enabled: false,
     push_instant_severity: "critical",
   });
@@ -28,7 +30,15 @@ export function NotificationSettingsCard() {
       setLoading(true);
       const res = await fetch("/api/notifications/settings");
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.settings) setSettings({ ...settings, ...json.settings });
+      if (res.ok && json.settings)
+        setSettings((prev) => ({
+          ...prev,
+          ...json.settings,
+          weekly_growth_report_enabled:
+            typeof json.settings.weekly_growth_report_enabled === "boolean"
+              ? json.settings.weekly_growth_report_enabled
+              : prev.weekly_growth_report_enabled ?? true,
+        }));
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,6 +147,25 @@ export function NotificationSettingsCard() {
               <option value="daily">Daily digest</option>
               <option value="weekly">Weekly digest</option>
             </select>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
+            <div>
+              <label className="text-xs font-semibold text-white/70">Weekly Growth Report</label>
+              <p className="mt-1 text-[11px] leading-snug text-white/40">
+                Progress, opportunities, and next actions from your audits & listings (Mondays).
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.weekly_growth_report_enabled ?? true}
+              onChange={(e) => {
+                setSettings((p) => ({ ...p, weekly_growth_report_enabled: e.target.checked }));
+                void save({ weekly_growth_report_enabled: e.target.checked });
+              }}
+              className="h-4 w-4 shrink-0"
+              disabled={saving || !settings.email_enabled}
+            />
           </div>
         </div>
 

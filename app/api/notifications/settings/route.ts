@@ -103,6 +103,10 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const email_enabled = typeof body?.email_enabled === "boolean" ? body.email_enabled : undefined;
+    const weekly_growth_report_enabled =
+      typeof body?.weekly_growth_report_enabled === "boolean"
+        ? body.weekly_growth_report_enabled
+        : undefined;
     const email_digest_frequency =
       typeof body?.email_digest_frequency === "string" ? body.email_digest_frequency : undefined;
     const push_enabled = typeof body?.push_enabled === "boolean" ? body.push_enabled : undefined;
@@ -114,6 +118,8 @@ export async function POST(req: Request) {
       client_id: clientId,
     };
     if (email_enabled !== undefined) patch.email_enabled = email_enabled;
+    if (weekly_growth_report_enabled !== undefined)
+      patch.weekly_growth_report_enabled = weekly_growth_report_enabled;
     if (email_digest_frequency) patch.email_digest_frequency = email_digest_frequency;
     if (push_enabled !== undefined) patch.push_enabled = push_enabled;
     if (push_instant_severity) patch.push_instant_severity = push_instant_severity;
