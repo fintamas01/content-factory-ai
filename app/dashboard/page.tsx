@@ -27,6 +27,8 @@ import {
   mergeAndSort,
 } from "@/lib/history/map-rows";
 import type { GrowthAuditReport, GrowthSprintPlan } from "@/lib/site-audit/types";
+import { compareAuditReports } from "@/lib/progress/audit-comparison";
+import type { AuditProgressComparison } from "@/lib/progress/types";
 import { fetchWooOptimizationInsights } from "@/lib/woocommerce/insights";
 import type { NotificationRow } from "@/lib/notifications/types";
 
@@ -236,6 +238,26 @@ export default async function PlatformDashboardPage() {
     | { id: string; summary: string; insights: any; created_at: string }
     | null;
 
+  let auditProgressSnapshot: AuditProgressComparison | null = null;
+  if (latestAuditRow?.page_url) {
+    const { data: twoRuns } = await supabase
+      .from("site_audit_runs")
+      .select("id, report, created_at")
+      .eq("client_id", clientId)
+      .eq("page_url", latestAuditRow.page_url)
+      .order("created_at", { ascending: false })
+      .limit(2);
+    if (twoRuns && twoRuns.length >= 2) {
+      const [cur, prev] = twoRuns;
+      auditProgressSnapshot = compareAuditReports({
+        previousReport: prev.report ?? null,
+        currentReport: cur.report as GrowthAuditReport,
+        previousRunAt: prev.created_at ?? null,
+        previousRunId: prev.id ?? null,
+      });
+    }
+  }
+
   const topActions = (() => {
     if (!latestReport) return [];
     const issues = [...(latestReport.top_issues ?? [])].sort(
@@ -338,6 +360,89 @@ export default async function PlatformDashboardPage() {
           />
           </div>
         </section>
+
+        {auditProgressSnapshot?.hasPrevious ? (
+          <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-zinc-900/50 via-zinc-950/90 to-black p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset] sm:p-6">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_100%_0%,rgba(16,185,129,0.1),transparent)]" />
+            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-400/85">
+                  Progress over time
+                </p>
+                <h2 className="mt-2 text-lg font-semibold tracking-tight text-white">
+                  Latest audit vs previous (same URL)
+                </h2>
+                <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-zinc-400">
+                  {auditProgressSnapshot.summaryLines.slice(0, 2).join(" · ") ||
+                    "Scores compared to your last run on this URL."}
+                </p>
+              </div>
+              <div className="flex w-full flex-col gap-3 sm:w-auto lg:max-w-xl lg:flex-1">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                  {(
+                    [
+                      {
+                        short: "SEO",
+                        key: "seo" as const,
+                        delta: auditProgressSnapshot.deltas.seo,
+                      },
+                      {
+                        short: "AI",
+                        key: "ai_discoverability" as const,
+                        delta: auditProgressSnapshot.deltas.ai_discoverability,
+                      },
+                      {
+                        short: "CVR",
+                        key: "conversion" as const,
+                        delta: auditProgressSnapshot.deltas.conversion,
+                      },
+                    ] as const
+                  ).map(({ short, key, delta }) => {
+                    const before = auditProgressSnapshot.previousScores?.[key] ?? 0;
+                    const after = auditProgressSnapshot.currentScores[key];
+                    const dClass =
+                      delta > 0
+                        ? "border-emerald-500/35 bg-emerald-500/12 text-emerald-200"
+                        : delta < 0
+                          ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
+                          : "border-zinc-600/40 bg-zinc-800/50 text-zinc-400";
+                    const deltaText =
+                      delta > 0 ? `+${delta}` : delta < 0 ? String(delta) : "0";
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-xl border border-zinc-600/25 bg-zinc-900/60 px-3 py-2.5"
+                      >
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                          {short}
+                        </p>
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5 text-[11px] tabular-nums">
+                            <span className="font-mono text-zinc-500">{before}</span>
+                            <ArrowRight className="h-3 w-3 shrink-0 text-zinc-600" aria-hidden />
+                            <span className="font-mono font-medium text-emerald-100/90">{after}</span>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${dClass}`}
+                          >
+                            {deltaText}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <Link
+                  href="/dashboard/site-audit"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-2.5 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/22 sm:w-auto sm:self-end"
+                >
+                  Open audit
+                  <ArrowRight className="h-3.5 w-3.5 opacity-80" />
+                </Link>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {wooInsights ? (
           <section className="rounded-2xl border border-violet-500/15 bg-gradient-to-r from-violet-500/[0.07] to-transparent p-5 sm:p-6">

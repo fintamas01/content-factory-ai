@@ -48,6 +48,8 @@ import {
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
+import { AuditProgressPanel } from "@/app/components/progress/AuditProgressPanel";
+import type { AuditProgressComparison } from "@/lib/progress/types";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,6 +67,7 @@ type ApiSuccess = {
     competitors?: string[];
   };
   auditRunId?: string | null;
+  auditProgress?: AuditProgressComparison | null;
 };
 
 type TabId =
@@ -417,6 +420,7 @@ export default function AIGrowthAuditPage() {
   const workspaceHydrated = useRef(false);
   const [auditWorkspaceReady, setAuditWorkspaceReady] = useState(false);
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
+  const [auditProgress, setAuditProgress] = useState<AuditProgressComparison | null>(null);
 
   const [tab, setTab] = useState<TabId>("overview");
   const [selectedIssueIdx, setSelectedIssueIdx] = useState<number | null>(null);
@@ -523,7 +527,29 @@ export default function AIGrowthAuditPage() {
     setTab("overview");
     setFixError(null);
     setReviewItemId(null);
+    setAuditProgress(null);
   };
+
+  useEffect(() => {
+    const u = data?.signals?.url;
+    if (!u) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/progress/audit-comparison?url=${encodeURIComponent(u)}`
+        );
+        const j = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (j?.auditProgress) setAuditProgress(j.auditProgress as AuditProgressComparison);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.signals?.url, data?.auditRunId]);
 
   const exportAuditPdf = async () => {
     if (!data?.report) return;
@@ -688,6 +714,10 @@ export default function AIGrowthAuditPage() {
       setSelectedIssueIdx(null);
       setTab("overview");
       setData(json as ApiSuccess);
+      setAuditProgress(
+        (json as ApiSuccess).auditProgress ??
+          null
+      );
       setUsageBump((n) => n + 1);
     } catch {
       setError("Network error. Try again.");
@@ -1865,6 +1895,18 @@ export default function AIGrowthAuditPage() {
                   pageTitle: data.signals.title,
                   signals: data.signals,
                 })}
+              />
+            </div>
+          ) : null}
+          {data && auditWorkspaceReady && auditProgress ? (
+            <div className="relative mb-6">
+              <AuditProgressPanel
+                progress={auditProgress}
+                previousLabel={
+                  auditProgress.previousRunAt
+                    ? new Date(auditProgress.previousRunAt).toLocaleString()
+                    : null
+                }
               />
             </div>
           ) : null}

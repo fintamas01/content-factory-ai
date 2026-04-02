@@ -42,6 +42,8 @@ import {
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
+import { ProductHealthProgressPanel } from "@/app/components/progress/ProductHealthProgressPanel";
+import type { ProductHealthProgressComparison } from "@/lib/progress/types";
 
 const TONE_OPTIONS = [
   { value: "", label: "Default (balanced)" },
@@ -190,6 +192,7 @@ export default function ProductGeniePage() {
   const workspaceHydrated = useRef(false);
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
+  const [healthProgress, setHealthProgress] = useState<ProductHealthProgressComparison | null>(null);
 
   useCopilotPageContext({
     page: "products",
@@ -417,7 +420,28 @@ export default function ProductGeniePage() {
     setWooSyncStatus({ state: "idle" });
     setWooUpdateFields({ title: true, description: true, short: true });
     setReviewItemId(null);
+    setHealthProgress(null);
   };
+
+  useEffect(() => {
+    if (!wooSelectedId || !healthResult) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/progress/product-health-comparison?wooProductId=${wooSelectedId}`
+        );
+        const j = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (j.healthProgress) setHealthProgress(j.healthProgress as ProductHealthProgressComparison);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wooSelectedId, healthResult?.score]);
 
   const runGeneration = async (kind: "generate" | "improve") => {
     setError(null);
@@ -607,6 +631,9 @@ export default function ProductGeniePage() {
         return;
       }
       if (json.health) setHealthResult(json.health as ProductHealthResult);
+      setHealthProgress(
+        (json.healthProgress as ProductHealthProgressComparison | undefined) ?? null
+      );
       setUsageBump((n) => n + 1);
     } catch {
       setError("Network error running health analysis.");
@@ -794,6 +821,12 @@ export default function ProductGeniePage() {
             wooSelectedId,
           })}
         />
+      ) : null}
+
+      {healthResult && healthProgress && workspaceReady ? (
+        <div className="mb-6">
+          <ProductHealthProgressPanel progress={healthProgress} />
+        </div>
       ) : null}
 
       {unifiedBrand ? (

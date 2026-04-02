@@ -14,6 +14,7 @@ import { requireActiveClientId } from "@/lib/clients/server";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { createNotification } from "@/lib/notifications/server";
+import { compareAuditReports } from "@/lib/progress/audit-comparison";
 
 export async function POST(req: Request) {
   try {
@@ -160,6 +161,22 @@ export async function POST(req: Request) {
       competitors: competitorsClean,
     };
 
+    const { data: prevRun } = await supabase
+      .from("site_audit_runs")
+      .select("id, report, created_at")
+      .eq("client_id", activeClientId)
+      .eq("page_url", signals.url)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const auditProgress = compareAuditReports({
+      previousReport: prevRun?.report ?? null,
+      currentReport: normalized,
+      previousRunAt: prevRun?.created_at ?? null,
+      previousRunId: prevRun?.id ?? null,
+    });
+
     const { data: savedAudit, error: saveAuditErr } = await supabase
       .from("site_audit_runs")
       .insert({
@@ -194,12 +211,42 @@ export async function POST(req: Request) {
       console.warn("[site-audit] notification create failed:", e);
     }
 
+    if (auditProgress.hasPrevious) {
+      const net =
+        auditProgress.deltas.seo +
+        auditProgress.deltas.ai_discoverability +
+        auditProgress.deltas.conversion;
+      if (net >= 8) {
+        try {
+          await createNotification(supabase, {
+            userId: user.id,
+            clientId: activeClientId,
+            type: "audit_score_improved",
+            title: "Audit scores moved up",
+            message: `Latest run vs your previous audit for this URL: combined pillars ${net >= 0 ? "+" : ""}${net} points. Open the audit to see what changed.`,
+            severity: "success",
+            sourceModule: "audit",
+            actionLabel: "View comparison",
+            actionUrl: "/dashboard/site-audit",
+            metadata: {
+              url: signals.url,
+              deltas: auditProgress.deltas,
+              auditRunId: savedAudit?.id ?? null,
+            },
+          });
+        } catch (e) {
+          console.warn("[site-audit] progress notification failed:", e);
+        }
+      }
+    }
+
     await incrementUsage(supabase, "audit", activeClientId);
 
     return NextResponse.json({
       report: normalized,
       signals: signalsPayload,
       auditRunId: savedAudit?.id ?? null,
+      auditProgress,
     });
   } catch (e) {
     console.error("site-audit:", e);

@@ -12,6 +12,7 @@ import {
   type ProductHealthResult,
 } from "@/lib/products/product-health";
 import { createNotification } from "@/lib/notifications/server";
+import { compareProductHealth } from "@/lib/progress/product-health-comparison";
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
@@ -93,6 +94,28 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
     const brand = await fetchUserBrandProfile(supabase, user.id, clientId);
 
+    const { data: priorRows } = await supabase
+      .from("product_generations")
+      .select("id, output_data, input_data, created_at")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(40);
+
+    let previousHealth: ProductHealthResult | null = null;
+    let previousGenId: string | null = null;
+    let previousAt: string | null = null;
+    for (const row of priorRows ?? []) {
+      const inp = row.input_data as Record<string, unknown> | null;
+      if (inp?.phase !== "health_analysis") continue;
+      if (Number(inp?.woo_product_id) !== pid) continue;
+      const out = row.output_data as Record<string, unknown> | null;
+      if (out?.kind !== "health_analysis" || !out?.health) continue;
+      previousHealth = out.health as ProductHealthResult;
+      previousGenId = String(row.id);
+      previousAt = typeof row.created_at === "string" ? row.created_at : null;
+      break;
+    }
+
     const analyzed = await analyzeProductHealthWithOpenAI({
       productName: title,
       title,
@@ -107,6 +130,13 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     }
 
     const health: ProductHealthResult = analyzed.health;
+
+    const healthProgress = compareProductHealth({
+      previous: previousHealth,
+      current: health,
+      previousRunAt: previousAt,
+      previousGenerationId: previousGenId,
+    });
 
     // Retention-friendly alert: only create a notification when the listing is meaningfully weak.
     if (health.score <= 65) {
@@ -160,7 +190,30 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
     await incrementUsage(supabase, "product", clientId);
 
-    return NextResponse.json({ health, savedId });
+    if (healthProgress.hasPrevious && healthProgress.scoreDelta >= 5) {
+      try {
+        await createNotification(supabase, {
+          userId: user.id,
+          clientId,
+          type: "product_health_improved",
+          title: "Product health score improved",
+          message: `${title || `Product #${pid}`}: score ${healthProgress.previousScore} → ${healthProgress.currentScore} (+${healthProgress.scoreDelta}).`,
+          severity: "success",
+          sourceModule: "products",
+          actionLabel: "Open Products",
+          actionUrl: `/dashboard/products?wooProductId=${pid}`,
+          metadata: {
+            woo_product_id: pid,
+            scoreDelta: healthProgress.scoreDelta,
+            savedId,
+          },
+        });
+      } catch (e) {
+        console.warn("[health] progress notification failed:", e);
+      }
+    }
+
+    return NextResponse.json({ health, savedId, healthProgress });
   } catch (e) {
     console.error("POST /api/woocommerce/products/[id]/health:", e);
     return NextResponse.json({ error: "Unexpected server error." }, { status: 500 });
