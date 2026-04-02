@@ -12,6 +12,13 @@ export function getProPriceMonthlyDisplay(): string {
   return "$29";
 }
 
+/** Display string for Elite monthly price (marketing; set in env). */
+export function getElitePriceMonthlyDisplay(): string {
+  const v = process.env.NEXT_PUBLIC_ELITE_PRICE_MONTHLY?.trim();
+  if (v && v.length > 0) return v;
+  return "$99";
+}
+
 export function getStripePriceIdPro(): string {
   return process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO?.trim() ?? "";
 }
@@ -49,13 +56,15 @@ export type PlanMarketingCard = {
   bullets: string[];
 };
 
-/** Free vs Pro cards for pricing / billing (limits from SAAS_LIMITS). */
+/** Free vs Pro vs Elite cards for pricing / billing (limits from SAAS_LIMITS). */
 export function getPlanMarketingCards(): {
   free: PlanMarketingCard;
   pro: PlanMarketingCard;
+  elite: PlanMarketingCard;
 } {
   const f = SAAS_LIMITS.free;
   const p = SAAS_LIMITS.pro;
+  const e = SAAS_LIMITS.elite;
   return {
     free: {
       tier: "free",
@@ -80,6 +89,19 @@ export function getPlanMarketingCards(): {
         `${p.audits_per_month} site audits / month`,
         "Higher quotas across all modules",
         "Priority usage and room to scale",
+      ],
+    },
+    elite: {
+      tier: "elite",
+      name: "Elite",
+      priceLine: getElitePriceMonthlyDisplay(),
+      periodNote: "per month",
+      bullets: [
+        `${e.content_generations_per_month} content generations / month`,
+        `${e.product_generations_per_month} product generations / month`,
+        `${e.audits_per_month} site audits / month`,
+        "Everything in Pro",
+        "Price Intelligence — competitor URL tracking & AI pricing briefs",
       ],
     },
   };

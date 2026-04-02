@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Shield,
   Zap,
+  BarChart3,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { BillingApiResponse } from "@/app/api/billing/route";
@@ -19,6 +20,7 @@ import { subscriptionPlanLabel } from "@/lib/billing/plan-display";
 import {
   getAllowedCheckoutPriceIds,
   getPlanMarketingCards,
+  getStripePriceIdElite,
   getStripePriceIdPro,
 } from "@/lib/billing/pricing";
 import type { SubscriptionRow } from "@/lib/plan-config";
@@ -58,7 +60,8 @@ export function BillingDashboardClient() {
   const [data, setData] = useState<BillingApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  /** Which Stripe price id checkout is running for (null = idle). */
+  const [checkoutPriceId, setCheckoutPriceId] = useState<string | null>(null);
   const showSuccessBanner = searchParams.get("checkout") === "success";
 
   const load = useCallback(async () => {
@@ -106,13 +109,12 @@ export function BillingDashboardClient() {
     }
   };
 
-  const handleUpgradePro = async () => {
-    const priceId = getStripePriceIdPro();
+  const startCheckout = async (priceId: string, label: string) => {
     if (!priceId) {
-      alert("Pro price is not configured (NEXT_PUBLIC_STRIPE_PRICE_PRO).");
+      alert(`${label} is not configured in environment variables.`);
       return;
     }
-    setCheckoutLoading(true);
+    setCheckoutPriceId(priceId);
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -125,7 +127,7 @@ export function BillingDashboardClient() {
     } catch {
       /* ignore */
     } finally {
-      setCheckoutLoading(false);
+      setCheckoutPriceId(null);
     }
   };
 
@@ -167,9 +169,15 @@ export function BillingDashboardClient() {
   const usage = data?.usage;
   const cards = getPlanMarketingCards();
   const sub = asSub(data?.subscription ?? null);
-  const isProPlan = usage?.plan === "pro";
+  const planTier = usage?.plan ?? "free";
+  const isElite = planTier === "elite";
+  const isProTier = planTier === "pro";
+  const isPaid = isElite || isProTier;
   const stripeStatus = sub?.status ?? null;
-  const planLabel = isProPlan ? subscriptionPlanLabel(sub) : "Free";
+  const planLabel = isPaid ? subscriptionPlanLabel(sub) : "Free";
+  const proPriceId = getStripePriceIdPro();
+  const elitePriceId = getStripePriceIdElite();
+  const checkoutBusy = checkoutPriceId !== null;
 
   return (
     <div className="relative space-y-10 pb-16">
@@ -183,8 +191,8 @@ export function BillingDashboardClient() {
           role="status"
           className="relative rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.12] px-5 py-4 text-sm font-medium leading-relaxed text-emerald-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]"
         >
-          <span className="font-semibold text-emerald-50">Payment received.</span> If Pro does
-          not appear within a minute, refresh — Stripe webhooks sync your subscription.
+          <span className="font-semibold text-emerald-50">Payment received.</span> If your plan
+          does not update within a minute, refresh — Stripe webhooks sync your subscription.
         </div>
       ) : null}
 
@@ -212,7 +220,12 @@ export function BillingDashboardClient() {
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                 Current plan
               </span>
-              {isProPlan ? (
+              {isElite ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-gradient-to-r from-amber-500/20 to-violet-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-100 shadow-sm shadow-amber-900/20">
+                  <BarChart3 className="h-3.5 w-3.5 text-amber-200/90" aria-hidden />
+                  {planLabel}
+                </span>
+              ) : isPaid ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/35 bg-blue-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-100 shadow-sm shadow-blue-900/20">
                   <Sparkles className="h-3.5 w-3.5 text-amber-200/90" aria-hidden />
                   {planLabel}
@@ -226,12 +239,14 @@ export function BillingDashboardClient() {
 
             <div>
               <p className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-                {isProPlan ? `${planLabel} workspace` : "Free workspace"}
+                {isPaid ? `${planLabel} workspace` : "Free workspace"}
               </p>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-400">
-                {isProPlan
-                  ? "Paid monthly quotas are active across Content, Products, and Growth Audit."
-                  : "Starter quotas each month. Upgrade when you need more headroom."}
+                {isElite
+                  ? "Pro-level quotas plus Price Intelligence — track competitor listings and get AI pricing briefs."
+                  : isPaid
+                    ? "Paid monthly quotas are active across Content, Products, and Growth Audit."
+                    : "Starter quotas each month. Upgrade to Pro or Elite when you need more headroom."}
               </p>
             </div>
 
@@ -258,38 +273,80 @@ export function BillingDashboardClient() {
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-3 lg:w-[min(100%,280px)] lg:shrink-0">
-            {isProPlan ? (
-              <button
-                type="button"
-                onClick={handleManageBilling}
-                disabled={portalLoading}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] text-sm font-bold text-white transition hover:bg-white/[0.11] disabled:opacity-60"
-              >
-                {portalLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Settings className="h-4 w-4" />
-                )}
-                Manage subscription
-              </button>
+          <div className="flex w-full flex-col gap-3 lg:w-[min(100%,320px)] lg:shrink-0">
+            {isPaid ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleManageBilling}
+                  disabled={portalLoading}
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] text-sm font-bold text-white transition hover:bg-white/[0.11] disabled:opacity-60"
+                >
+                  {portalLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Settings className="h-4 w-4" />
+                  )}
+                  Manage subscription
+                </button>
+                {isProTier && elitePriceId ? (
+                  <button
+                    type="button"
+                    onClick={() => void startCheckout(elitePriceId, "Elite")}
+                    disabled={checkoutBusy}
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-amber-400/35 bg-gradient-to-r from-amber-500/20 to-violet-600/25 text-sm font-bold text-amber-50 transition hover:brightness-110 disabled:opacity-40"
+                  >
+                    {checkoutPriceId === elitePriceId ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <BarChart3 className="h-4 w-4" aria-hidden />
+                    )}
+                    Upgrade to Elite
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={handleUpgradePro}
-                disabled={checkoutLoading || getAllowedCheckoutPriceIds().length === 0}
-                className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-[15px] font-black text-white shadow-[0_8px_28px_-4px_rgba(37,99,235,0.55)] ring-1 ring-white/15 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-40"
-              >
-                {checkoutLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    <Zap className="h-5 w-5" aria-hidden />
-                    Upgrade to Pro
-                    <ArrowRight className="h-5 w-5" aria-hidden />
-                  </>
-                )}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => void startCheckout(proPriceId, "Pro")}
+                  disabled={
+                    checkoutBusy ||
+                    getAllowedCheckoutPriceIds().length === 0 ||
+                    !proPriceId
+                  }
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-sm font-black text-white shadow-[0_8px_28px_-4px_rgba(37,99,235,0.55)] ring-1 ring-white/15 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-40"
+                >
+                  {checkoutPriceId === proPriceId ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Zap className="h-5 w-5" aria-hidden />
+                      Upgrade to Pro
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </>
+                  )}
+                </button>
+                {elitePriceId ? (
+                  <button
+                    type="button"
+                    onClick={() => void startCheckout(elitePriceId, "Elite")}
+                    disabled={checkoutBusy || !elitePriceId}
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 to-violet-600/20 text-sm font-bold text-amber-100 transition hover:brightness-110 disabled:opacity-40"
+                  >
+                    {checkoutPriceId === elitePriceId ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <BarChart3 className="h-5 w-5" aria-hidden />
+                        Upgrade to Elite
+                        <ArrowRight className="h-4 w-4" aria-hidden />
+                      </>
+                    )}
+                  </button>
+                ) : null}
+              </>
             )}
             <Link
               href="/pricing"
@@ -360,7 +417,7 @@ export function BillingDashboardClient() {
         >
           Plans
         </h2>
-        <div className="mt-5 grid gap-6 md:grid-cols-2">
+        <div className="mt-5 grid gap-6 lg:grid-cols-3">
           <div className="flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
               Starter
@@ -415,21 +472,76 @@ export function BillingDashboardClient() {
             </ul>
             <button
               type="button"
-              onClick={handleUpgradePro}
+              onClick={() => void startCheckout(proPriceId, "Pro")}
               disabled={
-                checkoutLoading ||
-                Boolean(isProPlan) ||
+                checkoutBusy ||
+                isElite ||
+                isProTier ||
+                !proPriceId ||
                 getAllowedCheckoutPriceIds().length === 0
               }
               className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-[15px] font-black text-white shadow-lg shadow-blue-900/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
             >
-              {checkoutLoading ? (
+              {checkoutPriceId === proPriceId ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
-              ) : isProPlan ? (
-                "You are on Pro"
+              ) : isElite ? (
+                "Included in Elite"
+              ) : isProTier ? (
+                "Your current plan"
               ) : (
                 <>
                   Upgrade to Pro
+                  <ArrowRight className="h-5 w-5" aria-hidden />
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="relative flex flex-col overflow-hidden rounded-3xl border border-amber-500/35 bg-gradient-to-b from-amber-500/[0.12] via-[#0f1218] to-[#050810] p-8 shadow-[0_0_0_1px_rgba(245,158,11,0.15)]">
+            <div className="absolute right-5 top-5 rounded-full bg-gradient-to-r from-amber-500 to-violet-600 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+              Price Intel
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-200/80">
+              Top tier
+            </p>
+            <h3 className="mt-2 flex items-center gap-2 text-xl font-bold text-white">
+              {cards.elite.name}
+              <BarChart3 className="h-5 w-5 text-amber-200/90" aria-hidden />
+            </h3>
+            <div className="mt-4 flex items-baseline gap-1">
+              <span className="text-4xl font-black text-white">{cards.elite.priceLine}</span>
+              <span className="text-sm text-amber-200/50">/ {cards.elite.periodNote}</span>
+            </div>
+            <ul className="mt-6 flex flex-1 flex-col gap-2">
+              {cards.elite.bullets.map((b) => (
+                <li key={b} className="flex items-start gap-2.5 text-[13px] leading-snug text-amber-50/95">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-amber-400/30 bg-amber-500/15">
+                    <Check className="h-3 w-3 text-amber-200" strokeWidth={2.5} aria-hidden />
+                  </span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => void startCheckout(elitePriceId, "Elite")}
+              disabled={
+                checkoutBusy ||
+                isElite ||
+                !elitePriceId ||
+                getAllowedCheckoutPriceIds().length === 0
+              }
+              className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-violet-700 text-[15px] font-black text-white shadow-lg shadow-amber-900/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {checkoutPriceId === elitePriceId ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isElite ? (
+                "Your current plan"
+              ) : !elitePriceId ? (
+                "Configure Elite in Stripe"
+              ) : (
+                <>
+                  Upgrade to Elite
                   <ArrowRight className="h-5 w-5" aria-hidden />
                 </>
               )}
