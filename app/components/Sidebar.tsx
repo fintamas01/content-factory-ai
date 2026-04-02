@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
+  Bell,
   History,
   CreditCard,
   Settings,
@@ -22,7 +23,6 @@ import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { SIDEBAR_NAV_ITEMS, type SidebarNavId } from "@/lib/platform/navigation";
 import { SidebarPlanBadge } from "@/app/components/SidebarPlanBadge";
 import { ClientSwitcher } from "@/app/components/ClientSwitcher";
-import { NotificationBell } from "@/app/components/NotificationBell";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,6 +39,7 @@ const SIDEBAR_ICONS: Record<
   ComponentType<{ className?: string }>
 > = {
   dashboard: LayoutDashboard,
+  notifications: Bell,
   team: Users,
   autopilot: Orbit,
   playbooks: Sparkles,
@@ -174,7 +175,6 @@ export default function Sidebar({
               </p>
             </div>
           </div>
-          <NotificationBell />
         </div>
         <div className="pt-2">
           <SidebarPlanBadge />

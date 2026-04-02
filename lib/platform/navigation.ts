@@ -12,6 +12,11 @@ export const SIDEBAR_NAV_ITEMS = [
     exact: true,
   },
   {
+    id: "notifications",
+    label: "Notifications",
+    href: "/dashboard/notifications",
+  },
+  {
     id: "team",
     label: "Team",
     href: "/dashboard/team",
