@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef, type ComponentType, type ReactNode } from "react";
+import { Suspense, useMemo, useState, useEffect, type ComponentType, type ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { stripHtmlForAnalysis, type ProductHealthResult } from "@/lib/products/product-health";
@@ -79,10 +79,38 @@ function SectionCard({
   );
 }
 
+function DeepLinkHandler({
+  wooConnected,
+  loadWooProduct,
+  setMode,
+  setWooSelectedId,
+  setHealthResult,
+}: {
+  wooConnected: boolean;
+  loadWooProduct: (id: number) => void;
+  setMode: (m: "manual" | "store") => void;
+  setWooSelectedId: (id: number | null) => void;
+  setHealthResult: (h: ProductHealthResult | null) => void;
+}) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const raw = searchParams?.get("wooProductId");
+    const pid = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(pid) || pid <= 0) return;
+    if (!wooConnected) return;
+    setMode("store");
+    setWooSelectedId(pid);
+    setHealthResult(null);
+    void loadWooProduct(pid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, wooConnected]);
+
+  return null;
+}
+
 export default function ProductGeniePage() {
   const m = MODULES.products;
-  const searchParams = useSearchParams();
-  const deepLinkHandledRef = useRef(false);
   const [mode, setMode] = useState<"manual" | "store">("manual");
   const [activeTab, setActiveTab] = useState<
     "description" | "bullets" | "seo" | "marketplace" | "sync" | "compare"
@@ -202,20 +230,7 @@ export default function ProductGeniePage() {
     })();
   }, [mode, wooConnected, wooLastRefreshAt]);
 
-  // Deep-link from notifications: /dashboard/products?wooProductId=123
-  useEffect(() => {
-    if (deepLinkHandledRef.current) return;
-    const raw = searchParams?.get("wooProductId");
-    const pid = raw ? Number(raw) : NaN;
-    if (!Number.isFinite(pid) || pid <= 0) return;
-    if (!wooConnected) return;
-    deepLinkHandledRef.current = true;
-    setMode("store");
-    setWooSelectedId(pid);
-    setHealthResult(null);
-    void loadWooProduct(pid);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, wooConnected]);
+  // NOTE: useSearchParams() must be wrapped in Suspense for Next.js prerendering.
 
   useEffect(() => {
     (async () => {
@@ -518,6 +533,15 @@ export default function ProductGeniePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-20 p-4 sm:p-6 lg:p-8 text-white">
+      <Suspense fallback={null}>
+        <DeepLinkHandler
+          wooConnected={wooConnected}
+          loadWooProduct={loadWooProduct}
+          setMode={setMode}
+          setWooSelectedId={setWooSelectedId}
+          setHealthResult={setHealthResult}
+        />
+      </Suspense>
       <ModulePageHeader moduleId="products" />
 
       <ModuleUsageBanner feature="product" bump={usageBump} />
