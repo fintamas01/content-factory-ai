@@ -26,6 +26,10 @@ import {
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
+import { fetchActiveClientSummary, safeFilenamePart } from "@/lib/reports/client-meta";
+import { renderReportToPdf } from "@/lib/reports/render-to-pdf";
+import { AuditReport } from "@/app/components/reports/AuditReport";
+import { SprintReport } from "@/app/components/reports/SprintReport";
 import type {
   AuditContentPlanDay,
   AuditFixPackage,
@@ -378,6 +382,7 @@ export default function AIGrowthAuditPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiSuccess | null>(null);
   const [usageBump, setUsageBump] = useState(0);
+  const [exportLoadingKey, setExportLoadingKey] = useState<"audit" | "sprint" | null>(null);
 
   const [tab, setTab] = useState<TabId>("overview");
   const [selectedIssueIdx, setSelectedIssueIdx] = useState<number | null>(null);
@@ -395,6 +400,57 @@ export default function AIGrowthAuditPage() {
   const [sprintLoading, setSprintLoading] = useState(false);
   const [sprintPlan, setSprintPlan] = useState<GrowthSprintPlan | null>(null);
   const [sprintError, setSprintError] = useState<string | null>(null);
+
+  const exportAuditPdf = async () => {
+    if (!data?.report) return;
+    setExportLoadingKey("audit");
+    try {
+      const client = await fetchActiveClientSummary();
+      const clientName = client?.name || "Workspace";
+      const generatedAt = new Date().toLocaleString();
+      const filename = `${safeFilenamePart(clientName)}_ai_growth_audit_${safeFilenamePart(
+        new Date().toISOString().slice(0, 10)
+      )}.pdf`;
+      const res = await renderReportToPdf({
+        filename,
+        backgroundColor: "#ffffff",
+        node: (
+          <AuditReport
+            clientName={clientName}
+            websiteUrl={data?.signals?.url || url}
+            generatedAt={generatedAt}
+            audit={data.report}
+            competitorSummary={data.report?.competitor_intelligence?.summary || ""}
+          />
+        ),
+      });
+      if (!res.ok) setError(res.error);
+    } finally {
+      setExportLoadingKey(null);
+    }
+  };
+
+  const exportSprintPdf = async () => {
+    const sprint = sprintPlan || data?.report?.growth_sprint;
+    if (!sprint) return;
+    setExportLoadingKey("sprint");
+    try {
+      const client = await fetchActiveClientSummary();
+      const clientName = client?.name || "Workspace";
+      const generatedAt = new Date().toLocaleString();
+      const filename = `${safeFilenamePart(clientName)}_30_day_growth_sprint_${safeFilenamePart(
+        new Date().toISOString().slice(0, 10)
+      )}.pdf`;
+      const res = await renderReportToPdf({
+        filename,
+        backgroundColor: "#ffffff",
+        node: <SprintReport clientName={clientName} generatedAt={generatedAt} sprint={sprint} />,
+      });
+      if (!res.ok) setError(res.error);
+    } finally {
+      setExportLoadingKey(null);
+    }
+  };
 
   const selectedKeyForCopilot =
     selectedIssueIdx !== null ? `issue-${selectedIssueIdx}` : null;
@@ -1444,6 +1500,20 @@ export default function AIGrowthAuditPage() {
                 actions without losing context.
               </p>
             </div>
+            {data ? (
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                <motion.button
+                  type="button"
+                  onClick={exportAuditPdf}
+                  disabled={loading || exportLoadingKey !== null}
+                  whileTap={{ scale: loading || exportLoadingKey !== null ? 1 : 0.98 }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.06] px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-white/[0.10] disabled:opacity-50"
+                >
+                  {exportLoadingKey === "audit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Export PDF
+                </motion.button>
+              </div>
+            ) : null}
           </div>
           <div className="relative mt-10 flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
@@ -1558,6 +1628,18 @@ export default function AIGrowthAuditPage() {
                     </motion.button>
                   );
                 })}
+                {tab === "sprint" && (sprintPlan || data?.report?.growth_sprint) ? (
+                  <motion.button
+                    type="button"
+                    onClick={exportSprintPdf}
+                    disabled={exportLoadingKey !== null}
+                    whileTap={{ scale: exportLoadingKey !== null ? 1 : 0.98 }}
+                    className="relative mt-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.06] px-3 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-white/[0.10] disabled:opacity-50 lg:w-full"
+                  >
+                    {exportLoadingKey === "sprint" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Export sprint PDF
+                  </motion.button>
+                ) : null}
               </nav>
             </aside>
 

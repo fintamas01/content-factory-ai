@@ -30,6 +30,9 @@ import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Textarea } from "@/app/components/ui/Textarea";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import { fetchActiveClientSummary, safeFilenamePart } from "@/lib/reports/client-meta";
+import { renderReportToPdf } from "@/lib/reports/render-to-pdf";
+import { ProductOptimizationReport } from "@/app/components/reports/ProductOptimizationReport";
 
 const TONE_OPTIONS = [
   { value: "", label: "Default (balanced)" },
@@ -162,6 +165,7 @@ export default function ProductGeniePage() {
   const [healthResult, setHealthResult] = useState<ProductHealthResult | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [optimizeLoading, setOptimizeLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [wooInsights, setWooInsights] = useState<{
     connected: boolean;
     total: number;
@@ -529,6 +533,41 @@ export default function ProductGeniePage() {
       `SEO description: ${r.seo_description}`,
     ].join("\n");
     copy(text, "all");
+  };
+
+  const exportProductPdf = async () => {
+    if (!result) return;
+    setExportLoading(true);
+    try {
+      const client = await fetchActiveClientSummary();
+      const clientName = client?.name || "Workspace";
+      const generatedAt = new Date().toLocaleString();
+      const baseName = productName || wooSelectedName || "product";
+      const filename = `${safeFilenamePart(clientName)}_product_optimization_${safeFilenamePart(
+        baseName
+      )}_${safeFilenamePart(new Date().toISOString().slice(0, 10))}.pdf`;
+      const res = await renderReportToPdf({
+        filename,
+        backgroundColor: "#ffffff",
+        node: (
+          <ProductOptimizationReport
+            clientName={clientName}
+            generatedAt={generatedAt}
+            productName={baseName}
+            health={healthResult ?? undefined}
+            optimized={{
+              ...result,
+              shortDescription: result.short_description,
+              bulletPoints: result.bullets,
+              seo: { title: result.seo_title, description: result.seo_description },
+            }}
+          />
+        ),
+      });
+      if (!res.ok) setError(res.error);
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   return (
