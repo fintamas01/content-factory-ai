@@ -542,7 +542,7 @@ export default function ProductGeniePage() {
       const client = await fetchActiveClientSummary();
       const clientName = client?.name || "Workspace";
       const generatedAt = new Date().toLocaleString();
-      const baseName = productName || wooSelectedName || "product";
+      const baseName = productName || "product";
       const filename = `${safeFilenamePart(clientName)}_product_optimization_${safeFilenamePart(
         baseName
       )}_${safeFilenamePart(new Date().toISOString().slice(0, 10))}.pdf`;
