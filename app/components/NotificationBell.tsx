@@ -18,6 +18,17 @@ function clip(s: string, n: number) {
   return `${t.slice(0, n - 1)}…`;
 }
 
+function formatWhen(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export function NotificationBell({ compact }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState<number>(0);
@@ -107,10 +118,10 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
           <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
-                Notifications
+                Alerts
               </p>
               <p className="mt-0.5 text-xs font-semibold text-white/85">
-                {count > 0 ? `${count} unread` : "All caught up"}
+                {count > 0 ? `${count} unread` : "Nothing urgent"}
               </p>
             </div>
             <button
@@ -119,7 +130,7 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold text-white/75 hover:border-white/20 hover:bg-white/[0.06]"
             >
               <CheckCheck className="h-4 w-4" />
-              Mark all
+              Clear unread
             </button>
           </div>
 
@@ -133,7 +144,7 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
               <div className="px-4 py-8 text-center">
                 <p className="text-sm font-semibold text-white/70">No alerts yet</p>
                 <p className="mt-2 text-xs text-white/45">
-                  Run AutoPilot or analyze a product to generate high-signal notifications.
+                  AutoPilot and Product Health will surface the next best actions here.
                 </p>
               </div>
             ) : (
@@ -173,13 +184,13 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
                               onClick={() => void markRead(n.id)}
                               className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:border-white/20 hover:bg-white/[0.06]"
                             >
-                              Mark read
+                              Dismiss
                             </button>
                           ) : null}
                         </div>
                       </div>
                       <p className="shrink-0 text-[10px] font-mono text-white/35">
-                        {n.created_at ? new Date(n.created_at).toLocaleDateString() : ""}
+                        {n.created_at ? formatWhen(n.created_at) : ""}
                       </p>
                     </div>
                   </li>
@@ -194,7 +205,7 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
               onClick={() => setOpen(false)}
               className="text-[11px] font-semibold text-white/70 hover:text-white"
             >
-              View all
+              Open inbox
             </Link>
             <button
               type="button"

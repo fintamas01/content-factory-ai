@@ -381,7 +381,7 @@ export default async function PlatformDashboardPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
-                  Recent alerts
+                  Inbox preview
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
                   What needs attention
@@ -396,7 +396,7 @@ export default async function PlatformDashboardPage() {
                 href="/dashboard/notifications"
                 className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold text-white transition hover:border-white/[0.16] hover:bg-white/[0.06]"
               >
-                View all
+                Open inbox
                 <ArrowRight className="h-3.5 w-3.5 opacity-70" />
               </Link>
             </div>

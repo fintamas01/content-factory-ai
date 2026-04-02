@@ -68,7 +68,7 @@ export function NotificationSettingsCard() {
     return (
       <div className="rounded-2xl border border-white/[0.08] bg-black/25 p-6 text-white/70">
         <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-        Loading notification settings…
+        Loading delivery preferences…
       </div>
     );
   }
@@ -82,7 +82,7 @@ export function NotificationSettingsCard() {
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">Email & Push</h2>
           <p className="mt-2 text-sm text-slate-500">
-            Keep alerts high-signal. Use digests for routine items and push for urgent ones.
+            Keep alerts high-signal. Use digests for routine items, push for urgent ones.
           </p>
         </div>
       </div>
@@ -102,7 +102,7 @@ export function NotificationSettingsCard() {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white">Email digests</p>
               <p className="mt-1 text-xs text-white/45">
-                Cron-sent batches of unread alerts.
+                A curated batch of unread alerts.
               </p>
             </div>
           </div>
@@ -134,8 +134,8 @@ export function NotificationSettingsCard() {
               disabled={saving || !settings.email_enabled}
             >
               <option value="off">Off</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
+              <option value="daily">Daily digest</option>
+              <option value="weekly">Weekly digest</option>
             </select>
           </div>
         </div>
@@ -194,7 +194,7 @@ export function NotificationSettingsCard() {
               variant="primary"
               className="w-full h-11 rounded-2xl text-[11px] font-black uppercase tracking-[0.18em]"
             >
-              Enable push in this browser
+              Enable push for this browser
             </Button>
           </div>
         </div>

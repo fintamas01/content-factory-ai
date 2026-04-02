@@ -13,6 +13,12 @@ function severityPill(sev: NotificationSeverity) {
   return "border-cyan-500/25 bg-cyan-500/10 text-cyan-200";
 }
 
+function clip(s: string, n: number): string {
+  const t = (s ?? "").trim().replace(/\s+/g, " ");
+  if (t.length <= n) return t;
+  return `${t.slice(0, n - 1)}…`;
+}
+
 export default async function NotificationsPage() {
   const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -84,21 +90,20 @@ export default async function NotificationsPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/45">
-            Alerts & tasks
+            Alerts
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            Notifications
+            Inbox
           </h1>
           <p className="mt-2 text-sm text-white/55 max-w-2xl">
-            High-signal insights from AutoPilot, Products, and your growth workflows—scoped to your
-            active workspace.
+            Actionable insights across AutoPilot and Products—scoped to your active workspace.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <form action="/api/notifications/read-all" method="post">
             <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[11px] font-semibold text-white/80 hover:border-white/20 hover:bg-white/[0.07]">
               <CheckCheck className="h-4 w-4" />
-              Mark all as read
+              Clear unread
             </button>
           </form>
           <Link
@@ -115,9 +120,9 @@ export default async function NotificationsPage() {
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-20 text-center">
           <Bell className="mx-auto h-12 w-12 text-white/35" />
-          <p className="mt-4 font-semibold text-white/75">No notifications yet</p>
+          <p className="mt-4 font-semibold text-white/75">Your inbox is empty</p>
           <p className="mt-2 text-sm text-white/45">
-            Run AutoPilot or analyze a WooCommerce product to generate alerts.
+            Run AutoPilot or Product Health to surface high-signal actions here.
           </p>
         </div>
       ) : (
@@ -148,7 +153,7 @@ export default async function NotificationsPage() {
                     {n.title}
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-white/60">
-                    {n.message}
+                    {clip(n.message, 320)}
                   </p>
                 </div>
                 <div className="shrink-0 flex flex-col items-start gap-2 sm:items-end">
@@ -159,7 +164,7 @@ export default async function NotificationsPage() {
                     {!n.is_read ? (
                       <form action={`/api/notifications/${n.id}/read`} method="post">
                         <button className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-white/75 hover:border-white/20 hover:bg-white/[0.07]">
-                          Mark read
+                          Dismiss
                         </button>
                       </form>
                     ) : null}
