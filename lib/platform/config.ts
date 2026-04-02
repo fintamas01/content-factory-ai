@@ -42,4 +42,11 @@ export const MODULES = {
     description: "Page-level SEO, AI readiness, and conversion signals.",
     href: "/dashboard/site-audit",
   },
+  review: {
+    id: "review",
+    productName: "Review queue",
+    label: "Review",
+    description: "Cross-module approvals before publish or apply.",
+    href: "/dashboard/review",
+  },
 } as const;

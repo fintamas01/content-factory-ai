@@ -17,6 +17,7 @@ import {
   WORKSPACE_MODULES,
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -78,6 +79,7 @@ export default function DashboardPage() {
   const contentWorkspaceHydrated = useRef(false);
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const pendingBrandIdRef = useRef<string | null>(null);
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
 
   useCopilotPageContext({
     page: "content",
@@ -180,6 +182,7 @@ export default function DashboardPage() {
     templateId: string;
     selectedPlatforms: string[];
     selectedBrandId: string | null;
+    reviewItemId: string | null;
   };
 
   useEffect(() => {
@@ -203,6 +206,7 @@ export default function DashboardPage() {
       if (typeof w.selectedBrandId === "string" && w.selectedBrandId) {
         pendingBrandIdRef.current = w.selectedBrandId;
       }
+      if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
     }
     contentWorkspaceHydrated.current = true;
     setWorkspaceReady(true);
@@ -229,6 +233,7 @@ export default function DashboardPage() {
         templateId: selectedTemplate?.id ?? "custom",
         selectedPlatforms,
         selectedBrandId: selectedBrand?.id ?? null,
+        reviewItemId,
       } satisfies ContentWorkspaceSnapshot);
     }, 500);
     return () => window.clearTimeout(t);
@@ -242,6 +247,7 @@ export default function DashboardPage() {
     selectedTemplate?.id,
     selectedPlatforms,
     selectedBrand?.id,
+    reviewItemId,
   ]);
 
   const startNewContentGeneration = () => {
@@ -251,6 +257,7 @@ export default function DashboardPage() {
     setInput("");
     setResults(null);
     setSelectedPlatforms([]);
+    setReviewItemId(null);
   };
 
   const handleButtonMove = (e: React.MouseEvent) => {
@@ -376,6 +383,25 @@ export default function DashboardPage() {
               New generation
             </button>
           }
+        />
+      ) : null}
+      {results && workspaceReady ? (
+        <ReviewWorkspaceStrip
+          module="content"
+          reviewItemId={reviewItemId}
+          onReviewItemIdChange={setReviewItemId}
+          hasOutput={Boolean(results)}
+          variant="light"
+          title={`${selectedTemplate?.name ?? "Content"} · ${selectedPlatforms.join(", ") || "outputs"}`}
+          summary={input.slice(0, 400)}
+          buildPayload={() => ({
+            templateId: selectedTemplate?.id,
+            platforms: selectedPlatforms,
+            lang,
+            tone,
+            inputPreview: input.slice(0, 8000),
+            results,
+          })}
         />
       ) : null}
       {unifiedBrand ? (

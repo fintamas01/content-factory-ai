@@ -17,6 +17,11 @@ export const SIDEBAR_NAV_ITEMS = [
     href: "/dashboard/notifications",
   },
   {
+    id: "review",
+    label: "Review",
+    href: "/dashboard/review",
+  },
+  {
     id: "team",
     label: "Team",
     href: "/dashboard/team",

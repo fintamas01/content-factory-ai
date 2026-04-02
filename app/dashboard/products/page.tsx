@@ -41,6 +41,7 @@ import {
   WORKSPACE_MODULES,
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
 
 const TONE_OPTIONS = [
   { value: "", label: "Default (balanced)" },
@@ -188,6 +189,7 @@ export default function ProductGeniePage() {
   } | null>(null);
   const workspaceHydrated = useRef(false);
   const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
 
   useCopilotPageContext({
     page: "products",
@@ -311,6 +313,7 @@ export default function ProductGeniePage() {
       | { state: "ready"; storeUrl: string; productId: number }
       | { state: "updated"; fields: string[]; at: string }
       | { state: "error"; message: string };
+    reviewItemId: string | null;
   };
 
   useEffect(() => {
@@ -340,6 +343,7 @@ export default function ProductGeniePage() {
       if (w.wooUpdateFields) setWooUpdateFields(w.wooUpdateFields);
       if (typeof w.wooStoreUrl === "string") setWooStoreUrl(w.wooStoreUrl);
       if (w.wooSyncStatus) setWooSyncStatus(w.wooSyncStatus);
+      if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
     }
     workspaceHydrated.current = true;
     setWorkspaceReady(true);
@@ -366,6 +370,7 @@ export default function ProductGeniePage() {
         wooUpdateFields,
         wooStoreUrl,
         wooSyncStatus,
+        reviewItemId,
       } satisfies ProductsWorkspaceSnapshot);
     }, 500);
     return () => window.clearTimeout(t);
@@ -388,6 +393,7 @@ export default function ProductGeniePage() {
     wooUpdateFields,
     wooStoreUrl,
     wooSyncStatus,
+    reviewItemId,
   ]);
 
   const startNewProductWorkspace = () => {
@@ -410,6 +416,7 @@ export default function ProductGeniePage() {
     setWooSelectedId(null);
     setWooSyncStatus({ state: "idle" });
     setWooUpdateFields({ title: true, description: true, short: true });
+    setReviewItemId(null);
   };
 
   const runGeneration = async (kind: "generate" | "improve") => {
@@ -759,6 +766,33 @@ export default function ProductGeniePage() {
               New generation
             </Button>
           }
+        />
+      ) : null}
+
+      {(result || healthResult) && workspaceReady ? (
+        <ReviewWorkspaceStrip
+          module="products"
+          variant="dark"
+          reviewItemId={reviewItemId}
+          onReviewItemIdChange={setReviewItemId}
+          hasOutput={Boolean(result || healthResult)}
+          title={productName.trim() ? `${productName.trim()} · Product output` : "Product output"}
+          summary={
+            result?.description
+              ? String(result.description).replace(/<[^>]+>/g, " ").slice(0, 400)
+              : healthResult
+                ? `Health score ${healthResult.score}`
+                : undefined
+          }
+          buildPayload={() => ({
+            mode,
+            activeTab,
+            productName,
+            result,
+            healthResult,
+            savedId,
+            wooSelectedId,
+          })}
         />
       ) : null}
 

@@ -47,6 +47,7 @@ import {
   WORKSPACE_MODULES,
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -393,6 +394,7 @@ type AuditWorkspaceSnapshot = {
   fixByIssue: Record<string, AuditFixPackage>;
   planDays: AuditContentPlanDay[] | null;
   sprintPlan: GrowthSprintPlan | null;
+  reviewItemId: string | null;
 };
 
 export default function AIGrowthAuditPage() {
@@ -414,6 +416,7 @@ export default function AIGrowthAuditPage() {
   } | null>(null);
   const workspaceHydrated = useRef(false);
   const [auditWorkspaceReady, setAuditWorkspaceReady] = useState(false);
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
 
   const [tab, setTab] = useState<TabId>("overview");
   const [selectedIssueIdx, setSelectedIssueIdx] = useState<number | null>(null);
@@ -468,6 +471,7 @@ export default function AIGrowthAuditPage() {
       if (w.fixByIssue && typeof w.fixByIssue === "object") setFixByIssue(w.fixByIssue);
       if (w.planDays !== undefined) setPlanDays(w.planDays);
       if (w.sprintPlan !== undefined) setSprintPlan(w.sprintPlan);
+      if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
     }
     workspaceHydrated.current = true;
     setAuditWorkspaceReady(true);
@@ -485,6 +489,7 @@ export default function AIGrowthAuditPage() {
         fixByIssue,
         planDays,
         sprintPlan,
+        reviewItemId,
       } satisfies AuditWorkspaceSnapshot);
     }, 500);
     return () => window.clearTimeout(t);
@@ -498,6 +503,7 @@ export default function AIGrowthAuditPage() {
     fixByIssue,
     planDays,
     sprintPlan,
+    reviewItemId,
   ]);
 
   const startNewAudit = () => {
@@ -516,6 +522,7 @@ export default function AIGrowthAuditPage() {
     setSelectedIssueIdx(null);
     setTab("overview");
     setFixError(null);
+    setReviewItemId(null);
   };
 
   const exportAuditPdf = async () => {
@@ -1834,6 +1841,30 @@ export default function AIGrowthAuditPage() {
                     </motion.button>
                   </>
                 }
+              />
+            </div>
+          ) : null}
+          {data && auditWorkspaceReady ? (
+            <div className="relative mb-6">
+              <ReviewWorkspaceStrip
+                module="site_audit"
+                variant="dark"
+                reviewItemId={reviewItemId}
+                onReviewItemIdChange={setReviewItemId}
+                hasOutput={Boolean(data?.report)}
+                title={url.trim() ? `Audit · ${url.trim()}` : "Growth audit"}
+                summary={
+                  data.signals.title
+                    ? String(data.signals.title).slice(0, 280)
+                    : undefined
+                }
+                buildPayload={() => ({
+                  url,
+                  competitors,
+                  auditRunId: data.auditRunId ?? null,
+                  pageTitle: data.signals.title,
+                  signals: data.signals,
+                })}
               />
             </div>
           ) : null}

@@ -16,6 +16,7 @@ import {
   Sparkles,
   Orbit,
   Users,
+  ClipboardCheck,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
@@ -40,6 +41,7 @@ const SIDEBAR_ICONS: Record<
 > = {
   dashboard: LayoutDashboard,
   notifications: Bell,
+  review: ClipboardCheck,
   team: Users,
   autopilot: Orbit,
   playbooks: Sparkles,

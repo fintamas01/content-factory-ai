@@ -13,6 +13,7 @@ import {
   WORKSPACE_MODULES,
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -91,6 +92,7 @@ type PlaybooksWorkspaceSnapshot = {
   competitorUrl: string;
   productName: string;
   result: any | null;
+  reviewItemId: string | null;
 };
 
 export default function PlaybooksPage() {
@@ -109,6 +111,7 @@ export default function PlaybooksPage() {
     clientId: string;
   } | null>(null);
   const workspaceHydrated = useRef(false);
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +148,7 @@ export default function PlaybooksPage() {
         if (p) setActive(p);
       }
       if (w.open && w.activePlaybookId) setOpen(true);
+      if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
     }
     workspaceHydrated.current = true;
   }, [workspaceScope]);
@@ -159,6 +163,7 @@ export default function PlaybooksPage() {
         competitorUrl,
         productName,
         result,
+        reviewItemId,
       } satisfies PlaybooksWorkspaceSnapshot);
     }, 400);
     return () => window.clearTimeout(t);
@@ -170,6 +175,7 @@ export default function PlaybooksPage() {
     competitorUrl,
     productName,
     result,
+    reviewItemId,
   ]);
 
   const startNewPlaybookRun = () => {
@@ -183,6 +189,7 @@ export default function PlaybooksPage() {
     setProductName("");
     setOpen(false);
     setActive(null);
+    setReviewItemId(null);
   };
 
   useCopilotPageContext({
@@ -318,6 +325,29 @@ export default function PlaybooksPage() {
                       </button>
                     </>
                   }
+                />
+              </div>
+            ) : null}
+            {result ? (
+              <div className="mt-4">
+                <ReviewWorkspaceStrip
+                  module="playbooks"
+                  variant="dark"
+                  reviewItemId={reviewItemId}
+                  onReviewItemIdChange={setReviewItemId}
+                  hasOutput={Boolean(result)}
+                  title={
+                    PLAYBOOKS.find((x) => x.id === String(result?.playbookId ?? ""))?.title ??
+                    "Playbook output"
+                  }
+                  summary={productName.trim() ? `Product: ${productName.trim()}` : undefined}
+                  buildPayload={() => ({
+                    playbookId: result?.playbookId,
+                    url,
+                    competitorUrl,
+                    productName,
+                    result,
+                  })}
                 />
               </div>
             ) : null}

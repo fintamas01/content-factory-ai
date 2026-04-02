@@ -17,6 +17,7 @@ import {
   WORKSPACE_MODULES,
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
 
 interface MatrixItem {
   day: string;
@@ -82,6 +83,7 @@ export default function ContentMatrix() {
   } | null>(null);
   const matrixWorkspaceHydrated = useRef(false);
   const [matrixWorkspaceReady, setMatrixWorkspaceReady] = useState(false);
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
 
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -141,6 +143,7 @@ export default function ContentMatrix() {
     viewMode: "text" | "visual" | "image";
     useResearch: boolean;
     isPreview: boolean;
+    reviewItemId: string | null;
   };
 
   useEffect(() => {
@@ -159,6 +162,7 @@ export default function ContentMatrix() {
       }
       if (typeof w.useResearch === "boolean") setUseResearch(w.useResearch);
       if (typeof w.isPreview === "boolean") setIsPreview(w.isPreview);
+      if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
     }
     matrixWorkspaceHydrated.current = true;
     setMatrixWorkspaceReady(true);
@@ -174,6 +178,7 @@ export default function ContentMatrix() {
         viewMode,
         useResearch,
         isPreview,
+        reviewItemId,
       } satisfies MatrixWorkspaceSnapshot);
     }, 600);
     return () => window.clearTimeout(t);
@@ -185,6 +190,7 @@ export default function ContentMatrix() {
     viewMode,
     useResearch,
     isPreview,
+    reviewItemId,
   ]);
 
   const startNewMatrix = () => {
@@ -200,6 +206,7 @@ export default function ContentMatrix() {
     setSlides([]);
     setSlideImages([]);
     setCurrentSlide(0);
+    setReviewItemId(null);
   };
 
   useCopilotPageContext({
@@ -684,6 +691,25 @@ export default function ContentMatrix() {
             </button>
           }
         />
+        </div>
+      ) : null}
+
+      {matrixData.length > 0 && matrixWorkspaceReady ? (
+        <div className="mb-8">
+          <ReviewWorkspaceStrip
+            module="matrix"
+            variant="dark"
+            reviewItemId={reviewItemId}
+            onReviewItemIdChange={setReviewItemId}
+            hasOutput={matrixData.length > 0}
+            title={formData.topic.trim() ? `${formData.topic.trim()} · Matrix` : "Content matrix"}
+            summary={`${formData.brand} · ${matrixData.length} posts`}
+            buildPayload={() => ({
+              formData,
+              postCount: matrixData.length,
+              preview: matrixData.slice(0, 5),
+            })}
+          />
         </div>
       ) : null}
 
