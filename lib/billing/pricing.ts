@@ -4,6 +4,11 @@
  */
 
 import { SAAS_LIMITS, type PlanTier } from "@/lib/plan-config";
+import {
+  envStripePriceIdBasic,
+  envStripePriceIdElite,
+  envStripePriceIdPro,
+} from "@/lib/billing/stripe-price-ids";
 
 /** Display string for Pro monthly price (set in env for marketing accuracy). */
 export function getProPriceMonthlyDisplay(): string {
@@ -20,16 +25,16 @@ export function getElitePriceMonthlyDisplay(): string {
 }
 
 export function getStripePriceIdPro(): string {
-  return process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO?.trim() ?? "";
+  return envStripePriceIdPro();
 }
 
 export function getStripePriceIdBasic(): string {
-  return process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC?.trim() ?? "";
+  return envStripePriceIdBasic();
 }
 
 /** Elite / Agency tier — Price Intelligence and other top-tier features. */
 export function getStripePriceIdElite(): string {
-  return process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE?.trim() ?? "";
+  return envStripePriceIdElite();
 }
 
 /**

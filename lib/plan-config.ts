@@ -3,6 +3,12 @@
  * Paid tier is derived from `subscriptions.price_id` (Stripe) via env price IDs.
  */
 
+import {
+  envStripePriceIdBasic,
+  envStripePriceIdElite,
+  envStripePriceIdPro,
+} from "@/lib/billing/stripe-price-ids";
+
 export type PlanTier = "free" | "pro" | "elite";
 
 export type SaasMonthlyLimits = {
@@ -40,9 +46,9 @@ export type SubscriptionRow = {
 
 function getStripePriceIds() {
   return {
-    basic: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC?.trim() ?? "",
-    pro: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO?.trim() ?? "",
-    elite: process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE?.trim() ?? "",
+    basic: envStripePriceIdBasic(),
+    pro: envStripePriceIdPro(),
+    elite: envStripePriceIdElite(),
   };
 }
 
