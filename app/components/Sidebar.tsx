@@ -17,6 +17,7 @@ import {
   Orbit,
   Users,
   ClipboardCheck,
+  BarChart3,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
@@ -48,6 +49,7 @@ const SIDEBAR_ICONS: Record<
   brand: Palette,
   content: Megaphone,
   products: Package,
+  priceIntelligence: BarChart3,
   siteAudit: Radar,
   history: History,
   billing: CreditCard,

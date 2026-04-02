@@ -20,13 +20,20 @@ export function getStripePriceIdBasic(): string {
   return process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC?.trim() ?? "";
 }
 
+/** Elite / Agency tier — Price Intelligence and other top-tier features. */
+export function getStripePriceIdElite(): string {
+  return process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE?.trim() ?? "";
+}
+
 /**
  * Returns allowed Stripe price IDs for subscription checkout (server-side guard).
  */
 export function getAllowedCheckoutPriceIds(): string[] {
-  const ids = [getStripePriceIdPro(), getStripePriceIdBasic()].filter(
-    (id) => id.length > 0
-  );
+  const ids = [
+    getStripePriceIdPro(),
+    getStripePriceIdBasic(),
+    getStripePriceIdElite(),
+  ].filter((id) => id.length > 0);
   return ids;
 }
 
