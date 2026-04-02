@@ -11,6 +11,7 @@ import {
   stripHtmlForAnalysis,
   type ProductHealthResult,
 } from "@/lib/products/product-health";
+import { createNotification } from "@/lib/notifications/server";
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
@@ -106,6 +107,22 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     }
 
     const health: ProductHealthResult = analyzed.health;
+
+    // Retention-friendly alert: only create a notification when the listing is meaningfully weak.
+    if (health.score <= 65) {
+      void createNotification(supabase, {
+        userId: user.id,
+        clientId,
+        type: "product_health_weak",
+        title: "Product needs optimization",
+        message: `${title || `Product #${pid}`} scored ${health.score}/100. Review and optimize the title + descriptions for conversion.`,
+        severity: health.score <= 45 ? "critical" : "warning",
+        sourceModule: "products",
+        actionLabel: "Open Products",
+        actionUrl: `/dashboard/products?wooProductId=${pid}`,
+        metadata: { woo_product_id: pid, score: health.score },
+      });
+    }
 
     const input_data = {
       phase: "health_analysis" as const,

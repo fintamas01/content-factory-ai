@@ -9,6 +9,7 @@ import { incrementUsage } from "@/lib/usage/usage-service";
 import { generateProductCopy } from "@/lib/products/generate-product-copy";
 import { wooFetch, type WooProduct } from "@/lib/woocommerce/client";
 import { buildListingSignalsForPrompt } from "@/lib/products/listing-signals";
+import { createNotification } from "@/lib/notifications/server";
 import {
   healthToOptimizationBrief,
   stripHtmlForAnalysis,
@@ -173,6 +174,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     await incrementUsage(supabase, "product", clientId);
+
+    void createNotification(supabase, {
+      userId: user.id,
+      clientId,
+      type: "product_optimization_ready",
+      title: "Optimization ready to review",
+      message: `AI copy is ready for "${productName}". Review side-by-side and choose exactly what to update in WooCommerce.`,
+      severity: "success",
+      sourceModule: "products",
+      actionLabel: "Review & update",
+      actionUrl: `/dashboard/products?wooProductId=${pid}`,
+      metadata: { woo_product_id: pid },
+    });
 
     return NextResponse.json({ result, savedId });
   } catch (e) {

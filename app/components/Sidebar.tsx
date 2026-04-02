@@ -22,6 +22,7 @@ import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { SIDEBAR_NAV_ITEMS, type SidebarNavId } from "@/lib/platform/navigation";
 import { SidebarPlanBadge } from "@/app/components/SidebarPlanBadge";
 import { ClientSwitcher } from "@/app/components/ClientSwitcher";
+import { NotificationBell } from "@/app/components/NotificationBell";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,6 +174,7 @@ export default function Sidebar({
               </p>
             </div>
           </div>
+          <NotificationBell />
         </div>
         <div className="pt-2">
           <SidebarPlanBadge />

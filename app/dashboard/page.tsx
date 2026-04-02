@@ -28,6 +28,7 @@ import {
 } from "@/lib/history/map-rows";
 import type { GrowthAuditReport, GrowthSprintPlan } from "@/lib/site-audit/types";
 import { fetchWooOptimizationInsights } from "@/lib/woocommerce/insights";
+import type { NotificationRow } from "@/lib/notifications/types";
 
 function pillClass(tone: "emerald" | "blue" | "violet" | "amber" | "zinc") {
   if (tone === "emerald")
@@ -149,7 +150,8 @@ export default async function PlatformDashboardPage() {
     );
   }
 
-  const [usage, latestAuditRes, recentRes, latestAutopilotRes, wooInsights] = await Promise.all([
+  const [usage, latestAuditRes, recentRes, latestAutopilotRes, wooInsights, notificationsRes] =
+    await Promise.all([
     buildUsageSummary(supabase, user.id, clientId),
     supabase
       .from("site_audit_runs")
@@ -204,7 +206,17 @@ export default async function PlatformDashboardPage() {
       .limit(1)
       .maybeSingle(),
     fetchWooOptimizationInsights(supabase, clientId),
+    supabase
+      .from("notifications")
+      .select("*")
+      .eq("client_id", clientId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(6),
   ]);
+
+  const notifications = (notificationsRes as any)?.data as NotificationRow[] | undefined;
+  const unreadCount = (notifications ?? []).filter((n) => !n.is_read).length;
 
   const latestAuditRow = latestAuditRes.data as
     | {
@@ -360,6 +372,68 @@ export default async function PlatformDashboardPage() {
                 Open Products
                 <ArrowRight className="h-3.5 w-3.5 opacity-80" />
               </Link>
+            </div>
+          </section>
+        ) : null}
+
+        {notifications && notifications.length > 0 ? (
+          <section className="rounded-2xl border border-white/[0.08] bg-black/25 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
+                  Recent alerts
+                </p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+                  What needs attention
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  {unreadCount > 0
+                    ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"} in this workspace.`
+                    : "You’re caught up in this workspace."}
+                </p>
+              </div>
+              <Link
+                href="/dashboard/notifications"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold text-white transition hover:border-white/[0.16] hover:bg-white/[0.06]"
+              >
+                View all
+                <ArrowRight className="h-3.5 w-3.5 opacity-70" />
+              </Link>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {notifications.slice(0, 4).map((n) => (
+                <Link
+                  key={n.id}
+                  href={n.action_url ?? "/dashboard/notifications"}
+                  className={`group rounded-2xl border p-4 transition hover:bg-white/[0.03] ${
+                    n.is_read ? "border-white/10" : "border-violet-500/20"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">
+                        {n.title}
+                        {!n.is_read ? (
+                          <span className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-violet-300/90">
+                            New
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        {n.message}
+                      </p>
+                      {n.action_label ? (
+                        <p className="mt-2 text-[11px] font-semibold text-white/70 group-hover:text-white/85">
+                          {n.action_label} <ArrowRight className="inline h-3.5 w-3.5 opacity-70" />
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-300">
+                      {n.source_module}
+                    </span>
+                  </div>
+                </Link>
+              ))}
             </div>
           </section>
         ) : null}

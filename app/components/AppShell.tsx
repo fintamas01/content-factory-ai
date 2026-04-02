@@ -7,6 +7,7 @@ import Sidebar from "@/app/components/Sidebar";
 import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { CopilotProvider } from "@/app/components/copilot/CopilotProvider";
 import { CopilotPanel } from "@/app/components/copilot/CopilotPanel";
+import { NotificationBell } from "@/app/components/NotificationBell";
 
 function shouldHideShell(pathname: string) {
   return (
@@ -72,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Command Center
               </p>
             </div>
-            <div className="w-10" />
+            <NotificationBell compact />
           </div>
         </header>
 

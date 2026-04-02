@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, type ComponentType, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useRef, type ComponentType, type ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { stripHtmlForAnalysis, type ProductHealthResult } from "@/lib/products/product-health";
@@ -21,6 +21,7 @@ import {
   Activity,
   Columns2,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
@@ -80,6 +81,8 @@ function SectionCard({
 
 export default function ProductGeniePage() {
   const m = MODULES.products;
+  const searchParams = useSearchParams();
+  const deepLinkHandledRef = useRef(false);
   const [mode, setMode] = useState<"manual" | "store">("manual");
   const [activeTab, setActiveTab] = useState<
     "description" | "bullets" | "seo" | "marketplace" | "sync" | "compare"
@@ -198,6 +201,21 @@ export default function ProductGeniePage() {
       if (res.ok) setWooInsights(json);
     })();
   }, [mode, wooConnected, wooLastRefreshAt]);
+
+  // Deep-link from notifications: /dashboard/products?wooProductId=123
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    const raw = searchParams?.get("wooProductId");
+    const pid = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(pid) || pid <= 0) return;
+    if (!wooConnected) return;
+    deepLinkHandledRef.current = true;
+    setMode("store");
+    setWooSelectedId(pid);
+    setHealthResult(null);
+    void loadWooProduct(pid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, wooConnected]);
 
   useEffect(() => {
     (async () => {

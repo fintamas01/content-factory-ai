@@ -19,6 +19,7 @@ import {
   buildAutopilotInsightsSystemPrompt,
   buildAutopilotInsightsUserPrompt,
 } from "@/lib/autopilot/prompt";
+import { createNotification } from "@/lib/notifications/server";
 
 async function getRouteCtx() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -215,6 +216,28 @@ export async function POST(req: Request) {
       .eq("id", job.id);
 
     await incrementUsage(supabase, "audit", clientId);
+
+    // Retention-friendly alert: only surface when there are actionable items.
+    const insightCount = Array.isArray(insights) ? insights.length : 0;
+    if (insightCount > 0) {
+      void createNotification(supabase, {
+        userId: user.id,
+        clientId,
+        type: "autopilot_new_opportunity",
+        title: "AutoPilot found new opportunities",
+        message: summary,
+        severity: insightCount >= 3 ? "warning" : "info",
+        sourceModule: "autopilot",
+        actionLabel: "Open AutoPilot",
+        actionUrl: "/dashboard/autopilot",
+        metadata: {
+          autopilot_job_id: job.id,
+          autopilot_result_id: (saved as any)?.id ?? null,
+          insights_count: insightCount,
+          url: signals.url,
+        },
+      });
+    }
 
     return NextResponse.json({ ok: true, result: saved });
   } catch (e) {
