@@ -175,8 +175,11 @@ export function BillingDashboardClient() {
   const isPaid = isElite || isProTier;
   const stripeStatus = sub?.status ?? null;
   const planLabel = isPaid ? subscriptionPlanLabel(sub) : "Free";
-  const proPriceId = getStripePriceIdPro();
-  const elitePriceId = getStripePriceIdElite();
+  /** Server returns runtime env; client NEXT_PUBLIC_* can be stale until rebuild. */
+  const proPriceId = data?.checkoutPriceIds?.pro ?? getStripePriceIdPro();
+  const elitePriceId = data?.checkoutPriceIds?.elite ?? getStripePriceIdElite();
+  const allowedCheckout =
+    data?.allowedCheckoutPriceIds ?? getAllowedCheckoutPriceIds();
   const checkoutBusy = checkoutPriceId !== null;
 
   return (
@@ -313,7 +316,7 @@ export function BillingDashboardClient() {
                   onClick={() => void startCheckout(proPriceId, "Pro")}
                   disabled={
                     checkoutBusy ||
-                    getAllowedCheckoutPriceIds().length === 0 ||
+                    allowedCheckout.length === 0 ||
                     !proPriceId
                   }
                   className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-sm font-black text-white shadow-[0_8px_28px_-4px_rgba(37,99,235,0.55)] ring-1 ring-white/15 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-40"
@@ -478,7 +481,7 @@ export function BillingDashboardClient() {
                 isElite ||
                 isProTier ||
                 !proPriceId ||
-                getAllowedCheckoutPriceIds().length === 0
+                allowedCheckout.length === 0
               }
               className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-[15px] font-black text-white shadow-lg shadow-blue-900/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
             >
@@ -529,7 +532,7 @@ export function BillingDashboardClient() {
                 checkoutBusy ||
                 isElite ||
                 !elitePriceId ||
-                getAllowedCheckoutPriceIds().length === 0
+                allowedCheckout.length === 0
               }
               className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-violet-700 text-[15px] font-black text-white shadow-lg shadow-amber-900/30 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
             >

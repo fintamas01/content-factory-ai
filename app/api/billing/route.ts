@@ -2,12 +2,28 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireActiveClientId } from "@/lib/clients/server";
+import {
+  getAllowedCheckoutPriceIds,
+  getStripePriceIdBasic,
+  getStripePriceIdElite,
+  getStripePriceIdPro,
+} from "@/lib/billing/pricing";
 import { buildUsageSummary } from "@/lib/usage/usage-service";
 import type { UsageSummary } from "@/lib/usage/types";
 
 export type BillingApiResponse = {
   subscription: Record<string, unknown> | null;
   usage: UsageSummary;
+  /**
+   * Stripe Price IDs read on the server (runtime env).
+   * Client components cannot rely on NEXT_PUBLIC_* alone — those are inlined at build time.
+   */
+  checkoutPriceIds: {
+    pro: string;
+    basic: string;
+    elite: string;
+  };
+  allowedCheckoutPriceIds: string[];
 };
 
 export async function GET() {
@@ -67,6 +83,12 @@ export async function GET() {
     const body: BillingApiResponse = {
       subscription: subscription as Record<string, unknown> | null,
       usage,
+      checkoutPriceIds: {
+        pro: getStripePriceIdPro(),
+        basic: getStripePriceIdBasic(),
+        elite: getStripePriceIdElite(),
+      },
+      allowedCheckoutPriceIds: getAllowedCheckoutPriceIds(),
     };
     return NextResponse.json(body);
   } catch (e) {
