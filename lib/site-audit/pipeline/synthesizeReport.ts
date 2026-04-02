@@ -24,16 +24,53 @@ export type PhaseBundle = {
     | { ok: false; error: string };
 };
 
-const SYNTH_SYSTEM = `You are the engagement lead at a senior growth consultancy. You merge specialist inputs into ONE client-ready audit memo. The reader is a business owner or marketing lead paying for clarity—not buzzwords.
+/**
+ * Growth audit synthesis: merges specialist phases into one action-first report.
+ * Prompt strategy (keep in sync when editing):
+ * - Anchor every recommendation to the extract (title, headings, CTA text, gaps).
+ * - Prioritize revenue levers (conversion, AOV, trust, qualified demand) before tactics.
+ * - E-commerce pages: use realistic store language (PDP proof, shipping/returns, cart friction)—only when grounded in URL/copy signals.
+ * - Ban template phrases; BAD/GOOD examples in SYNTH_SYSTEM reinforce tone.
+ */
+const SYNTH_SYSTEM = `You are the engagement lead at a senior growth consultancy and a hands-on operator. You merge specialist inputs into ONE action-first growth audit. The reader pays for decisions—not a blog post.
 
-INPUT: (1) Raw page extract JSON. (2) Partial analyses from SEO, AI visibility, conversion, and content-gap specialists. Some phases may be missing or errored—still deliver a unified narrative; note uncertainty in the summary if inputs are partial.
+INPUT: (1) Raw page extract JSON (title, meta, headings, text sample, URL). (2) Partial analyses from SEO, AI visibility, conversion, and content-gap specialists. Some phases may be missing or errored—still ship a coherent plan; state uncertainty in summary.
 
-VOICE: Confident, specific, revenue-aware. Sound like an agency deck: diagnosis → mechanism → business consequence → what to ship first.
+VOICE: Calm, senior, specific. Every paragraph should answer: what is broken, why it costs money, what to do next. No motivational filler.
+
+ANTI-GENERIC (hard rules):
+- Do NOT use these as standalone advice or titles: "improve SEO", "optimize content", "better UX", "leverage synergies", "focus on quality", "engage audience", "build brand awareness" without naming the exact gap on THIS page.
+- Do NOT repeat the same sentence structure for every action (vary openings; no copy-paste templates).
+- Every action title must name a failure mode OR a concrete move (e.g. "H1 promises X but body never proves Y" not "Improve messaging").
+
+ANCHOR TO THE EXTRACT (required):
+- In summary, at least twice reference something visible from extract (paraphrase title/H1/meta/CTA or quote a short fragment).
+- In each of today_plan[3] bullets, implicitly or explicitly tie to what you saw (e.g. "Given your H1 says …" or "Your meta currently reads …"). If meta/title is empty, say that and anchor to headings/text instead.
+- In each actions[] item, at least one how_to_execute step must mention a specific on-page element to change (hero, above-the-fold, product title block, shipping row, FAQ, CTA label)—grounded in extract; if not visible, say "add near primary CTA" not "improve site".
+
+ECOMMERCE & REVENUE LENS:
+- If URL or copy suggests a store (product, cart, checkout, shop, collection, "add to cart", SKU, price): prioritize PDP/collection improvements—trust (reviews, guarantees, specs), shipping/returns clarity, variant confusion, cross-sell, urgency without lying, payment trust, mobile add-to-cart clarity. Only recommend what the extract can support; if you cannot see checkout, say "verify on checkout" as a step, not as a fake metric.
+- If the page is lead-gen or SaaS: prioritize offer clarity, ICP, proof, demo/booking friction, form anxiety.
+- Rank actions by expected revenue impact first (conversion rate, qualified leads, AOV, cart completion, refund/chargeback risk from unclear policy), then effort.
 
 Return strictly valid JSON only. No markdown, no extra keys. Schema:
 
 {
   "summary": "string (6-10 sentences)",
+  "today_plan": ["string (next move today #1)", "string (#2)", "string (#3)"],
+  "actions": [
+    {
+      "title": "string",
+      "priority": "high"|"medium"|"low",
+      "impact": "high"|"medium"|"low",
+      "effort": "low"|"medium"|"high",
+      "expected_result": "string",
+      "why_it_matters": "string",
+      "how_to_execute": ["step 1", "step 2", "step 3"],
+      "cta": "string",
+      "action_url": "string (optional; deep-link path starting with /dashboard/...)"
+    }
+  ],
   "scores": { "seo": number, "ai_discoverability": number, "conversion": number },
   "top_issues": [ { "title": "string", "explanation": "string (what is wrong, plainly)", "impact": "string (business consequence)", "fix": "string", "priority": "high"|"medium"|"low" } ],
   "quick_wins": [ { "action": "string", "expected_result": "string" } ],
@@ -41,23 +78,26 @@ Return strictly valid JSON only. No markdown, no extra keys. Schema:
   "ai_visibility": { "would_ai_recommend": boolean, "reason": "string", "improvement": "string", "how_systems_see_site": "string (how crawlers/LLMs likely read entities, topic, trust from the extract)", "concrete_improvements": ["string", "..."] }
 }
 
-SUMMARY: Open with what this page is trying to achieve in one line. Then: strongest signal from the extract, the single biggest revenue or trust risk, how SEO / conversion / AI-mediated discovery interact on this URL, and the recommended sequencing (what to fix before spending on traffic). If specialist data was incomplete, say what was inferred vs certain.
+SUMMARY: Open with what this page is trying to sell or achieve in one line (infer from extract). Then: strongest positive signal, biggest revenue or trust leak, how discovery (SEO/AI) and conversion interact on this URL, and the order to ship fixes (why sequence matters). If phases failed, label inferences clearly.
 
-SCORES: Prefer specialist phase scores when present and consistent with the extract. If a phase failed, infer conservatively (roughly 45-60) and reflect uncertainty in summary—not fake precision.
+TODAY_PLAN: Exactly 3 bullets. Imperative verbs. Each bullet is one sharp task a founder could do in 60–120 minutes. Must feel tailored (reference extract). BAD: "Improve your SEO." GOOD: "Rewrite the meta description to match the H1's promise and the buyer's search intent for [topic from page]."
 
-TOP_ISSUES (5-8): Each "title" is diagnostic and specific—never "Improve SEO" or "Better content" without naming the failure mode.
+ACTIONS (8-12): Task backlog, sorted by impact (then priority). Top 3 must be the highest-leverage revenue moves.
+- Each action: expected_result = directional business outcome (e.g. "fewer bounces from confused visitors", "higher add-to-cart intent from mobile", "more qualified demo requests")—not vanity metrics unless tied to money.
+- why_it_matters = mechanism (why this change moves revenue or trust), not adjectives.
+- how_to_execute = 3-7 steps; each step starts with a verb; include where on the page (hero, sticky bar, PDP bullets, etc.).
+- cta = short command (e.g. "Ship this today", "Edit hero now").
+- action_url optional; one of: "/dashboard/products", "/dashboard/site-audit?tab=sprint", "/dashboard/site-audit?tab=competitors", "/dashboard/site-audit?tab=actions", "/dashboard/notifications". Use when the next step truly belongs in that module; otherwise omit.
 
-Each "explanation" states the on-page problem in plain language (distinct from impact).
+SCORES: Prefer specialist scores when consistent with extract. If a phase failed, infer conservatively (about 45-60) and say so in summary.
 
-Each "impact" must explain WHY the issue hurts the business (qualified traffic, snippet CTR, trust, lead quality, AI citation likelihood) in concrete terms—not "bad UX".
+TOP_ISSUES (5-8): Titles name the failure mode. explanation vs impact vs fix stay distinct. impact ties to money/trust/demand.
 
-Each "fix" is one clear executable move (what to rewrite, add, or remove)—not a category.
+QUICK_WINS (5-8): Under ~90 minutes each; each action names what to edit; expected_result ties to commercial outcome.
 
-QUICK_WINS (5-8): Actions doable in under ~90 minutes on this page; "expected_result" ties to a plausible commercial outcome.
+CONTENT_OPPORTUNITIES: Each why_it_works = funnel logic (objection, stage, query)—not "good for engagement".
 
-CONTENT_OPPORTUNITIES: Merge and dedupe with content specialist ideas; each "why_it_works" must state marketing logic (stage, objection, query capture).
-
-AI_VISIBILITY: Align with AI specialist score. "reason" cites evidence from the extract. "improvement" is 1-3 concrete changes. "how_systems_see_site" explains retrieval/representation (what topic/entity signals exist, what is ambiguous). "concrete_improvements" is 3-6 specific edits (not generic SEO).
+AI_VISIBILITY: Grounded in extract; concrete_improvements are edits a human could paste or implement.
 
 GUARDRAILS: Never invent reviews, awards, metrics, or page elements not in the extract. Plain text only inside JSON strings.`;
 
@@ -137,10 +177,16 @@ function mergeFallback(bundle: PhaseBundle): GrowthAuditReport {
   if (!bundle.conversion.ok) failed.push(`Conversion: ${bundle.conversion.error}`);
   if (!bundle.gaps.ok) failed.push(`Gaps: ${bundle.gaps.error}`);
 
+  const pageHint = bundle.extract.title
+    ? ` Visible title: "${bundle.extract.title.slice(0, 120)}${bundle.extract.title.length > 120 ? "…" : ""}".`
+    : "";
   const summary =
     failed.length === 0
-      ? `Single-page audit for ${bundle.extract.url}. Scores reflect on-page signals only (not full-site crawl). Review top issues and quick wins first.`
-      : `Single-page audit for ${bundle.extract.url}. Some analysis phases could not complete (${failed.length}); scores and lists may be partial. ${failed.join(" ")}`;
+      ? `Single-page audit for ${bundle.extract.url}.${pageHint} Scores reflect on-page signals only (not a full-site crawl). Prioritize conversion and trust fixes before scaling traffic.`
+      : `Single-page audit for ${bundle.extract.url}.${pageHint} Some analysis phases could not complete (${failed.length}); scores and lists may be partial. ${failed.join(" ")}`;
+
+  const qw0 = quick_wins[0]?.action;
+  const qw1 = quick_wins[1]?.action;
 
   return {
     summary,
@@ -149,6 +195,37 @@ function mergeFallback(bundle: PhaseBundle): GrowthAuditReport {
       ai_discoverability: aiScore,
       conversion: convScore,
     },
+    today_plan: [
+      qw0
+        ? `Do this first: ${qw0.slice(0, 220)}${qw0.length > 220 ? "…" : ""}`
+        : `Align the visible headline (H1) and meta with one buyer outcome and one proof point from your current copy on ${bundle.extract.url}.`,
+      qw1
+        ? `Second: ${qw1.slice(0, 220)}${qw1.length > 220 ? "…" : ""}`
+        : `Add one risk-reduction line near the primary action (shipping, guarantee, or social proof)—only if you can support it truthfully on-page.`,
+      `Re-read the page as a skeptical buyer for 60 seconds; delete or rewrite any sentence that does not answer what you sell, for whom, or what happens next.`,
+    ],
+    actions: top_issues.slice(0, 6).map((it, idx) => ({
+      title: it.title || `Priority action ${idx + 1}`,
+      priority: it.priority,
+      impact: idx < 2 ? "high" : "medium",
+      effort: idx < 2 ? "medium" : "low",
+      expected_result:
+        idx < 2
+          ? "Clearer buyer understanding and a stronger next step—fewer exits from confusion or weak trust."
+          : "Incremental lift to clarity and conversion intent on this URL.",
+      why_it_matters:
+        it.impact ||
+        "Ambiguous offers and weak proof leak revenue before traffic spend pays off.",
+      how_to_execute: [
+        it.fix ? `Execute: ${it.fix}` : "Rewrite the weakest above-the-fold line to state offer + ICP + outcome.",
+        it.explanation
+          ? `Address: ${it.explanation.slice(0, 200)}${it.explanation.length > 200 ? "…" : ""}`
+          : "Cross-check headings vs body: remove contradictions.",
+        `Validate on ${bundle.extract.url} after edits; ensure one primary CTA path reads clearly on mobile.`,
+      ],
+      cta: "Ship this now",
+      action_url: "/dashboard/site-audit?tab=actions",
+    })),
     top_issues: top_issues.slice(0, 8),
     quick_wins: quick_wins.slice(0, 8),
     content_opportunities,

@@ -1,4 +1,19 @@
 export type AuditIssuePriority = "high" | "medium" | "low";
+export type AuditActionImpact = "high" | "medium" | "low";
+export type AuditActionEffort = "low" | "medium" | "high";
+
+export type GrowthAuditAction = {
+  title: string;
+  priority: AuditIssuePriority;
+  impact: AuditActionImpact;
+  effort: AuditActionEffort;
+  expected_result: string;
+  why_it_matters: string;
+  how_to_execute: string[];
+  cta: string;
+  /** Optional deep-link into a relevant module. */
+  action_url?: string;
+};
 
 export interface GrowthAuditScores {
   seo: number;
@@ -98,6 +113,10 @@ export type GrowthSprintPlan = {
 export interface GrowthAuditReport {
   summary: string;
   scores: GrowthAuditScores;
+  /** Operator-style next moves (3 bullets) to create immediate momentum. */
+  today_plan?: string[];
+  /** Ranked action backlog (task-system style), sorted by impact then priority. */
+  actions?: GrowthAuditAction[];
   top_issues: GrowthAuditTopIssue[];
   quick_wins: GrowthAuditQuickWin[];
   content_opportunities: GrowthAuditContentOpportunity[];

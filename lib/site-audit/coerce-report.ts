@@ -30,6 +30,40 @@ export function coerceReport(data: unknown): GrowthAuditReport | null {
 
   const summary = typeof o.summary === "string" ? o.summary : "";
 
+  const todayRaw = Array.isArray(o.today_plan) ? o.today_plan : Array.isArray(o.today) ? o.today : [];
+  const today_plan = todayRaw
+    .filter((x): x is string => typeof x === "string")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const actionsRaw = Array.isArray(o.actions) ? o.actions : [];
+  const actions = actionsRaw
+    .map((it) => {
+      if (!it || typeof it !== "object") return null;
+      const x = it as Record<string, unknown>;
+      const title = typeof x.title === "string" ? x.title : "";
+      const priority = x.priority === "high" || x.priority === "medium" || x.priority === "low" ? x.priority : "medium";
+      const impact = x.impact === "high" || x.impact === "medium" || x.impact === "low" ? x.impact : "medium";
+      const effort =
+        x.effort === "low" || x.effort === "medium" || x.effort === "high"
+          ? (x.effort as any)
+          : "medium";
+      const expected_result = typeof x.expected_result === "string" ? x.expected_result : "";
+      const why_it_matters = typeof x.why_it_matters === "string" ? x.why_it_matters : "";
+      const howRaw = Array.isArray(x.how_to_execute) ? x.how_to_execute : [];
+      const how_to_execute = howRaw
+        .filter((s): s is string => typeof s === "string")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+      const cta = typeof x.cta === "string" ? x.cta : "";
+      const action_url = typeof x.action_url === "string" ? x.action_url : undefined;
+      if (!title && !expected_result && !cta) return null;
+      return { title, priority, impact, effort, expected_result, why_it_matters, how_to_execute, cta, ...(action_url ? { action_url } : {}) };
+    })
+    .filter(Boolean) as NonNullable<GrowthAuditReport["actions"]>;
+
   const scoresRaw = o.scores;
   let seo = 50;
   let aiDisc = 50;
@@ -262,6 +296,8 @@ export function coerceReport(data: unknown): GrowthAuditReport | null {
   return {
     summary: summary || "Analysis complete.",
     scores: { seo, ai_discoverability: aiDisc, conversion: conv },
+    ...(today_plan.length ? { today_plan } : {}),
+    ...(actions.length ? { actions } : {}),
     top_issues,
     quick_wins,
     content_opportunities,

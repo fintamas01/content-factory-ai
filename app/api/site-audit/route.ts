@@ -13,6 +13,7 @@ import type { GrowthAuditReport } from "@/lib/site-audit/types";
 import { requireActiveClientId } from "@/lib/clients/server";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
+import { createNotification } from "@/lib/notifications/server";
 
 export async function POST(req: Request) {
   try {
@@ -171,6 +172,27 @@ export async function POST(req: Request) {
       .select("id")
       .maybeSingle();
     if (saveAuditErr) console.error("site_audit_runs insert:", saveAuditErr);
+
+    try {
+      const actions = Array.isArray((normalized as any)?.actions) ? ((normalized as any).actions as any[]) : [];
+      const highCount = actions.filter((a) => a && a.priority === "high").length;
+      if (highCount > 0) {
+        await createNotification(supabase, {
+          userId: user.id,
+          clientId: activeClientId,
+          type: "audit_actions_ready",
+          title: `${highCount} high-priority growth actions ready`,
+          message: `Your AI Growth Agent found ${highCount} high-impact actions for ${signals.url}. Start from the top 3 to create momentum today.`,
+          severity: "info",
+          sourceModule: "audit",
+          actionLabel: "Open Actions",
+          actionUrl: "/dashboard/site-audit?tab=actions",
+          metadata: { url: signals.url, auditRunId: savedAudit?.id ?? null, highCount },
+        });
+      }
+    } catch (e) {
+      console.warn("[site-audit] notification create failed:", e);
+    }
 
     await incrementUsage(supabase, "audit", activeClientId);
 

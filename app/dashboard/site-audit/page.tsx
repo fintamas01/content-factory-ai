@@ -466,6 +466,16 @@ export default function AIGrowthAuditPage() {
         ? {
             summary: data.report.summary,
             scores: data.report.scores,
+            today_plan: (data.report.today_plan ?? []).slice(0, 3),
+            actions: (data.report.actions ?? []).slice(0, 8).map((a) => ({
+              title: a.title,
+              priority: a.priority,
+              impact: a.impact,
+              effort: a.effort,
+              expected_result: a.expected_result,
+              cta: a.cta,
+              action_url: (a as any).action_url,
+            })),
             top_issues: (data.report.top_issues ?? []).slice(0, 8).map((x) => ({
               title: x.title,
               priority: x.priority,
@@ -670,6 +680,8 @@ export default function AIGrowthAuditPage() {
   const renderPanel = () => {
     if (!data) return null;
     const { report, signals } = data;
+    const actions = report.actions ?? [];
+    const today = report.today_plan ?? [];
 
     switch (tab) {
       case "overview":
@@ -715,39 +727,103 @@ export default function AIGrowthAuditPage() {
               </div>
             </div>
             <div className={`${panel} p-7 md:p-9`}>
-              <p className={sectionLabel}>Key insights</p>
-              <ul className="mt-6 space-y-4">
-                {report.quick_wins.slice(0, 4).map((w, i) => (
-                  <li
+              <p className={sectionLabel}>Your next 3 moves today</p>
+              <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                A crisp operator plan for the next 60–120 minutes.
+              </p>
+              <div className="mt-6 grid gap-3">
+                {(today.length ? today : actions.slice(0, 3).map((a) => a.title)).slice(0, 3).map((t, i) => (
+                  <div
                     key={i}
-                    className="group flex gap-4 rounded-xl py-1 text-[14px] leading-relaxed text-zinc-300 transition-colors hover:text-zinc-100"
+                    className="group flex items-start justify-between gap-4 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.05] p-5 transition-colors duration-300 hover:border-emerald-500/25"
                   >
-                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500/70 transition-transform duration-300 group-hover:scale-110 group-hover:text-emerald-400" />
-                    <span>{w.action}</span>
-                  </li>
+                    <div className="flex gap-4">
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[12px] font-semibold text-emerald-200">
+                        {i + 1}
+                      </div>
+                      <div>
+                        <p className="text-[14px] font-medium leading-snug text-white">
+                          {t}
+                        </p>
+                        {actions[i]?.expected_result ? (
+                          <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                            {actions[i]!.expected_result}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTab("actions")}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-white/[0.10] bg-white/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-white transition hover:bg-white/[0.10]"
+                    >
+                      Do this now <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))}
-                {sortedIssueIndices[0] !== undefined &&
-                report.top_issues[sortedIssueIndices[0]!] ? (
-                  <li className="flex gap-4 border-t border-white/[0.06] pt-5 text-[14px] text-zinc-400">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                    <span>
-                      Top priority:{" "}
-                      {report.top_issues[sortedIssueIndices[0]!]!.title}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTab("actions");
-                          setSelectedIssueIdx(sortedIssueIndices[0]!);
-                        }}
-                        className="ml-2 font-medium text-emerald-400/95 underline-offset-4 transition hover:text-emerald-300 hover:underline"
-                      >
-                        Open in Actions
-                      </button>
-                    </span>
-                  </li>
-                ) : null}
-              </ul>
+              </div>
             </div>
+            {actions.length ? (
+              <div className={`${panel} p-7 md:p-9`}>
+                <p className={sectionLabel}>Top actions (ranked by impact)</p>
+                <p className="mt-2 text-[13px] leading-relaxed text-zinc-500">
+                  This is your action backlog. Start from the top.
+                </p>
+                <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  {actions.slice(0, 4).map((a, i) => (
+                    <div
+                      key={`${a.title}-${i}`}
+                      className="rounded-xl border border-white/[0.06] bg-black/30 p-5 transition-colors duration-300 hover:border-white/[0.12]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-[14px] font-semibold leading-snug text-white">
+                          {a.title}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                            {a.effort} effort
+                          </span>
+                          <span
+                            className={`rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+                              a.priority === "high"
+                                ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
+                                : a.priority === "low"
+                                  ? "border-white/[0.08] bg-white/[0.03] text-zinc-500"
+                                  : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                            }`}
+                          >
+                            {a.priority} priority
+                          </span>
+                        </div>
+                      </div>
+                      {a.expected_result ? (
+                        <p className="mt-3 text-[13px] leading-relaxed text-zinc-500">
+                          {a.expected_result}
+                        </p>
+                      ) : null}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setTab("actions")}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white shadow-lg shadow-emerald-900/25 transition hover:bg-emerald-500 active:scale-[0.98]"
+                        >
+                          Do this now
+                        </button>
+                        {typeof (a as any).action_url === "string" && (a as any).action_url.startsWith("/dashboard/") ? (
+                          <button
+                            type="button"
+                            onClick={() => window.location.assign((a as any).action_url)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/[0.10] bg-white/[0.06] px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white transition hover:bg-white/[0.10]"
+                          >
+                            Open module
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         );
 
@@ -1339,6 +1415,122 @@ export default function AIGrowthAuditPage() {
               <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3.5 text-[14px] text-amber-100 shadow-lg shadow-amber-950/20">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
                 {fixError}
+              </div>
+            ) : null}
+            {(report.actions ?? []).length ? (
+              <div className={`${panel} mb-8 p-7 md:p-9`}>
+                <p className={sectionLabel}>Action engine</p>
+                <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
+                  Prioritized actions (do these in order)
+                </h3>
+                <p className="mt-3 max-w-3xl text-[14px] leading-relaxed text-zinc-500">
+                  These aren’t generic recommendations—they’re sequenced moves with expected outcomes and execution steps.
+                </p>
+
+                <div className="mt-7 grid gap-4 lg:grid-cols-2">
+                  {(report.actions ?? []).slice(0, 10).map((a, i) => (
+                    <div
+                      key={`${a.title}-${i}`}
+                      className={`rounded-2xl border bg-black/30 p-6 transition-colors duration-300 hover:bg-black/35 ${
+                        i < 3
+                          ? "border-emerald-500/20 shadow-[0_0_48px_-28px_rgba(16,185,129,0.45)]"
+                          : "border-white/[0.06] hover:border-white/[0.12]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500">
+                            {i < 3 ? "Top action" : "Action"}
+                          </p>
+                          <p className="mt-2 text-[15px] font-semibold leading-snug text-white">
+                            {a.title}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <PriorityBadge priority={a.priority} />
+                          <span
+                            className={`rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+                              a.impact === "high"
+                                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+                                : a.impact === "low"
+                                  ? "border-white/[0.08] bg-white/[0.03] text-zinc-500"
+                                  : "border-amber-500/25 bg-amber-500/10 text-amber-200"
+                            }`}
+                          >
+                            impact: {a.impact}
+                          </span>
+                          <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                            effort: {a.effort}
+                          </span>
+                        </div>
+                      </div>
+
+                      {a.expected_result ? (
+                        <div className="mt-4 rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                          <p className={sectionLabel}>Expected result</p>
+                          <p className="mt-2 text-[13px] leading-relaxed text-zinc-300">
+                            {a.expected_result}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      {a.why_it_matters ? (
+                        <p className="mt-4 text-[13px] leading-relaxed text-zinc-500">
+                          <span className="font-medium text-zinc-300">
+                            Why it matters:
+                          </span>{" "}
+                          {a.why_it_matters}
+                        </p>
+                      ) : null}
+
+                      {Array.isArray(a.how_to_execute) && a.how_to_execute.length ? (
+                        <div className="mt-5">
+                          <p className={sectionLabel}>How to execute</p>
+                          <ol className="mt-3 space-y-2.5">
+                            {a.how_to_execute.slice(0, 7).map((step, si) => (
+                              <li key={si} className="flex gap-3 text-[13px] leading-relaxed text-zinc-300">
+                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.03] text-[11px] font-medium text-zinc-400">
+                                  {si + 1}
+                                </span>
+                                <span className="min-w-0">{step}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-6 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Keep user inside the audit flow; action execution is guided by steps + optional module links.
+                            if (typeof (a as any).action_url === "string" && (a as any).action_url.startsWith("/dashboard/")) {
+                              window.location.assign((a as any).action_url);
+                              return;
+                            }
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 hover:shadow-emerald-500/30 active:scale-[0.98]"
+                        >
+                          {a.cta || "Do this now"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTab("sprint")}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.06] px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-white transition hover:bg-white/[0.10] active:scale-[0.98]"
+                        >
+                          Add to sprint
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.location.assign("/dashboard/notifications")}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.06] px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-white transition hover:bg-white/[0.10] active:scale-[0.98]"
+                        >
+                          Create alert
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
             {report.top_issues.length === 0 ? (
