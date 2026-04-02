@@ -169,7 +169,7 @@ export function BillingDashboardClient() {
   const usage = data?.usage;
   const cards = getPlanMarketingCards();
   const sub = asSub(data?.subscription ?? null);
-  const planTier = usage?.plan ?? "free";
+  const planTier = data?.usage?.plan ?? data?.plan ?? "free";
   const isElite = planTier === "elite";
   const isProTier = planTier === "pro";
   const isPaid = isElite || isProTier;
@@ -196,6 +196,17 @@ export function BillingDashboardClient() {
         >
           <span className="font-semibold text-emerald-50">Payment received.</span> If your plan
           does not update within a minute, refresh — Stripe webhooks sync your subscription.
+        </div>
+      ) : null}
+
+      {user && data && !usage ? (
+        <div
+          role="note"
+          className="relative rounded-2xl border border-amber-400/20 bg-amber-500/[0.08] px-5 py-3 text-sm text-amber-100/95"
+        >
+          <span className="font-semibold text-amber-50">Workspace required for usage.</span>{" "}
+          Select a client/workspace in the header to see monthly quotas. You can still upgrade to
+          Pro or Elite below.
         </div>
       ) : null}
 

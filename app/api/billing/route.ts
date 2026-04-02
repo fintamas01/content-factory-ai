@@ -8,12 +8,16 @@ import {
   getStripePriceIdElite,
   getStripePriceIdPro,
 } from "@/lib/billing/pricing";
-import { buildUsageSummary } from "@/lib/usage/usage-service";
+import { buildUsageSummary, getUserPlanTier } from "@/lib/usage/usage-service";
 import type { UsageSummary } from "@/lib/usage/types";
+import type { PlanTier, SubscriptionRow } from "@/lib/plan-config";
 
 export type BillingApiResponse = {
   subscription: Record<string, unknown> | null;
-  usage: UsageSummary;
+  /** Monthly usage; null if no workspace is selected (checkout still works). */
+  usage: UsageSummary | null;
+  /** From Stripe subscription; same as usage.plan when usage is present. */
+  plan: PlanTier;
   /**
    * Stripe Price IDs read on the server (runtime env).
    * Client components cannot rely on NEXT_PUBLIC_* alone — those are inlined at build time.
@@ -65,24 +69,27 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let clientId: string;
-    try {
-      const active = await requireActiveClientId(supabase, cookieStore, user.id);
-      clientId = active.clientId;
-    } catch {
-      return NextResponse.json({ error: "No active client." }, { status: 400 });
-    }
-
-    const usage = await buildUsageSummary(supabase, user.id, clientId);
     const { data: subscription } = await supabase
       .from("subscriptions")
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    const subRow = subscription as SubscriptionRow | null;
+    const plan = getUserPlanTier(subRow);
+
+    let usage: UsageSummary | null = null;
+    try {
+      const active = await requireActiveClientId(supabase, cookieStore, user.id);
+      usage = await buildUsageSummary(supabase, user.id, active.clientId);
+    } catch {
+      /* No active workspace — still return checkout price IDs and plan for billing UI. */
+    }
+
     const body: BillingApiResponse = {
       subscription: subscription as Record<string, unknown> | null,
       usage,
+      plan,
       checkoutPriceIds: {
         pro: getStripePriceIdPro(),
         basic: getStripePriceIdBasic(),
