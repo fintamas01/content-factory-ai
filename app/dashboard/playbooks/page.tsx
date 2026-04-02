@@ -1,10 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createBrowserClient } from "@supabase/ssr";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Loader2, Copy, Check } from "lucide-react";
+import { X, Loader2, Copy, Check, RotateCcw } from "lucide-react";
 import { PLAYBOOKS, type PlaybookDefinition } from "@/lib/playbooks/definitions";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import {
+  clearWorkspace,
+  loadWorkspace,
+  saveWorkspace,
+  WORKSPACE_MODULES,
+} from "@/lib/persistence/workspace-storage";
+import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
+);
 
 type RunResponse =
   | { ok: true; result: { playbookId: string; meta: any; steps: any[] } }
@@ -71,6 +84,15 @@ function Field({
   );
 }
 
+type PlaybooksWorkspaceSnapshot = {
+  activePlaybookId: string | null;
+  open: boolean;
+  url: string;
+  competitorUrl: string;
+  productName: string;
+  result: any | null;
+};
+
 export default function PlaybooksPage() {
   const [active, setActive] = useState<PlaybookDefinition | null>(null);
   const [open, setOpen] = useState(false);
@@ -81,6 +103,87 @@ export default function PlaybooksPage() {
   const [url, setUrl] = useState("");
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [productName, setProductName] = useState("");
+
+  const [workspaceScope, setWorkspaceScope] = useState<{
+    userId: string;
+    clientId: string;
+  } | null>(null);
+  const workspaceHydrated = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const res = await fetch("/api/clients");
+      const j = await res.json().catch(() => ({}));
+      const clientId = typeof j.activeClientId === "string" ? j.activeClientId : "";
+      if (!clientId || cancelled) return;
+      setWorkspaceScope({ userId: user.id, clientId });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceScope || workspaceHydrated.current) return;
+    const w = loadWorkspace<PlaybooksWorkspaceSnapshot>(
+      workspaceScope.userId,
+      workspaceScope.clientId,
+      WORKSPACE_MODULES.playbooks
+    );
+    if (w) {
+      if (typeof w.url === "string") setUrl(w.url);
+      if (typeof w.competitorUrl === "string") setCompetitorUrl(w.competitorUrl);
+      if (typeof w.productName === "string") setProductName(w.productName);
+      if (w.result) setResult(w.result);
+      if (w.activePlaybookId) {
+        const p = PLAYBOOKS.find((x) => x.id === w.activePlaybookId);
+        if (p) setActive(p);
+      }
+      if (w.open && w.activePlaybookId) setOpen(true);
+    }
+    workspaceHydrated.current = true;
+  }, [workspaceScope]);
+
+  useEffect(() => {
+    if (!workspaceScope || !workspaceHydrated.current) return;
+    const t = window.setTimeout(() => {
+      saveWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.playbooks, {
+        activePlaybookId: active?.id ?? null,
+        open,
+        url,
+        competitorUrl,
+        productName,
+        result,
+      } satisfies PlaybooksWorkspaceSnapshot);
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [
+    workspaceScope,
+    active?.id,
+    open,
+    url,
+    competitorUrl,
+    productName,
+    result,
+  ]);
+
+  const startNewPlaybookRun = () => {
+    if (workspaceScope) {
+      clearWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.playbooks);
+    }
+    setResult(null);
+    setError(null);
+    setUrl("");
+    setCompetitorUrl("");
+    setProductName("");
+    setOpen(false);
+    setActive(null);
+  };
 
   useCopilotPageContext({
     page: "playbooks",
@@ -118,7 +221,6 @@ export default function PlaybooksPage() {
     if (!active) return;
     setLoading(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch("/api/playbooks/run", {
         method: "POST",
@@ -156,9 +258,8 @@ export default function PlaybooksPage() {
     setActive(p);
     setOpen(true);
     setError(null);
-    setResult(null);
     setLoading(false);
-    // keep any previously typed values (feels fast)
+    if (active?.id !== p.id) setResult(null);
   };
 
   const exportJson = () => {
@@ -185,6 +286,41 @@ export default function PlaybooksPage() {
               Run high-value workflows end-to-end—audit, competitor intel, and generators—without
               re-building the same pipeline every time.
             </p>
+            {result && !open ? (
+              <div className="mt-4">
+                <WorkspaceSessionBanner
+                  variant="emerald"
+                  title="Latest playbook run saved for this workspace"
+                  hint="Open to pick up where you left off, or start over when you’re ready."
+                  actions={
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const id = String(result?.playbookId ?? "");
+                          const p = PLAYBOOKS.find((x) => x.id === id);
+                          if (p) {
+                            setActive(p);
+                            setOpen(true);
+                          }
+                        }}
+                        className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-emerald-950 shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-400"
+                      >
+                        Continue
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startNewPlaybookRun}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-white transition hover:bg-white/[0.08]"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Start over
+                      </button>
+                    </>
+                  }
+                />
+              </div>
+            ) : null}
           </div>
           <div className="hidden sm:block rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -271,14 +407,26 @@ export default function PlaybooksPage() {
                   <p className="mt-2 text-lg font-semibold text-white">{active.title}</p>
                   <p className="mt-2 text-sm text-zinc-400">{active.description}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-zinc-300 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
-                  aria-label="Close"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  {result ? (
+                    <button
+                      type="button"
+                      onClick={startNewPlaybookRun}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.04] px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-200 transition hover:bg-white/[0.07]"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Start over
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-zinc-300 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid gap-6 px-6 py-6">

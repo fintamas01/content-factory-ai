@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState, useEffect, type ComponentType, type ReactNode } from "react";
+import { Suspense, useMemo, useState, useEffect, useRef, type ComponentType, type ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { stripHtmlForAnalysis, type ProductHealthResult } from "@/lib/products/product-health";
@@ -20,6 +20,7 @@ import {
   Link as LinkIcon,
   Activity,
   Columns2,
+  RotateCcw,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { MODULES } from "@/lib/platform/config";
@@ -33,6 +34,13 @@ import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageCo
 import { fetchActiveClientSummary, safeFilenamePart } from "@/lib/reports/client-meta";
 import { renderReportToPdf } from "@/lib/reports/render-to-pdf";
 import { ProductOptimizationReport } from "@/app/components/reports/ProductOptimizationReport";
+import {
+  clearWorkspace,
+  loadWorkspace,
+  saveWorkspace,
+  WORKSPACE_MODULES,
+} from "@/lib/persistence/workspace-storage";
+import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 
 const TONE_OPTIONS = [
   { value: "", label: "Default (balanced)" },
@@ -174,6 +182,13 @@ export default function ProductGeniePage() {
     queue: Array<{ id: number; name: string; heuristicScore: number; sku?: string | null }>;
   } | null>(null);
 
+  const [workspaceScope, setWorkspaceScope] = useState<{
+    userId: string;
+    clientId: string;
+  } | null>(null);
+  const workspaceHydrated = useRef(false);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+
   useCopilotPageContext({
     page: "products",
     data: {
@@ -250,10 +265,155 @@ export default function ProductGeniePage() {
     })();
   }, []);
 
-  const runGeneration = async (kind: "generate" | "improve") => {
-    setError(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const res = await fetch("/api/clients");
+      const j = await res.json().catch(() => ({}));
+      const clientId = typeof j.activeClientId === "string" ? j.activeClientId : "";
+      if (!clientId || cancelled) return;
+      setWorkspaceScope({ userId: user.id, clientId });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  type ProductsWorkspaceSnapshot = {
+    mode: "manual" | "store";
+    activeTab:
+      | "description"
+      | "bullets"
+      | "seo"
+      | "marketplace"
+      | "sync"
+      | "compare";
+    productName: string;
+    productDetails: string;
+    targetAudience: string;
+    tone: string;
+    keyBenefits: string;
+    existingTitle: string;
+    existingDescription: string;
+    existingShortDescription: string;
+    result: ProductCopyResult | null;
+    savedId: string | null;
+    healthResult: ProductHealthResult | null;
+    wooSelectedId: number | null;
+    wooUpdateFields: { title: boolean; description: boolean; short: boolean };
+    wooStoreUrl: string;
+    wooSyncStatus:
+      | { state: "idle" }
+      | { state: "ready"; storeUrl: string; productId: number }
+      | { state: "updated"; fields: string[]; at: string }
+      | { state: "error"; message: string };
+  };
+
+  useEffect(() => {
+    if (!workspaceScope || workspaceHydrated.current) return;
+    const w = loadWorkspace<ProductsWorkspaceSnapshot>(
+      workspaceScope.userId,
+      workspaceScope.clientId,
+      WORKSPACE_MODULES.products
+    );
+    if (w) {
+      if (w.mode === "manual" || w.mode === "store") setMode(w.mode);
+      setActiveTab(w.activeTab ?? "description");
+      setProductName(w.productName ?? "");
+      setProductDetails(w.productDetails ?? "");
+      setTargetAudience(w.targetAudience ?? "");
+      setTone(w.tone ?? "");
+      setKeyBenefits(w.keyBenefits ?? "");
+      setExistingTitle(w.existingTitle ?? "");
+      setExistingDescription(w.existingDescription ?? "");
+      setExistingShortDescription(w.existingShortDescription ?? "");
+      if (w.result) setResult(w.result);
+      if (w.savedId !== undefined) setSavedId(w.savedId);
+      if (w.healthResult !== undefined) setHealthResult(w.healthResult);
+      if (typeof w.wooSelectedId === "number" || w.wooSelectedId === null) {
+        setWooSelectedId(w.wooSelectedId);
+      }
+      if (w.wooUpdateFields) setWooUpdateFields(w.wooUpdateFields);
+      if (typeof w.wooStoreUrl === "string") setWooStoreUrl(w.wooStoreUrl);
+      if (w.wooSyncStatus) setWooSyncStatus(w.wooSyncStatus);
+    }
+    workspaceHydrated.current = true;
+    setWorkspaceReady(true);
+  }, [workspaceScope]);
+
+  useEffect(() => {
+    if (!workspaceScope || !workspaceHydrated.current) return;
+    const t = window.setTimeout(() => {
+      saveWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.products, {
+        mode,
+        activeTab,
+        productName,
+        productDetails,
+        targetAudience,
+        tone,
+        keyBenefits,
+        existingTitle,
+        existingDescription,
+        existingShortDescription,
+        result,
+        savedId,
+        healthResult,
+        wooSelectedId,
+        wooUpdateFields,
+        wooStoreUrl,
+        wooSyncStatus,
+      } satisfies ProductsWorkspaceSnapshot);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [
+    workspaceScope,
+    mode,
+    activeTab,
+    productName,
+    productDetails,
+    targetAudience,
+    tone,
+    keyBenefits,
+    existingTitle,
+    existingDescription,
+    existingShortDescription,
+    result,
+    savedId,
+    healthResult,
+    wooSelectedId,
+    wooUpdateFields,
+    wooStoreUrl,
+    wooSyncStatus,
+  ]);
+
+  const startNewProductWorkspace = () => {
+    if (workspaceScope) {
+      clearWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.products);
+    }
+    setActiveTab("description");
+    setProductName("");
+    setProductDetails("");
+    setTargetAudience("");
+    setTone("");
+    setKeyBenefits("");
+    setExistingTitle("");
+    setExistingDescription("");
+    setExistingShortDescription("");
     setResult(null);
     setSavedId(null);
+    setHealthResult(null);
+    setError(null);
+    setWooSelectedId(null);
+    setWooSyncStatus({ state: "idle" });
+    setWooUpdateFields({ title: true, description: true, short: true });
+  };
+
+  const runGeneration = async (kind: "generate" | "improve") => {
+    setError(null);
     const name = productName.trim();
     if (!name) {
       setError("Enter a product name.");
@@ -455,8 +615,6 @@ export default function ProductGeniePage() {
     }
     setError(null);
     setOptimizeLoading(true);
-    setResult(null);
-    setSavedId(null);
     try {
       const res = await fetch(`/api/woocommerce/products/${wooSelectedId}/optimize`, {
         method: "POST",
@@ -584,6 +742,25 @@ export default function ProductGeniePage() {
       <ModulePageHeader moduleId="products" />
 
       <ModuleUsageBanner feature="product" bump={usageBump} />
+
+      {(result || healthResult) && workspaceReady ? (
+        <WorkspaceSessionBanner
+          variant="dark"
+          title="Latest result saved for this workspace"
+          hint="Stays available while you navigate away. Cleared only when you start a new generation."
+          actions={
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={startNewProductWorkspace}
+              className="h-10 shrink-0 gap-2 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em]"
+            >
+              <RotateCcw className="h-4 w-4" />
+              New generation
+            </Button>
+          }
+        />
+      ) : null}
 
       {unifiedBrand ? (
         <p className="mb-4 text-xs font-semibold text-emerald-200/90">

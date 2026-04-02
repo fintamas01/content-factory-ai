@@ -4,12 +4,19 @@ import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X,
-  Wand2, Smile, Briefcase, Eye, Layout, Edit3, Target
+  Wand2, Smile, Briefcase, Eye, Layout, Edit3, Target, RotateCcw
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import {
+  clearWorkspace,
+  loadWorkspace,
+  saveWorkspace,
+  WORKSPACE_MODULES,
+} from "@/lib/persistence/workspace-storage";
+import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,6 +70,14 @@ export default function DashboardPage() {
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
   const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
   const [usageBump, setUsageBump] = useState(0);
+
+  const [workspaceScope, setWorkspaceScope] = useState<{
+    userId: string;
+    clientId: string;
+  } | null>(null);
+  const contentWorkspaceHydrated = useRef(false);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const pendingBrandIdRef = useRef<string | null>(null);
 
   useCopilotPageContext({
     page: "content",
@@ -137,6 +152,106 @@ export default function DashboardPage() {
     };
     checkStatus();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const res = await fetch("/api/clients");
+      const j = await res.json().catch(() => ({}));
+      const clientId = typeof j.activeClientId === "string" ? j.activeClientId : "";
+      if (!clientId || cancelled) return;
+      setWorkspaceScope({ userId: user.id, clientId });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  type ContentWorkspaceSnapshot = {
+    input: string;
+    tone: string;
+    results: any | null;
+    lang: string;
+    useResearch: boolean;
+    templateId: string;
+    selectedPlatforms: string[];
+    selectedBrandId: string | null;
+  };
+
+  useEffect(() => {
+    if (!workspaceScope || contentWorkspaceHydrated.current) return;
+    const w = loadWorkspace<ContentWorkspaceSnapshot>(
+      workspaceScope.userId,
+      workspaceScope.clientId,
+      WORKSPACE_MODULES.content
+    );
+    if (w) {
+      if (typeof w.input === "string") setInput(w.input);
+      if (typeof w.tone === "string") setTone(w.tone);
+      if (w.results) setResults(w.results);
+      if (typeof w.lang === "string") setLang(w.lang);
+      if (typeof w.useResearch === "boolean") setUseResearch(w.useResearch);
+      if (typeof w.templateId === "string") {
+        const t = templates.find((x) => x.id === w.templateId);
+        if (t) setSelectedTemplate(t);
+      }
+      if (Array.isArray(w.selectedPlatforms)) setSelectedPlatforms(w.selectedPlatforms);
+      if (typeof w.selectedBrandId === "string" && w.selectedBrandId) {
+        pendingBrandIdRef.current = w.selectedBrandId;
+      }
+    }
+    contentWorkspaceHydrated.current = true;
+    setWorkspaceReady(true);
+  }, [workspaceScope]);
+
+  useEffect(() => {
+    if (!pendingBrandIdRef.current || !brands.length) return;
+    const b = brands.find((x: any) => x.id === pendingBrandIdRef.current);
+    if (b) {
+      setSelectedBrand(b);
+      pendingBrandIdRef.current = null;
+    }
+  }, [brands]);
+
+  useEffect(() => {
+    if (!workspaceScope || !contentWorkspaceHydrated.current) return;
+    const t = window.setTimeout(() => {
+      saveWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.content, {
+        input,
+        tone,
+        results,
+        lang,
+        useResearch,
+        templateId: selectedTemplate?.id ?? "custom",
+        selectedPlatforms,
+        selectedBrandId: selectedBrand?.id ?? null,
+      } satisfies ContentWorkspaceSnapshot);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [
+    workspaceScope,
+    input,
+    tone,
+    results,
+    lang,
+    useResearch,
+    selectedTemplate?.id,
+    selectedPlatforms,
+    selectedBrand?.id,
+  ]);
+
+  const startNewContentGeneration = () => {
+    if (workspaceScope) {
+      clearWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.content);
+    }
+    setInput("");
+    setResults(null);
+    setSelectedPlatforms([]);
+  };
 
   const handleButtonMove = (e: React.MouseEvent) => {
     if (!btnRef.current) return;
@@ -246,6 +361,23 @@ export default function DashboardPage() {
     <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
       <ModulePageHeader moduleId="content" className="mb-2" />
       <ModuleUsageBanner feature="content" bump={usageBump} />
+      {results && workspaceReady ? (
+        <WorkspaceSessionBanner
+          variant="emerald"
+          title="Latest generation saved for this workspace"
+          hint="Persists in this browser until you start over—nothing is cleared automatically."
+          actions={
+            <button
+              type="button"
+              onClick={startNewContentGeneration}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-emerald-600/35 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-emerald-950 shadow-sm dark:bg-[#0f172a] dark:text-emerald-100"
+            >
+              <RotateCcw className="h-4 w-4" />
+              New generation
+            </button>
+          }
+        />
+      ) : null}
       {unifiedBrand ? (
         <p className="mb-4 text-xs font-semibold text-emerald-600/90 dark:text-emerald-400/90">
           Using your saved brand profile

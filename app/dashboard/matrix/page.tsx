@@ -10,6 +10,13 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import {
+  clearWorkspace,
+  loadWorkspace,
+  saveWorkspace,
+  WORKSPACE_MODULES,
+} from "@/lib/persistence/workspace-storage";
+import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 
 interface MatrixItem {
   day: string;
@@ -68,7 +75,14 @@ export default function ContentMatrix() {
   const [isPreview, setIsPreview] = useState(false);
 
   const [useResearch, setUseResearch] = useState(false);
-  
+
+  const [workspaceScope, setWorkspaceScope] = useState<{
+    userId: string;
+    clientId: string;
+  } | null>(null);
+  const matrixWorkspaceHydrated = useRef(false);
+  const [matrixWorkspaceReady, setMatrixWorkspaceReady] = useState(false);
+
   const router = useRouter();
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -101,6 +115,92 @@ export default function ContentMatrix() {
     }
     loadInitialData();
   }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const res = await fetch("/api/clients");
+      const j = await res.json().catch(() => ({}));
+      const clientId = typeof j.activeClientId === "string" ? j.activeClientId : "";
+      if (!clientId || cancelled) return;
+      setWorkspaceScope({ userId: user.id, clientId });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  type MatrixWorkspaceSnapshot = {
+    matrixData: MatrixItem[];
+    formData: { brand: string; audience: string; topic: string; tone: string };
+    selectedBrandId: string;
+    viewMode: "text" | "visual" | "image";
+    useResearch: boolean;
+    isPreview: boolean;
+  };
+
+  useEffect(() => {
+    if (!workspaceScope || loading || matrixWorkspaceHydrated.current) return;
+    const w = loadWorkspace<MatrixWorkspaceSnapshot>(
+      workspaceScope.userId,
+      workspaceScope.clientId,
+      WORKSPACE_MODULES.matrix
+    );
+    if (w) {
+      if (Array.isArray(w.matrixData) && w.matrixData.length > 0) setMatrixData(w.matrixData);
+      if (w.formData) setFormData((prev) => ({ ...prev, ...w.formData }));
+      if (typeof w.selectedBrandId === "string") setSelectedBrandId(w.selectedBrandId);
+      if (w.viewMode === "text" || w.viewMode === "visual" || w.viewMode === "image") {
+        setViewMode(w.viewMode);
+      }
+      if (typeof w.useResearch === "boolean") setUseResearch(w.useResearch);
+      if (typeof w.isPreview === "boolean") setIsPreview(w.isPreview);
+    }
+    matrixWorkspaceHydrated.current = true;
+    setMatrixWorkspaceReady(true);
+  }, [workspaceScope, loading]);
+
+  useEffect(() => {
+    if (!workspaceScope || !matrixWorkspaceHydrated.current) return;
+    const t = window.setTimeout(() => {
+      saveWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.matrix, {
+        matrixData,
+        formData,
+        selectedBrandId,
+        viewMode,
+        useResearch,
+        isPreview,
+      } satisfies MatrixWorkspaceSnapshot);
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [
+    workspaceScope,
+    matrixData,
+    formData,
+    selectedBrandId,
+    viewMode,
+    useResearch,
+    isPreview,
+  ]);
+
+  const startNewMatrix = () => {
+    if (workspaceScope) {
+      clearWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.matrix);
+    }
+    setMatrixData([]);
+    setFormData({ brand: "", audience: "", topic: "", tone: "Professzionális" });
+    setSelectedBrandId("");
+    setSelectedPost(null);
+    setIsPreview(false);
+    setViewMode("text");
+    setSlides([]);
+    setSlideImages([]);
+    setCurrentSlide(0);
+  };
 
   useCopilotPageContext({
     page: "matrix",
@@ -542,15 +642,14 @@ export default function ContentMatrix() {
         </div>
         
         <div className="flex items-center gap-3">
-            {/* EXPORT GOMB (Csak ha van tartalom) */}
-            {matrixData.length > 0 && (
+            {matrixData.length > 0 ? (
                 <button 
                     onClick={handleExportPDF}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20"
                 >
                     <FileText className="w-4 h-4" /> Export (PDF)
                 </button>
-            )}
+            ) : null}
 
             <button 
                 onClick={() => { setShowHistory(true); fetchHistory(); }}
@@ -567,6 +666,26 @@ export default function ContentMatrix() {
             )}
         </div>
       </div>
+
+      {matrixData.length > 0 && matrixWorkspaceReady ? (
+        <div className="mb-8">
+        <WorkspaceSessionBanner
+          variant="dark"
+          title="Latest matrix saved for this workspace"
+          hint="Persists in this browser until you start a new matrix—nothing is cleared when you leave the page."
+          actions={
+            <button
+              type="button"
+              onClick={startNewMatrix}
+              className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-800 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700"
+            >
+              <RefreshCcw className="h-4 w-4 text-slate-400" />
+              Új mátrix
+            </button>
+          }
+        />
+        </div>
+      ) : null}
 
       {/* INPUT CONTAINER */}
       <div className="mb-10 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl space-y-4">

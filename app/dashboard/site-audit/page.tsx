@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { createBrowserClient } from "@supabase/ssr";
 import {
   Loader2,
   Radar,
@@ -22,6 +23,7 @@ import {
   LayoutDashboard,
   PanelRight,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react";
 import { MODULES } from "@/lib/platform/config";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
@@ -38,6 +40,18 @@ import type {
   GrowthAuditTopIssue,
 } from "@/lib/site-audit/types";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import {
+  clearWorkspace,
+  loadWorkspace,
+  saveWorkspace,
+  WORKSPACE_MODULES,
+} from "@/lib/persistence/workspace-storage";
+import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
+);
 
 type ApiSuccess = {
   report: GrowthAuditReport;
@@ -370,6 +384,17 @@ function AiVisibilityPanel({ report }: { report: GrowthAuditReport }) {
   );
 }
 
+type AuditWorkspaceSnapshot = {
+  url: string;
+  competitors: [string, string, string];
+  data: ApiSuccess | null;
+  tab: TabId;
+  selectedIssueIdx: number | null;
+  fixByIssue: Record<string, AuditFixPackage>;
+  planDays: AuditContentPlanDay[] | null;
+  sprintPlan: GrowthSprintPlan | null;
+};
+
 export default function AIGrowthAuditPage() {
   const m = MODULES.siteAudit;
   const [url, setUrl] = useState("");
@@ -383,6 +408,12 @@ export default function AIGrowthAuditPage() {
   const [data, setData] = useState<ApiSuccess | null>(null);
   const [usageBump, setUsageBump] = useState(0);
   const [exportLoadingKey, setExportLoadingKey] = useState<"audit" | "sprint" | null>(null);
+  const [workspaceScope, setWorkspaceScope] = useState<{
+    userId: string;
+    clientId: string;
+  } | null>(null);
+  const workspaceHydrated = useRef(false);
+  const [auditWorkspaceReady, setAuditWorkspaceReady] = useState(false);
 
   const [tab, setTab] = useState<TabId>("overview");
   const [selectedIssueIdx, setSelectedIssueIdx] = useState<number | null>(null);
@@ -400,6 +431,92 @@ export default function AIGrowthAuditPage() {
   const [sprintLoading, setSprintLoading] = useState(false);
   const [sprintPlan, setSprintPlan] = useState<GrowthSprintPlan | null>(null);
   const [sprintError, setSprintError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const res = await fetch("/api/clients");
+      const j = await res.json().catch(() => ({}));
+      const clientId = typeof j.activeClientId === "string" ? j.activeClientId : "";
+      if (!clientId || cancelled) return;
+      setWorkspaceScope({ userId: user.id, clientId });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceScope || workspaceHydrated.current) return;
+    const w = loadWorkspace<AuditWorkspaceSnapshot>(
+      workspaceScope.userId,
+      workspaceScope.clientId,
+      WORKSPACE_MODULES.siteAudit
+    );
+    if (w) {
+      if (typeof w.url === "string") setUrl(w.url);
+      if (Array.isArray(w.competitors) && w.competitors.length === 3) {
+        setCompetitors([w.competitors[0] ?? "", w.competitors[1] ?? "", w.competitors[2] ?? ""]);
+      }
+      if (w.data) setData(w.data);
+      if (w.tab) setTab(w.tab);
+      if (w.selectedIssueIdx !== undefined) setSelectedIssueIdx(w.selectedIssueIdx);
+      if (w.fixByIssue && typeof w.fixByIssue === "object") setFixByIssue(w.fixByIssue);
+      if (w.planDays !== undefined) setPlanDays(w.planDays);
+      if (w.sprintPlan !== undefined) setSprintPlan(w.sprintPlan);
+    }
+    workspaceHydrated.current = true;
+    setAuditWorkspaceReady(true);
+  }, [workspaceScope]);
+
+  useEffect(() => {
+    if (!workspaceScope || !workspaceHydrated.current) return;
+    const t = window.setTimeout(() => {
+      saveWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.siteAudit, {
+        url,
+        competitors,
+        data,
+        tab,
+        selectedIssueIdx,
+        fixByIssue,
+        planDays,
+        sprintPlan,
+      } satisfies AuditWorkspaceSnapshot);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [
+    workspaceScope,
+    url,
+    competitors,
+    data,
+    tab,
+    selectedIssueIdx,
+    fixByIssue,
+    planDays,
+    sprintPlan,
+  ]);
+
+  const startNewAudit = () => {
+    if (workspaceScope) {
+      clearWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.siteAudit);
+    }
+    setUrl("");
+    setCompetitors(["", "", ""]);
+    setData(null);
+    setError(null);
+    setPlanDays(null);
+    setPlanError(null);
+    setFixByIssue({});
+    setSprintPlan(null);
+    setSprintError(null);
+    setSelectedIssueIdx(null);
+    setTab("overview");
+    setFixError(null);
+  };
 
   const exportAuditPdf = async () => {
     if (!data?.report) return;
@@ -529,14 +646,6 @@ export default function AIGrowthAuditPage() {
 
   const runAudit = async () => {
     setError(null);
-    setData(null);
-    setPlanDays(null);
-    setPlanError(null);
-    setFixByIssue({});
-    setSprintPlan(null);
-    setSprintError(null);
-    setSelectedIssueIdx(null);
-    setTab("overview");
     const trimmed = url.trim();
     if (!trimmed) {
       setError("Enter a website URL.");
@@ -564,6 +673,13 @@ export default function AIGrowthAuditPage() {
         setError(typeof json.error === "string" ? json.error : "Request failed.");
         return;
       }
+      setPlanDays(null);
+      setPlanError(null);
+      setFixByIssue({});
+      setSprintPlan(null);
+      setSprintError(null);
+      setSelectedIssueIdx(null);
+      setTab("overview");
       setData(json as ApiSuccess);
       setUsageBump((n) => n + 1);
     } catch {
@@ -1676,7 +1792,52 @@ export default function AIGrowthAuditPage() {
         <div className="relative mt-8 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a0e14] p-6 shadow-[0_32px_64px_-32px_rgba(0,0,0,0.85)] md:p-9">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(16,185,129,0.09),transparent)]" />
           <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
-          <div className="relative flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+          {data ? (
+            <div className="relative mb-6">
+              <WorkspaceSessionBanner
+                variant="dark"
+                title={
+                  auditWorkspaceReady
+                    ? "Latest audit saved for this workspace"
+                    : "Audit loaded"
+                }
+                hint={
+                  auditWorkspaceReady
+                    ? "Persists in this browser for this client until you start a new audit."
+                    : undefined
+                }
+                actions={
+                  <>
+                    <motion.button
+                      type="button"
+                      onClick={startNewAudit}
+                      disabled={loading}
+                      whileTap={{ scale: loading ? 1 : 0.98 }}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.04] px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-200 transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Start new audit
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={exportAuditPdf}
+                      disabled={loading || exportLoadingKey !== null}
+                      whileTap={{
+                        scale: loading || exportLoadingKey !== null ? 1 : 0.98,
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.06] px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-white/[0.10] disabled:opacity-50"
+                    >
+                      {exportLoadingKey === "audit" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      Export PDF
+                    </motion.button>
+                  </>
+                }
+              />
+            </div>
+          ) : null}
+          <div className="relative flex flex-col gap-8">
             <div>
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 shadow-inner shadow-emerald-950/50">
                 <Radar className="h-5 w-5" />
@@ -1692,20 +1853,6 @@ export default function AIGrowthAuditPage() {
                 actions without losing context.
               </p>
             </div>
-            {data ? (
-              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                <motion.button
-                  type="button"
-                  onClick={exportAuditPdf}
-                  disabled={loading || exportLoadingKey !== null}
-                  whileTap={{ scale: loading || exportLoadingKey !== null ? 1 : 0.98 }}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.06] px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-white/[0.10] disabled:opacity-50"
-                >
-                  {exportLoadingKey === "audit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Export PDF
-                </motion.button>
-              </div>
-            ) : null}
           </div>
           <div className="relative mt-10 flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
