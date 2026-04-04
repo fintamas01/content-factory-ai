@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { getPublicSiteUrl, publicAbsoluteUrl } from "@/lib/env/public-site-url";
 
 export async function POST(req: Request) {
   try {
@@ -8,9 +9,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Hiányzó adatok az ütemezéshez." }, { status: 400 });
     }
 
+    if (!getPublicSiteUrl()) {
+      return NextResponse.json(
+        { error: "NEXT_PUBLIC_SITE_URL (or NEXT_PUBLIC_APP_URL) is not configured." },
+        { status: 500 }
+      );
+    }
+
     // Ez a te meglévő, tökéletesen működő posztoló API-d linkje!
     // Ezt fogja az Upstash meghívni a jövőben.
-    const targetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}api/instagram/post`;
+    const targetUrl = publicAbsoluteUrl("/api/instagram/post");
 
     // Elküldjük a feladatot az Upstash QStash-nek
     const response = await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {

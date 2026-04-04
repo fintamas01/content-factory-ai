@@ -1,11 +1,12 @@
 import { Resend } from "resend";
+import { getPublicSiteUrl } from "@/lib/env/public-site-url";
 import type { NotificationRow } from "./types";
 
 export function getEmailConfig() {
   const apiKey = process.env.RESEND_API_KEY || "";
   const from = process.env.NOTIFICATIONS_EMAIL_FROM || "";
   const appName = process.env.NOTIFICATIONS_EMAIL_APP_NAME || "Content Factory";
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const baseUrl = getPublicSiteUrl();
   return { apiKey, from, appName, baseUrl };
 }
 

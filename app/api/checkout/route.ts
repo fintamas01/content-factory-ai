@@ -1,10 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
 import { isAllowedCheckoutPriceId } from "@/lib/billing/pricing";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+import { getPublicSiteUrl } from "@/lib/env/public-site-url";
+import { getStripeServer } from "@/lib/stripe/server";
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -56,9 +55,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  let stripe: ReturnType<typeof getStripeServer>;
+  try {
+    stripe = getStripeServer();
+  } catch {
+    console.error("STRIPE_SECRET_KEY is not set");
+    return NextResponse.json(
+      { error: "Billing is not configured." },
+      { status: 500 }
+    );
+  }
+
+  const siteUrl = getPublicSiteUrl();
   if (!siteUrl) {
-    console.error("NEXT_PUBLIC_SITE_URL is not set");
+    console.error(
+      "Public site URL is not set (NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_APP_URL, or VERCEL_URL on preview)"
+    );
     return NextResponse.json(
       { error: "Server configuration error" },
       { status: 500 }

@@ -65,6 +65,10 @@ export function resolvePlanTier(sub: SubscriptionRow | null | undefined): PlanTi
   if (!pid) return "free";
   if (elite && pid === elite) return "elite";
   if (pid === pro || pid === basic) return "pro";
+  console.warn(
+    "[billing] Active subscription price_id does not match NEXT_PUBLIC_STRIPE_PRICE_* env vars; treating plan as free. price_id=",
+    pid
+  );
   return "free";
 }
 

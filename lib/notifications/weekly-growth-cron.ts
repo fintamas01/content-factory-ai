@@ -29,7 +29,13 @@ export async function runWeeklyGrowthDigestSend(args: {
   if (!supabase) return { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL." };
 
   const cfg = getEmailConfig();
-  if (!cfg.baseUrl) return { ok: false, error: "Missing NEXT_PUBLIC_APP_URL." };
+  if (!cfg.baseUrl) {
+    return {
+      ok: false,
+      error:
+        "Missing public site URL: set NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_APP_URL (used for links in weekly emails).",
+    };
+  }
   if (!cfg.apiKey) return { ok: false, error: "Missing RESEND_API_KEY." };
   if (!cfg.from) return { ok: false, error: "Missing NOTIFICATIONS_EMAIL_FROM." };
 

@@ -1,12 +1,22 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getStripeServer } from "@/lib/stripe/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const runtime = "nodejs";
+
+let supabaseAdminSingleton: SupabaseClient | null = null;
+
+function getSupabaseServiceRole(): SupabaseClient {
+  if (supabaseAdminSingleton) return supabaseAdminSingleton;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  }
+  supabaseAdminSingleton = createClient(url, key);
+  return supabaseAdminSingleton;
+}
 
 /** Billing period end: Stripe exposes this on subscription items (see SubscriptionItem.current_period_end). */
 function periodEndIso(sub: Stripe.Subscription): string {
@@ -48,6 +58,27 @@ function subscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
 }
 
 export async function POST(req: Request) {
+  if (!process.env.STRIPE_WEBHOOK_SECRET?.trim()) {
+    console.error("STRIPE_WEBHOOK_SECRET is not set");
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+  }
+
+  let supabaseAdmin: SupabaseClient;
+  try {
+    supabaseAdmin = getSupabaseServiceRole();
+  } catch (e) {
+    console.error("Webhook Supabase config:", e);
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+  }
+
+  let stripe: ReturnType<typeof getStripeServer>;
+  try {
+    stripe = getStripeServer();
+  } catch (e) {
+    console.error("Webhook Stripe config:", e);
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+  }
+
   const body = await req.text();
   const signature = req.headers.get("Stripe-Signature") as string;
 
@@ -57,7 +88,7 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET.trim()
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
@@ -79,8 +110,10 @@ export async function POST(req: Request) {
         const userId = session.metadata?.userId;
 
         if (!userId) {
-          console.error("checkout.session.completed: missing metadata.userId");
-          return NextResponse.json({ error: "Missing user id" }, { status: 400 });
+          console.error(
+            "checkout.session.completed: missing metadata.userId — acknowledge to avoid Stripe retry loop"
+          );
+          return NextResponse.json({ received: true, error: "missing user id" });
         }
 
         const customer = customerIdFromStripe(session.customer as Stripe.Checkout.Session["customer"]);
