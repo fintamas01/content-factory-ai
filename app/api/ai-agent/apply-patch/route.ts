@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +37,10 @@ export async function POST(req: Request) {
     const stack = typeof body.stack === "string" ? body.stack.trim() : "Next.js App Router";
 
     if (!goal) return badRequest("Missing 'goal'.");
+
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -106,6 +112,8 @@ Return JSON schema:
         { status: 200 }
       );
     }
+
+    await incrementUsage(supabase, "content", clientId);
 
     return NextResponse.json(
       {

@@ -563,6 +563,17 @@ export function BillingDashboardClient() {
           </div>
         </div>
       </section>
+
+      <footer className="relative border-t border-white/[0.06] pt-8 text-center text-[11px] font-medium text-slate-600">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <Link href="/privacy" className="transition hover:text-slate-400">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="transition hover:text-slate-400">
+            Terms of Service
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }

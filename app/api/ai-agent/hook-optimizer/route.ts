@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +25,10 @@ export async function POST(req: Request) {
     const goal = String(body.goal ?? "engagement");
 
     if (!topic) return badRequest("Missing topic.");
+
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -72,6 +78,7 @@ Keep under 15 words per headline.
 
     try {
       const parsed = JSON.parse(raw);
+      await incrementUsage(supabase, "content", clientId);
       return NextResponse.json(parsed);
     } catch {
       return NextResponse.json({ raw });

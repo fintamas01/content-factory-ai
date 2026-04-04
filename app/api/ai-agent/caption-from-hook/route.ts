@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +48,10 @@ export async function POST(req: Request) {
 
     if (!hook) return badRequest("Missing 'hook'.");
     if (!topic) return badRequest("Missing 'topic'.");
+
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
 
     // If no key, return deterministic fallback (so UI won’t break)
     if (!process.env.OPENAI_API_KEY) {
@@ -133,8 +139,10 @@ Rules:
     const raw = (r.choices[0]?.message?.content ?? "").trim();
 
     let parsed: any = null;
+    let parseOk = false;
     try {
       parsed = JSON.parse(raw);
+      parseOk = true;
     } catch {
       // fallback if model responded weirdly
       parsed = {
@@ -173,6 +181,10 @@ Rules:
         },
       },
     };
+
+    if (parseOk) {
+      await incrementUsage(supabase, "content", clientId);
+    }
 
     return NextResponse.json(
       {

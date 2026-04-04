@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
 import { incrementUsage } from "@/lib/usage/usage-service";
-import type { UsageFeature } from "@/lib/usage/types";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 type Platform = "web" | "instagram" | "tiktok" | "linkedin";
@@ -108,8 +107,7 @@ export async function POST(req: Request) {
     if (!goal) return badRequest("Missing 'goal'.");
     if (goal === "geo_audit" && !url) return badRequest("Missing 'url' for geo_audit.");
 
-    const usageFeature: UsageFeature = goal === "geo_audit" ? "audit" : "content";
-    const gate = await requireSessionClientAndUsageAllowance(usageFeature);
+    const gate = await requireSessionClientAndUsageAllowance("content");
     if (!gate.ok) return gate.response;
     const { supabase, clientId } = gate;
 
@@ -159,7 +157,7 @@ export async function POST(req: Request) {
       scoreBreakdown,
     });
 
-    await incrementUsage(supabase, usageFeature, clientId);
+    await incrementUsage(supabase, "content", clientId);
 
     return NextResponse.json(
       {

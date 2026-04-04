@@ -389,6 +389,12 @@ export default function HomePage() {
               <Link href="/pricing" className="hover:text-slate-400">
                 Pricing
               </Link>
+              <Link href="/privacy" className="hover:text-slate-400">
+                Privacy
+              </Link>
+              <Link href="/terms" className="hover:text-slate-400">
+                Terms
+              </Link>
               <Link href="/dashboard" className="hover:text-slate-400">
                 Dashboard
               </Link>

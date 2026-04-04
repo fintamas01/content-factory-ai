@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +83,10 @@ export async function POST(req: Request) {
     const url = typeof body.url === "string" ? body.url.trim() : "";
     if (!url) return badRequest("Missing 'url'.");
 
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
+
     const language = typeof body.language === "string" ? body.language.trim() : "en";
     const tone = typeof body.tone === "string" ? body.tone.trim() : "modern, premium, direct";
     const serviceFocus = Array.isArray(body.serviceFocus)
@@ -108,6 +114,16 @@ export async function POST(req: Request) {
       tone,
       serviceFocus,
     });
+
+    const layoutOk =
+      layout &&
+      typeof layout === "object" &&
+      "page" in layout &&
+      !(layout as { raw?: unknown }).raw;
+
+    if (layoutOk) {
+      await incrementUsage(supabase, "content", clientId);
+    }
 
     return NextResponse.json(
       {

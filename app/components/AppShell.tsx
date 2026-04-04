@@ -13,6 +13,9 @@ import { PushClient } from "@/app/components/PushClient";
 function shouldHideShell(pathname: string) {
   return (
     pathname === "/" ||
+    pathname === "/pricing" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
     pathname === "/maintenance" ||
     pathname === "/onboarding" ||
     pathname.startsWith("/onboarding/")

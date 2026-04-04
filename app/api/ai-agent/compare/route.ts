@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -670,6 +672,10 @@ export async function POST(req: Request) {
     if (cleanedCompetitors.length === 0)
       return badRequest("No valid competitors provided (max 3).");
 
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
+
     const sites = [mainUrl, ...cleanedCompetitors];
 
     const siteReports: Array<{
@@ -763,6 +769,16 @@ export async function POST(req: Request) {
       })),
       deltas,
     });
+
+    const insightsOk =
+      insights &&
+      typeof insights === "object" &&
+      typeof (insights as { summary?: unknown }).summary === "string" &&
+      !(insights as { raw?: unknown }).raw;
+
+    if (insightsOk) {
+      await incrementUsage(supabase, "content", clientId);
+    }
 
     return NextResponse.json(
       {

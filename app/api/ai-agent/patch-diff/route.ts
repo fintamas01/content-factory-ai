@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { patchBundleToUnifiedDiff, type PatchFile } from "@/lib/diff/unifiedDiff";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +28,13 @@ export async function POST(req: Request) {
 
     if (!normalized.length) return badRequest("No valid files.");
 
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
+
     const unified = patchBundleToUnifiedDiff(normalized);
+
+    await incrementUsage(supabase, "content", clientId);
 
     return NextResponse.json({
       files: normalized.map((f) => ({

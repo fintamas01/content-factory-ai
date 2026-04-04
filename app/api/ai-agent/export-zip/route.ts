@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +32,10 @@ export async function POST(req: Request) {
     const zipNameRaw = typeof (body as any).zipName === "string" ? (body as any).zipName : "patch";
     const zipName = zipNameRaw.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60) || "patch";
 
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
+
     const zip = new JSZip();
 
     for (const f of files) {
@@ -40,6 +46,8 @@ export async function POST(req: Request) {
 
     // Node buffer from jszip
     const buffer = await zip.generateAsync({ type: "nodebuffer" });
+
+    await incrementUsage(supabase, "content", clientId);
 
     // ✅ Convert Buffer -> Uint8Array so TS is happy with BodyInit
     const bodyBytes = new Uint8Array(buffer);

@@ -148,6 +148,26 @@ export default function PricingPage() {
             </div>
           </section>
         </div>
+
+        <footer className="mt-16 border-t border-white/[0.06] pt-8 text-xs text-slate-600">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-semibold text-slate-500">{PLATFORM_DISPLAY_NAME}</span>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/" className="hover:text-slate-400">
+                Home
+              </Link>
+              <Link href="/privacy" className="hover:text-slate-400">
+                Privacy
+              </Link>
+              <Link href="/terms" className="hover:text-slate-400">
+                Terms
+              </Link>
+              <Link href="/dashboard/billing" className="hover:text-slate-400">
+                Billing
+              </Link>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -984,6 +986,10 @@ export async function POST(req: Request) {
     const url = typeof body.url === "string" ? body.url.trim() : "";
     if (!url) return badRequest("Missing 'url'.");
 
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
+
     const maxPages = typeof body.maxPages === "number" ? body.maxPages : 7;
     const timeoutMsPerPage = typeof body.timeoutMsPerPage === "number" ? body.timeoutMsPerPage : 7000;
 
@@ -1063,6 +1069,16 @@ export async function POST(req: Request) {
       deterministic,
       companyFacts,
     });
+
+    const llmOk =
+      llm &&
+      typeof llm === "object" &&
+      Array.isArray((llm as { tasks?: unknown }).tasks) &&
+      !(llm as { raw?: unknown }).raw;
+
+    if (llmOk) {
+      await incrementUsage(supabase, "content", clientId);
+    }
 
     return NextResponse.json(
       {
