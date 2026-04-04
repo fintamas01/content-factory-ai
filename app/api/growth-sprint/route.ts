@@ -1,8 +1,9 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { coerceReport } from "@/lib/site-audit/coerce-report";
 import { generateGrowthSprintPlan } from "@/lib/site-audit/growth-sprint";
+import { enforceUsageLimit } from "@/lib/usage/enforce";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireAuthenticatedClient } from "@/lib/usage/require-session-usage";
 
 export async function POST(req: Request) {
   try {
@@ -13,41 +14,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnon =
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
+    const session = await requireAuthenticatedClient();
+    if (!session.ok) return session.response;
 
-    if (!supabaseUrl || !supabaseAnon) {
-      return NextResponse.json(
-        { error: "Server configuration error." },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {
-            /* ignore */
-          }
-        },
-      },
-    });
-
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-    if (!user) {
-      return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-    }
+    const { supabase, user, clientId } = session;
 
     const body = await req.json().catch(() => ({}));
     const report = coerceReport(body?.report);
@@ -69,6 +39,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing or invalid signals." }, { status: 400 });
     }
 
+    const usageDenied = await enforceUsageLimit(
+      supabase,
+      user.id,
+      "audit",
+      clientId
+    );
+    if (usageDenied) return usageDenied;
+
     const result = await generateGrowthSprintPlan({ report, signals });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 502 });
@@ -87,6 +65,8 @@ export async function POST(req: Request) {
         .eq("user_id", user.id);
       if (upErr) console.error("growth-sprint save:", upErr);
     }
+
+    await incrementUsage(supabase, "audit", clientId);
 
     return NextResponse.json({ plan: result.plan });
   } catch (e) {

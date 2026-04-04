@@ -14,8 +14,6 @@ import {
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 
-const ADMIN_EMAIL = "fintatamas68@gmail.com";
-
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -60,9 +58,10 @@ export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
 
-    // ✅ támogatjuk az ANON és ANNON env neveket is
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
+    const supabaseAnon =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
 
     if (!supabaseUrl || !supabaseAnon) {
       console.error("Supabase env hiányzik!", {
@@ -97,11 +96,8 @@ export async function POST(req: Request) {
 
     const user = authData?.user;
 
-    if (!user || user.email !== ADMIN_EMAIL) {
-      return NextResponse.json(
-        { error: "Zárt tesztfázis: Csak az adminisztrátor használhatja a rendszert." },
-        { status: 403 }
-      );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     let activeClientId: string;

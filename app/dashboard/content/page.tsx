@@ -1,13 +1,33 @@
 "use client";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
-import { useState, useEffect, useRef } from 'react';
-import { 
-  Sparkles, Type, Zap, Copy, History as HistoryIcon, Send, Search, Image as ImageIcon, Globe, CheckCircle2, Download, Loader2, X,
-  Wand2, Smile, Briefcase, Eye, Layout, Edit3, Target, RotateCcw
-} from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from "@/app/components/ui/Button";
+import { Textarea } from "@/app/components/ui/Textarea";
+import { useState, useEffect, useRef } from "react";
+import {
+  Sparkles,
+  Type,
+  Zap,
+  Copy,
+  History as HistoryIcon,
+  Send,
+  Search,
+  Image as ImageIcon,
+  Globe,
+  CheckCircle2,
+  Loader2,
+  X,
+  Wand2,
+  Smile,
+  Briefcase,
+  Eye,
+  Layout,
+  Edit3,
+  Target,
+  RotateCcw,
+} from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
+import { motion, AnimatePresence } from "framer-motion";
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 import {
@@ -24,23 +44,63 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
 );
 
-const adminEmail = "fintatamas68@gmail.com";
+const shell =
+  "min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#080c14] via-[#070b12] to-[#05070c] text-zinc-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-100";
+
+const panel =
+  "rounded-2xl border border-white/[0.06] bg-[#0c1018]/90 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_24px_48px_-24px_rgba(0,0,0,0.55)] backdrop-blur-sm";
+
+const sectionLabel =
+  "text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500";
 
 const languages = [
-  { code: 'en', name: 'English' },
-  { code: 'hu', name: 'Magyar' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'fr', name: 'Français' },
-  { code: 'es', name: 'Español' },
-  { code: 'it', name: 'Italiano' },
+  { code: "en", name: "English" },
+  { code: "hu", name: "Hungarian" },
+  { code: "de", name: "German" },
+  { code: "fr", name: "French" },
+  { code: "es", name: "Spanish" },
+  { code: "it", name: "Italian" },
 ];
 
 const templates = [
-  { id: 'custom', name: '✨ Pro Content Gen', prompt: '' },
-  { id: 'blog', name: '📝 Blog to Viral Post', prompt: 'Kivonatosítsd a lényeget és csinálj belőle figyelemfelkeltő összefoglalót.' },
-  { id: 'product', name: '🚀 Product Launch', prompt: 'Fókuszálj az előnyökre és a problémamegoldásra, használj erős CTA.t.' },
-  { id: 'event', name: '📅 Esemény meghívó', prompt: 'Emeld ki a dátumot, helyszínt és a részvétel okait.' }
+  { id: "custom", name: "✨ Pro content", prompt: "" },
+  {
+    id: "blog",
+    name: "📝 Blog to viral post",
+    prompt:
+      "Summarize the core idea and turn it into a scroll-stopping, engaging post.",
+  },
+  {
+    id: "product",
+    name: "🚀 Product launch",
+    prompt:
+      "Focus on benefits and problem-solving; use a strong, clear call to action.",
+  },
+  {
+    id: "event",
+    name: "📅 Event invite",
+    prompt: "Highlight date, location, and why people should attend.",
+  },
 ];
+
+/** Legacy saved workspaces used Hungarian tone keys */
+const LEGACY_TONE: Record<string, string> = {
+  szakmai: "professional",
+  vicces: "funny",
+  lelkesito: "enthusiastic",
+  provokativ: "provocative",
+};
+
+const TONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "professional", label: "Professional" },
+  { value: "funny", label: "Funny" },
+  { value: "enthusiastic", label: "Enthusiastic" },
+  { value: "provocative", label: "Bold" },
+];
+
+function normalizeTone(raw: string): string {
+  return LEGACY_TONE[raw] ?? raw;
+}
 
 const allPlatforms = [
   { id: 'LinkedIn', label: 'LinkedIn' },
@@ -54,10 +114,10 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [input, setInput] = useState('');
-  const [tone, setTone] = useState('szakmai');
+  const [tone, setTone] = useState("professional");
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [lang, setLang] = useState('hu');
+  const [lang, setLang] = useState("en");
   const [useResearch, setUseResearch] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -194,7 +254,7 @@ export default function DashboardPage() {
     );
     if (w) {
       if (typeof w.input === "string") setInput(w.input);
-      if (typeof w.tone === "string") setTone(w.tone);
+      if (typeof w.tone === "string") setTone(normalizeTone(w.tone));
       if (w.results) setResults(w.results);
       if (typeof w.lang === "string") setLang(w.lang);
       if (typeof w.useResearch === "boolean") setUseResearch(w.useResearch);
@@ -270,12 +330,12 @@ export default function DashboardPage() {
 
   const generateAll = async () => {
     if (!input || selectedPlatforms.length === 0) {
-      alert("Kérlek adj meg forrást és válassz legalább egy platformot!");
+      alert("Add a source and select at least one platform.");
       return;
     }
     if (!unifiedBrand && !selectedBrand) {
       alert(
-        "Válassz márkát a listából (Settings), vagy ments egy közös Brand profilt a Brand oldalon."
+        "Select a brand from the list, or save a shared brand profile under Brand."
       );
       return;
     }
@@ -338,7 +398,7 @@ export default function DashboardPage() {
     } else if (selectedPlatforms.length < limit) {
       setSelectedPlatforms([...selectedPlatforms, id]);
     } else {
-      alert(`A jelenlegi csomagod limitje: ${limit} platform.`);
+      alert(`Your plan allows up to ${limit} platform(s). Upgrade in Billing for more.`);
     }
   };
 
@@ -346,236 +406,292 @@ export default function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (user.email !== adminEmail) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white/5 backdrop-blur-3xl rounded-[40px] border border-white/10 m-8">
-        <Sparkles className="w-16 h-16 text-blue-500 mb-6 opacity-20" />
-        <h2 className="text-4xl font-black mb-4 italic text-white uppercase tracking-tighter">Zárt Béta Fázis</h2>
-        <p className="text-slate-500 max-w-md font-medium leading-relaxed">
-          Szia! A rendszer jelenleg fejlesztés alatt áll. Jelenleg csak <strong>{adminEmail}</strong> férhet hozzá a funkciókhoz.
-        </p>
+      <div className={`${shell} flex min-h-[50vh] items-center justify-center`}>
+        <Loader2 className="h-10 w-10 animate-spin text-cyan-400/90" aria-hidden />
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 pb-20 p-8">
-      <ModulePageHeader moduleId="content" className="mb-2" />
-      <ModuleUsageBanner feature="content" bump={usageBump} />
-      {results && workspaceReady ? (
-        <WorkspaceSessionBanner
-          variant="emerald"
-          title="Latest generation saved for this workspace"
-          hint="Persists in this browser until you start over—nothing is cleared automatically."
-          actions={
-            <button
-              type="button"
-              onClick={startNewContentGeneration}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-emerald-600/35 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-emerald-950 shadow-sm dark:bg-[#0f172a] dark:text-emerald-100"
-            >
-              <RotateCcw className="h-4 w-4" />
-              New generation
-            </button>
-          }
-        />
-      ) : null}
-      {results && workspaceReady ? (
-        <ReviewWorkspaceStrip
-          module="content"
-          reviewItemId={reviewItemId}
-          onReviewItemIdChange={setReviewItemId}
-          hasOutput={Boolean(results)}
-          variant="light"
-          title={`${selectedTemplate?.name ?? "Content"} · ${selectedPlatforms.join(", ") || "outputs"}`}
-          summary={input.slice(0, 400)}
-          buildPayload={() => ({
-            templateId: selectedTemplate?.id,
-            platforms: selectedPlatforms,
-            lang,
-            tone,
-            inputPreview: input.slice(0, 8000),
-            results,
-          })}
-        />
-      ) : null}
-      {unifiedBrand ? (
-        <p className="mb-4 text-xs font-semibold text-emerald-600/90 dark:text-emerald-400/90">
-          Using your saved brand profile
-        </p>
-      ) : null}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-black tracking-tight mb-2 uppercase italic">
-            ContentFactory <span className="text-blue-600">Studio</span>
-          </h1>
-          <p className="text-slate-500 font-medium">Hozd létre a következő kampányodat másodpercek alatt.</p>
-        </div>
-        
-        <button 
-          onClick={() => setUseResearch(!useResearch)}
-          className={`flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all ${useResearch ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-white/5 border-white/10 text-slate-500'}`}
-        >
-          <Search className={`w-4 h-4 ${useResearch ? 'animate-pulse' : ''}`} />
-          <span className="text-xs font-black uppercase tracking-widest">Deep Research {useResearch ? 'ON' : 'OFF'}</span>
-          <div className={`w-8 h-4 rounded-full relative transition-colors ${useResearch ? 'bg-blue-500' : 'bg-slate-700'}`}>
-            <motion.div animate={{ x: useResearch ? 16 : 2 }} className="absolute top-1 w-2 h-2 bg-white rounded-full" />
-          </div>
-        </button>
-      </header>
+    <div className={shell}>
+      <div className="mx-auto max-w-6xl space-y-8 pb-20 p-4 sm:p-6 lg:p-8">
+        <ModulePageHeader moduleId="content" />
+        <ModuleUsageBanner feature="content" bump={usageBump} />
+        {results && workspaceReady ? (
+          <WorkspaceSessionBanner
+            variant="dark"
+            title="Latest generation saved for this workspace"
+            hint="Persists in this browser until you start over—nothing is cleared automatically."
+            actions={
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={startNewContentGeneration}
+                className="h-10 shrink-0 gap-2 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em]"
+              >
+                <RotateCcw className="h-4 w-4" />
+                New generation
+              </Button>
+            }
+          />
+        ) : null}
+        {results && workspaceReady ? (
+          <ReviewWorkspaceStrip
+            module="content"
+            reviewItemId={reviewItemId}
+            onReviewItemIdChange={setReviewItemId}
+            hasOutput={Boolean(results)}
+            variant="dark"
+            title={`${selectedTemplate?.name ?? "Content"} · ${selectedPlatforms.join(", ") || "outputs"}`}
+            summary={input.slice(0, 400)}
+            buildPayload={() => ({
+              templateId: selectedTemplate?.id,
+              platforms: selectedPlatforms,
+              lang,
+              tone,
+              inputPreview: input.slice(0, 8000),
+              results,
+            })}
+          />
+        ) : null}
+        {unifiedBrand ? (
+          <p className="text-xs font-semibold text-emerald-200/90">
+            Using your saved brand profile
+          </p>
+        ) : null}
 
-      {/* Input Section */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-white/50 dark:bg-[#0f172a]/40 backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-[40px] p-10 shadow-2xl overflow-hidden">
-        <div className="flex justify-between items-center mb-8">
-           <div className="flex items-center gap-3 text-slate-500 uppercase text-[10px] font-black tracking-widest">
-              <Type className="w-5 h-5" /> Content Source
-           </div>
-           <div className="flex items-center gap-4">
-             {useResearch && (
-               <span className="flex items-center gap-2 text-[9px] font-black text-blue-500 uppercase animate-pulse">
-                 <Globe className="w-3 h-3" /> Web search enabled
-               </span>
-             )}
-             <select
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+          <div>
+            <p className={`${sectionLabel} text-zinc-500`}>Content</p>
+            <p className="mt-1 max-w-xl text-sm font-medium text-zinc-400">
+              Generate multi-platform copy from one brief—fast, on-brand, and ready to ship.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUseResearch(!useResearch)}
+            className={`flex items-center gap-3 rounded-2xl border px-5 py-3 transition-all ${
+              useResearch
+                ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-200"
+                : "border-white/10 bg-white/[0.04] text-zinc-500"
+            }`}
+          >
+            <Search className={`h-4 w-4 ${useResearch ? "animate-pulse" : ""}`} />
+            <span className="text-[11px] font-black uppercase tracking-[0.2em]">
+              Deep research {useResearch ? "on" : "off"}
+            </span>
+            <div
+              className={`relative h-4 w-8 rounded-full transition-colors ${
+                useResearch ? "bg-cyan-500" : "bg-zinc-700"
+              }`}
+            >
+              <motion.div
+                animate={{ x: useResearch ? 16 : 2 }}
+                className="absolute top-1 h-2 w-2 rounded-full bg-white"
+              />
+            </div>
+          </button>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`${panel} p-6 sm:p-8`}
+        >
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Type className="h-5 w-5 text-cyan-300/80" />
+              <span className={sectionLabel}>Source</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {useResearch ? (
+                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-cyan-400/90 animate-pulse">
+                  <Globe className="h-3 w-3" /> Web search on
+                </span>
+              ) : null}
+              <select
                 value={lang}
                 onChange={(e) => setLang(e.target.value)}
-                className="bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 text-[10px] font-black uppercase px-4 py-2 rounded-xl outline-none"
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white outline-none"
               >
-                {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                {languages.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name}
+                  </option>
+                ))}
               </select>
-           </div>
-        </div>
-
-        <div className="relative">
-          {loading && (
-            <motion.div 
-              initial={{ top: 0 }}
-              animate={{ top: '100%' }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent z-20 shadow-[0_0_15px_rgba(59,130,246,0.8)]"
-            />
-          )}
-          <textarea 
-            className="w-full bg-slate-100 dark:bg-black/40 border border-slate-300 dark:border-white/5 rounded-3xl p-8 text-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all min-h-[220px]"
-            placeholder={useResearch ? "Adj meg egy témát vagy linket, amit az AI alaposan körbejár a weben..." : "Illessz be egy linket vagy írj le egy ötletet..."}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-          />
-        </div>
-
-        <div className="mt-10 grid lg:grid-cols-2 gap-10">
-          <div className="space-y-6">
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4">Célplatformok</span>
-              <div className="flex flex-wrap gap-3">
-                {allPlatforms.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => togglePlatform(p.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      selectedPlatforms.includes(p.id) 
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20' 
-                      : 'bg-white/5 border-white/10 text-slate-500 hover:border-blue-500/50'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="pt-4 border-t border-white/5">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4">Sablon Motor</span>
-              <div className="flex flex-wrap gap-2">
-                {templates.map(t => (
-                  <button 
-                    key={t.id} onClick={() => setSelectedTemplate(t)}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border ${selectedTemplate.id === t.id ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-200 dark:bg-white/5 border-slate-300 dark:border-white/10 text-slate-500 hover:text-blue-600'}`}
-                  >
-                    {t.name}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-6">
-            <div className="flex bg-slate-200 dark:bg-black/40 p-1 rounded-2xl border border-slate-300 dark:border-white/10">
-              {['szakmai', 'vicces', 'lelkesito', 'provokativ'].map(t => (
-                <button 
-                  key={t} onClick={() => setTone(t)} 
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${tone === t ? 'bg-white dark:bg-blue-600 text-blue-600 dark:text-white shadow-xl' : 'text-slate-500'}`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            <div className="mb-6">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Márkaprofil kiválasztása</span>
-              {unifiedBrand ? (
-                <div className="w-full rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                  {unifiedBrand.brand_name?.trim() || "Brand profile"}
-                  <span className="mt-1 block text-[10px] font-semibold uppercase tracking-widest text-emerald-600/80 dark:text-emerald-400/80">
-                    Brand oldal — közös profil
-                  </span>
-                </div>
-              ) : (
-                <select 
-                  value={selectedBrand?.id}
-                  onChange={(e) => setSelectedBrand(brands.find(b => b.id === e.target.value))}
-                  className="w-full bg-slate-200 dark:bg-white/5 border border-slate-300 dark:border-white/10 p-3 rounded-xl outline-none text-sm font-bold"
-                >
-                  {brands.length === 0 && <option>Nincs mentett márka (Settings)</option>}
-                  {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
-                </select>
-              )}
-            </div>
-
-            <motion.button 
-              ref={btnRef}
-              onMouseMove={handleButtonMove}
-              onMouseLeave={() => setButtonPos({ x: 0, y: 0 })}
-              animate={{ x: buttonPos.x, y: buttonPos.y }}
-              onClick={generateAll}
-              disabled={
-                loading ||
-                selectedPlatforms.length === 0 ||
-                (!unifiedBrand && !selectedBrand)
+          <div className="relative">
+            {loading ? (
+              <motion.div
+                initial={{ top: 0 }}
+                animate={{ top: "100%" }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="absolute left-0 right-0 z-20 h-[2px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.5)]"
+              />
+            ) : null}
+            <Textarea
+              className="min-h-[220px] resize-y rounded-2xl border-white/[0.08] bg-black/35 px-6 py-6 text-base leading-relaxed"
+              placeholder={
+                useResearch
+                  ? "Enter a topic or URL for the model to research on the web…"
+                  : "Paste a link, notes, or a rough idea…"
               }
-              className="relative group w-full bg-[#020617] p-[2px] rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(37,99,235,0.1)] active:scale-95 transition-transform disabled:opacity-50"
-            >
-              <div className={`absolute inset-0 z-0 transition-opacity duration-500 ${loading ? 'opacity-100' : 'opacity-0'}`}>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[250%] h-[250%] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,#3b82f6_360deg)] animate-spin" />
-              </div>
-              <div className="relative z-10 bg-[#020617] py-5 rounded-2xl flex items-center justify-center gap-4 text-white font-black text-lg group-hover:bg-blue-600/10 transition-colors">
-                {loading ? <span className="tracking-[0.2em] animate-pulse text-sm uppercase">{useResearch ? 'Deep Analyzing...' : 'Neural Processing...'}</span> : <span>KAMPÁNY GENERÁLÁSA <Zap className="w-5 h-5 text-blue-500" /></span>}
-              </div>
-            </motion.button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Results Section */}
-      {results && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(results).map(([key, data]: any) => (
-            <ResultCard 
-              key={key} 
-              title={key.replace(/_/g, ' ')} 
-              data={data}
-              brandName={unifiedBrand?.brand_name ?? selectedBrand?.brand_name}
-              lang={lang}
-              userId={user.id}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
             />
-          ))}
+          </div>
+
+          <div className="mt-10 grid gap-10 lg:grid-cols-2">
+            <div className="space-y-8">
+              <div>
+                <span className={`${sectionLabel} mb-4 block`}>Platforms</span>
+                <div className="flex flex-wrap gap-2">
+                  {allPlatforms.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => togglePlatform(p.id)}
+                      className={`rounded-xl border px-4 py-2 text-xs font-bold transition-all ${
+                        selectedPlatforms.includes(p.id)
+                          ? "border-cyan-400/40 bg-cyan-500/15 text-white shadow-[0_0_20px_-8px_rgba(34,211,238,0.4)]"
+                          : "border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/20"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-white/[0.06] pt-8">
+                <span className={`${sectionLabel} mb-4 block`}>Template</span>
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTemplate(t)}
+                      className={`rounded-xl border px-3 py-2 text-[11px] font-bold transition-all ${
+                        selectedTemplate.id === t.id
+                          ? "border-cyan-400/40 bg-cyan-500/15 text-white"
+                          : "border-white/10 bg-white/[0.03] text-zinc-500 hover:text-zinc-200"
+                      }`}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              <div>
+                <span className={`${sectionLabel} mb-3 block`}>Tone</span>
+                <div className="flex flex-wrap gap-1 rounded-2xl border border-white/10 bg-black/30 p-1">
+                  {TONE_OPTIONS.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setTone(t.value)}
+                      className={`flex-1 min-w-[5.5rem] rounded-xl py-3 text-[10px] font-black uppercase tracking-wide transition-all ${
+                        tone === t.value
+                          ? "bg-white/[0.08] text-white shadow-lg"
+                          : "text-zinc-500 hover:text-zinc-300"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className={`${sectionLabel} mb-2 block`}>Brand</span>
+                {unifiedBrand ? (
+                  <div className="w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3 text-sm font-bold text-zinc-100">
+                    {unifiedBrand.brand_name?.trim() || "Brand profile"}
+                    <span className="mt-1 block text-[10px] font-semibold uppercase tracking-widest text-emerald-400/85">
+                      From Brand — shared profile
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedBrand?.id}
+                    onChange={(e) =>
+                      setSelectedBrand(brands.find((b) => b.id === e.target.value))
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm font-bold text-white outline-none"
+                  >
+                    {brands.length === 0 && (
+                      <option value="">No saved brands (add in Settings)</option>
+                    )}
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.brand_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <motion.button
+                ref={btnRef}
+                type="button"
+                onMouseMove={handleButtonMove}
+                onMouseLeave={() => setButtonPos({ x: 0, y: 0 })}
+                animate={{ x: buttonPos.x, y: buttonPos.y }}
+                onClick={generateAll}
+                disabled={
+                  loading ||
+                  selectedPlatforms.length === 0 ||
+                  (!unifiedBrand && !selectedBrand)
+                }
+                className="relative w-full overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 to-violet-500/10 p-[2px] shadow-[0_0_32px_-12px_rgba(34,211,238,0.35)] transition-transform active:scale-[0.99] disabled:opacity-45"
+              >
+                <div
+                  className={`absolute inset-0 transition-opacity duration-500 ${
+                    loading ? "opacity-100" : "opacity-0"
+                  }`}
+                >
+                  <div className="absolute left-1/2 top-1/2 h-[250%] w-[250%] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,#22d3ee_360deg)] animate-spin" />
+                </div>
+                <div className="relative z-10 flex items-center justify-center gap-3 rounded-2xl bg-[#070b12] py-5 text-lg font-black text-white">
+                  {loading ? (
+                    <span className="animate-pulse text-sm uppercase tracking-[0.2em]">
+                      {useResearch ? "Deep analysis…" : "Generating…"}
+                    </span>
+                  ) : (
+                    <>
+                      Generate <Zap className="h-5 w-5 text-cyan-400" />
+                    </>
+                  )}
+                </div>
+              </motion.button>
+            </div>
+          </div>
         </motion.div>
-      )}
+
+        {results ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
+          >
+            {Object.entries(results).map(([key, data]: [string, any]) => (
+              <ResultCard
+                key={key}
+                title={key.replace(/_/g, " ")}
+                data={data}
+                brandName={unifiedBrand?.brand_name ?? selectedBrand?.brand_name}
+                lang={lang}
+                userId={user.id}
+              />
+            ))}
+          </motion.div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -642,7 +758,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       setAgentResult(data);
     } catch (error) {
       console.error(error);
-      alert("Hiba történt az elemzés során. Lehet, hogy a poszt túl rövid.");
+      alert("Something went wrong during analysis. The post may be too short.");
     } finally {
       setAgentLoading(false);
     }
@@ -668,11 +784,11 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       
       setContent(data.updatedText); // Kicseréljük a szöveget a feljavítottra
       setAgentResult(null); // Eltüntetjük a kártyát, hogy újra lehessen elemezni
-      alert("✨ A poszt sikeresen feljavítva az AI javaslatai alapján!");
+      alert("Post updated using the AI suggestions.");
       
     } catch (error) {
       console.error(error);
-      alert("Hiba történt a poszt feljavításakor.");
+      alert("Something went wrong while improving the post.");
     } finally {
       setAgentLoading(false);
     }
@@ -681,7 +797,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   const handleImmediatePost = async () => {
     // Biztonsági ellenőrzés: csak akkor engedjük posztolni, ha már van generált kép
     if (!imageUrl) {
-      alert("Kérlek, először generálj egy fotót!");
+      alert("Generate an image first.");
       return;
     }
 
@@ -699,15 +815,15 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       const resData = await res.json();
 
       if (!res.ok) {
-        throw new Error(resData.error || "Hiba történt a szerver oldalon.");
+        throw new Error(resData.error || "Something went wrong on the server.");
       }
 
-      alert("🎉 SIKER! A generált fotó kikerült az Instagramra!");
+      alert("Your post was published to Instagram.");
       setShowResultModal(false); 
       
     } catch (error: any) {
       console.error(error);
-      alert("❌ Sikertelen posztolás:\n" + error.message);
+      alert("Publishing failed:\n" + error.message);
     } finally {
       setIsPosting(false);
     }
@@ -715,11 +831,11 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
 
   const handleSchedulePost = async () => {
     if (!imageUrl) {
-      alert("Kérlek, először véglegesíts egy képet!");
+      alert("Finalize an image first.");
       return;
     }
     if (!scheduleDate) {
-      alert("Kérlek, válassz egy dátumot és időpontot!");
+      alert("Pick a date and time.");
       return;
     }
 
@@ -728,7 +844,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
     const currentTimeUnix = Math.floor(Date.now() / 1000);
 
     if (scheduledTimeUnix <= currentTimeUnix) {
-      alert("A kiválasztott időpontnak a jövőben kell lennie!");
+      alert("Pick a time in the future.");
       return;
     }
 
@@ -747,16 +863,16 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       const resData = await res.json();
 
       if (!res.ok) {
-        throw new Error(resData.error || "Hiba történt az ütemezés során.");
+        throw new Error(resData.error || "Scheduling failed.");
       }
 
-      alert("📅 SIKER! A poszt bekerült az ütemezőbe, és a megadott időpontban kikerül az Instagramra!");
+      alert("Scheduled. Your post will go out at the selected time.");
       setShowScheduler(false);
       setShowResultModal(false); // Bezárjuk az egész ablakot
       
     } catch (error: any) {
       console.error(error);
-      alert("❌ Sikertelen ütemezés:\n" + error.message);
+      alert("Scheduling failed:\n" + error.message);
     } finally {
       setIsScheduling(false);
     }
@@ -781,7 +897,10 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   };
 
   const handleGenerateImage = async () => {
-    if (availableImages.length >= 3) { alert("Maximum 3 képet tárolhatsz! Válassz egyet!"); return; }
+    if (availableImages.length >= 3) {
+      alert("You can store up to 3 images. Remove or pick one.");
+      return;
+    }
     setLoadingImage(true);
     try {
       const res = await fetch('/api/generate-image', {
@@ -799,7 +918,10 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (availableImages.length >= 3) { alert("Maximum 3 képet adhatsz hozzá!"); return; }
+    if (availableImages.length >= 3) {
+      alert("You can add up to 3 images.");
+      return;
+    }
 
     setUploadingImage(true);
     try {
@@ -812,7 +934,8 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       const { data: publicUrlData } = supabase.storage.from('generated-images').getPublicUrl(fileName);
       setAvailableImages(prev => [...prev, publicUrlData.publicUrl]); // Hozzáadás a galériához
     } catch (error) {
-      console.error(error); alert("Hiba történt a kép feltöltésekor.");
+      console.error(error);
+      alert("Upload failed.");
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = ''; // Input törlése
@@ -826,7 +949,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
     
     // Most mentjük az adatbázisba!
     await saveToHistory(finalUrl);
-    alert("✅ Kép sikeresen kiválasztva és a kampány elmentve!");
+    alert("Image selected and saved.");
   };
 
   const handleCopy = () => {
@@ -841,25 +964,27 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       <motion.div 
         whileHover={{ y: -5 }}
         onClick={() => setShowResultModal(true)}
-        className="cursor-pointer relative h-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-white/10 rounded-[32px] p-6 transition-all hover:border-blue-500/50 flex flex-col group shadow-sm overflow-hidden"
+        className={`${panel} group relative flex h-full cursor-pointer flex-col overflow-hidden p-6 transition-all hover:border-cyan-500/25`}
       >
         <div className="flex justify-between items-center mb-4">
-          <span className="text-[10px] font-black tracking-widest text-blue-600 uppercase bg-blue-600/10 px-3 py-1 rounded-full">{title}</span>
+          <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-200">
+            {title}
+          </span>
           <Layout className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
         </div>
         
         <div className="flex-grow">
-          <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed line-clamp-4 font-medium mb-4">
+          <p className="mb-4 line-clamp-4 text-xs font-medium leading-relaxed text-zinc-400">
             {content}
           </p>
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
+        <div className="flex items-center justify-between border-t border-white/[0.06] pt-4">
            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${imageUrl ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-slate-300'}`} />
-              <span className="text-[9px] font-bold text-slate-500 uppercase">{imageUrl ? 'Vizuál kész' : 'Nincs kép'}</span>
+              <div className={`h-2 w-2 rounded-full ${imageUrl ? 'bg-emerald-500 shadow-[0_0_8px_#22c55e]' : 'bg-zinc-600'}`} />
+              <span className="text-[9px] font-bold uppercase text-zinc-500">{imageUrl ? 'Visual ready' : 'No image'}</span>
            </div>
-           <span className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 group-hover:translate-x-1 transition-transform">Megnyitás <Zap className="w-2 h-2" /></span>
+           <span className="flex items-center gap-1 text-[9px] font-black uppercase text-cyan-400 transition-transform group-hover:translate-x-1">Open <Zap className="h-2 w-2" /></span>
         </div>
       </motion.div>
 
@@ -877,7 +1002,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative z-10 w-full max-w-5xl bg-white dark:bg-[#0b0f1a] border border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0f14] shadow-2xl"
             >
               {/* MODAL HEADER WITH TABS */}
               <div className="flex flex-col md:flex-row items-center justify-between p-6 md:px-10 border-b border-slate-100 dark:border-white/5 gap-6">
@@ -886,21 +1011,25 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                     <Sparkles className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">{title} <span className="text-blue-600">Workspace</span></h2>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{brandName} Campaign</p>
+                    <h2 className="text-xl font-black uppercase italic text-white">
+                      {title} <span className="text-cyan-400">Workspace</span>
+                    </h2>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                      {brandName} · Campaign
+                    </p>
                   </div>
                 </div>
 
                 {/* NAVIGATION TABS */}
                 <div className="flex bg-slate-100 dark:bg-white/5 p-1.5 rounded-[20px] border border-slate-200 dark:border-white/5">
-                  <button onClick={() => setActiveTab('edit')} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'edit' ? 'bg-white dark:bg-blue-600 text-blue-600 dark:text-white shadow-xl' : 'text-slate-500'}`}>
-                    <Edit3 className="w-4 h-4" /> Szerkesztés
+                  <button onClick={() => setActiveTab('edit')} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'edit' ? 'bg-white/[0.08] text-white shadow-xl' : 'text-zinc-500'}`}>
+                    <Edit3 className="w-4 h-4" /> Edit
                   </button>
-                  <button onClick={() => setActiveTab('image')} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'image' ? 'bg-white dark:bg-blue-600 text-blue-600 dark:text-white shadow-xl' : 'text-slate-500'}`}>
-                    <ImageIcon className="w-4 h-4" /> Fotó gyártás
+                  <button onClick={() => setActiveTab('image')} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'image' ? 'bg-white/[0.08] text-white shadow-xl' : 'text-zinc-500'}`}>
+                    <ImageIcon className="w-4 h-4" /> Image
                   </button>
-                  <button onClick={() => setActiveTab('preview')} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'preview' ? 'bg-white dark:bg-blue-600 text-blue-600 dark:text-white shadow-xl' : 'text-slate-500'}`}>
-                    <Eye className="w-4 h-4" /> Live Preview
+                  <button onClick={() => setActiveTab('preview')} className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'preview' ? 'bg-white/[0.08] text-white shadow-xl' : 'text-zinc-500'}`}>
+                    <Eye className="w-4 h-4" /> Preview
                   </button>
                 </div>
 
@@ -916,7 +1045,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                   <div className={`${activeTab === 'preview' ? 'hidden' : 'lg:col-span-7'} space-y-6`}>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                        <Type className="w-4 h-4 text-blue-500" /> A generált tartalom
+                        <Type className="w-4 h-4 text-cyan-400" /> Generated copy
                       </span>
                       <div className="flex gap-2">
                         <button onClick={() => setContent(initialContent)} className="p-2 text-slate-400 hover:text-orange-500 transition-colors"><HistoryIcon className="w-4 h-4" /></button>
@@ -937,26 +1066,26 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                     {activeTab === 'edit' && (
                       <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
                         <div className="space-y-4">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Gyors műveletek</span>
+                          <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block">Quick edits</span>
                           <div className="grid grid-cols-1 gap-3">
                             <button onClick={() => handleMagicEdit('shorten')} disabled={loading} className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-blue-600/10 hover:text-blue-600 rounded-2xl font-black text-xs transition-all border border-transparent hover:border-blue-600/20">
-                              <Wand2 className="w-4 h-4" /> Rövidebb verzió
+                              <Wand2 className="w-4 h-4" /> Shorter
                             </button>
                             <button onClick={() => handleMagicEdit('emoji')} disabled={loading} className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-blue-600/10 hover:text-blue-600 rounded-2xl font-black text-xs transition-all border border-transparent hover:border-blue-600/20">
-                              <Smile className="w-4 h-4" /> Több Emoji hozzáadása
+                              <Smile className="w-4 h-4" /> Add emojis
                             </button>
                             <button onClick={() => handleMagicEdit('professional')} disabled={loading} className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-slate-100 dark:bg-white/5 hover:bg-blue-600/10 hover:text-blue-600 rounded-2xl font-black text-xs transition-all border border-transparent hover:border-blue-600/20">
-                              <Briefcase className="w-4 h-4" /> Legyen professzionálisabb
+                              <Briefcase className="w-4 h-4" /> More professional
                             </button>
                           </div>
                         </div>
 
                         <div className="space-y-4 pt-6 border-t border-slate-100 dark:border-white/5">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Egyedi finomítás</span>
+                          <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block">Custom instruction</span>
                           <div className="flex gap-3">
                             <input 
                               type="text" value={customPrompt} onChange={(e)=>setCustomPrompt(e.target.value)} 
-                              placeholder="Pl: 'Írd át tegeződve'..." 
+                              placeholder="e.g. “Make it more casual…”" 
                               className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 text-xs outline-none focus:ring-2 focus:ring-blue-500/50 text-white" 
                             />
                             <button onClick={() => handleMagicEdit('custom')} disabled={!customPrompt || loading} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-600/20">
@@ -966,8 +1095,8 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                         </div>
 
                         <div className="space-y-4 pt-6 border-t border-slate-100 dark:border-white/5">
-                          <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block flex items-center gap-2">
-                            <Globe className="w-3 h-3" /> Valós idejű Webes Elemzés
+                          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block flex items-center gap-2">
+                            <Globe className="w-3 h-3" /> Live web analysis
                           </span>
                           
                           {!agentResult ? (
@@ -977,7 +1106,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                               className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs transition-all shadow-lg shadow-indigo-600/20"
                             >
                               {agentLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 text-yellow-300" />}
-                              {agentLoading ? "A web átkutatása folyamatban..." : "Viral Score Elemzés (Élő Adatok)"}
+                              {agentLoading ? "Analyzing…" : "Viral score (live data)"}
                             </button>
                           ) : (
                             <div className="bg-slate-100 dark:bg-[#151b2b] border border-slate-200 dark:border-white/10 rounded-3xl p-6 space-y-5 relative overflow-hidden shadow-inner">
@@ -998,7 +1127,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                                </p>
                                
                                <div className="space-y-3">
-                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Adatalapú Javaslatok:</span>
+                                 <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-2">Suggestions</span>
                                  {agentResult.suggestions.map((sugg: string, idx: number) => (
                                    <div key={idx} className="flex gap-3 text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-black/40 p-3.5 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5">
                                      <CheckCircle2 className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
@@ -1014,7 +1143,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                                    className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl font-black text-xs uppercase transition-all shadow-lg shadow-green-500/30"
                                  >
                                    {agentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                                   ✨ Javítsd fel a javaslatok alapján!
+                                   Apply suggestions
                                  </button>
                                  
                                  <button 
@@ -1022,7 +1151,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                                    disabled={agentLoading}
                                    className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                                  >
-                                   Elvetés és Újraelemzés
+                                   Discard & re-analyze
                                  </button>
                                </div>
                             </div>
@@ -1043,7 +1172,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                             className={`flex items-center justify-center gap-2 px-4 py-4 rounded-2xl font-black text-xs transition-all shadow-lg ${availableImages.length >= 3 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] text-white shadow-blue-500/20'}`}
                           >
                             {loadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-                            AI Generálás
+                            Generate image
                           </button>
                           
                           <button 
@@ -1052,14 +1181,14 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                             className={`flex items-center justify-center gap-2 px-4 py-4 rounded-2xl font-black text-xs transition-all shadow-lg ${availableImages.length >= 3 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 text-slate-700 dark:text-white hover:text-blue-500'}`}
                           >
                             {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
-                            Saját Kép Feltöltése
+                            Upload image
                           </button>
                           {/* Rejtett fájlfeltöltő */}
                           <input type="file" hidden ref={fileInputRef} accept="image/*" onChange={handleFileUpload} />
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Kép galéria (Max 3)</span>
+                          <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Gallery (max 3)</span>
                           <span className="text-xs font-bold text-slate-400">{availableImages.length} / 3</span>
                         </div>
 
@@ -1083,7 +1212,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                             ) : (
                               <div key={index} className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 flex flex-col items-center justify-center opacity-50">
                                 <ImageIcon className="w-6 h-6 text-slate-300 mb-2" />
-                                <span className="text-[9px] font-bold text-slate-400 uppercase">Üres hely</span>
+                                <span className="text-[9px] font-bold uppercase text-zinc-500">Empty</span>
                               </div>
                             );
                           })}
@@ -1097,7 +1226,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                               onClick={handleFinalizeImage}
                               className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-sm transition-all shadow-lg shadow-green-500/30 mt-6"
                             >
-                              <CheckCircle2 className="w-5 h-5" /> Ezt a képet választom a poszthoz!
+                              <CheckCircle2 className="w-5 h-5" /> Use this image
                             </motion.button>
                           )}
                         </AnimatePresence>
@@ -1107,7 +1236,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                           <div className="p-6 bg-purple-600/5 border border-purple-500/10 rounded-3xl flex items-start gap-4 mt-4">
                               <Sparkles className="w-6 h-6 text-purple-500 mt-1" />
                               <div>
-                                <span className="text-[10px] font-black text-purple-500 uppercase block mb-1">AI javasolt koncepciója:</span>
+                                <span className="text-[10px] font-black text-purple-400 uppercase block mb-1">Suggested concept</span>
                                 <p className="text-xs text-slate-400 italic leading-relaxed">"{data.image_prompt}"</p>
                               </div>
                           </div>
@@ -1170,7 +1299,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${imageUrl ? 'bg-green-500 animate-pulse shadow-[0_0_15px_#22c55e]' : 'bg-orange-500 shadow-[0_0_15px_#f97316]'}`} />
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                    Státusz: {imageUrl ? 'Publikálásra kész' : 'Vizuál hiányzik'}
+                    Status: {imageUrl ? "Ready to publish" : "Image required"}
                   </span>
                 </div>
                 
@@ -1178,7 +1307,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                 {!showScheduler ? (
                   <div className="flex gap-3 w-full md:w-auto">
                     <button onClick={() => setShowResultModal(false)} className="flex-1 md:flex-none px-8 py-4 bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-white rounded-2xl font-black text-xs uppercase hover:bg-red-500/10 hover:text-red-500 transition-all">
-                      Bezárás
+                      Close
                     </button>
 
                     <button 
@@ -1186,7 +1315,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                       disabled={isPosting || !imageUrl}
                       className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${isPosting ? 'bg-indigo-600/50 text-white cursor-not-allowed' : !imageUrl ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'}`}
                     >
-                      {isPosting ? <><Loader2 className="w-4 h-4 animate-spin" /> Posztolás...</> : <>⚡ Közzététel Most</>}
+                      {isPosting ? <><Loader2 className="w-4 h-4 animate-spin" /> Publishing…</> : <>Publish now</>}
                     </button>
 
                     <button 
@@ -1194,7 +1323,7 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                       disabled={!imageUrl}
                       className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-10 py-4 text-xs font-black uppercase rounded-2xl transition-all shadow-xl ${imageUrl ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed'}`} 
                     >
-                      🚀 Ütemezés
+                      Schedule
                     </button>
                   </div>
                 ) : (
@@ -1211,14 +1340,14 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
                       disabled={isScheduling}
                       className={`flex items-center justify-center gap-2 px-8 py-3 text-xs font-black uppercase rounded-2xl transition-all text-white ${isScheduling ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/30'}`}
                     >
-                      {isScheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : "Jóváhagyás"}
+                      {isScheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
                     </button>
                     
                     <button 
                       onClick={() => setShowScheduler(false)}
                       className="px-4 py-3 text-slate-400 hover:text-red-500 transition-colors font-bold text-xs uppercase"
                     >
-                      Mégse
+                      Cancel
                     </button>
                   </div>
                 )}

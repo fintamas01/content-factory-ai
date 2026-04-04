@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import type { UsageFeature } from "@/lib/usage/types";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 type Platform = "web" | "instagram" | "tiktok" | "linkedin";
 type AgentGoal = "geo_audit" | "content_plan" | "brand_voice";
@@ -105,6 +108,11 @@ export async function POST(req: Request) {
     if (!goal) return badRequest("Missing 'goal'.");
     if (goal === "geo_audit" && !url) return badRequest("Missing 'url' for geo_audit.");
 
+    const usageFeature: UsageFeature = goal === "geo_audit" ? "audit" : "content";
+    const gate = await requireSessionClientAndUsageAllowance(usageFeature);
+    if (!gate.ok) return gate.response;
+    const { supabase, clientId } = gate;
+
     const targetDomain = url ? toHostname(url) : "";
 
     // 1) Rövid keresőkifejezés generálás (geo_auditnál)
@@ -150,6 +158,8 @@ export async function POST(req: Request) {
       onDomainHtml,
       scoreBreakdown,
     });
+
+    await incrementUsage(supabase, usageFeature, clientId);
 
     return NextResponse.json(
       {

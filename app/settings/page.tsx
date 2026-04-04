@@ -65,7 +65,7 @@ export default function SettingsPage() {
           setBrands(brandsRes.data || []);
         }
       } catch (error) {
-        console.error("Szinkronizációs hiba:", error);
+        console.error("Sync error:", error);
       } finally {
         setIsSyncing(false); // Ez oldja fel a zárat
       }
@@ -74,7 +74,7 @@ export default function SettingsPage() {
   }, []);
 
   const importFromWebsite = async () => {
-    if (!website.trim()) return alert("Adj meg egy weboldalt!");
+    if (!website.trim()) return alert("Enter a website URL.");
     setIsImporting(true);
 
     try {
@@ -87,7 +87,7 @@ export default function SettingsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.error || "Import hiba");
+        alert(data?.error || "Import failed.");
         return;
       }
 
@@ -103,7 +103,7 @@ export default function SettingsPage() {
       setImportedFonts(data.fonts || null);
     } catch (e) {
       console.error(e);
-      alert("Import hiba");
+      alert("Import failed.");
     } finally {
       setIsImporting(false);
     }
@@ -112,12 +112,12 @@ export default function SettingsPage() {
   const addBrand = async () => {
     const currentLimit = getLimit();
     if (brands.length >= currentLimit) {
-      alert("Hiba: Elérted a csomagodhoz tartozó maximum limitet!");
+      alert("You've reached the maximum number of brands for your plan.");
       return;
     }
 
-    if (!newBrand.name) return alert("Márkanév megadása kötelező!");
-    if (!user?.id) return alert("Nincs bejelentkezett felhasználó!");
+    if (!newBrand.name) return alert("Brand name is required.");
+    if (!user?.id) return alert("You must be signed in.");
 
     const payload: any = {
       user_id: user.id,
@@ -136,8 +136,8 @@ export default function SettingsPage() {
       .select();
 
     if (error) {
-      console.error("Brand insert hiba:", error);
-      alert("Hiba: nem sikerült menteni a márkát!");
+      console.error("Brand insert error:", error);
+      alert("Could not save the brand.");
       return;
     }
 
@@ -166,7 +166,7 @@ export default function SettingsPage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-white">
         <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-4" />
         <p className="text-slate-500 font-medium animate-pulse uppercase tracking-widest text-xs">
-          Márkaprofilok szinkronizálása...
+          Syncing brand profiles…
         </p>
       </div>
     );
@@ -205,13 +205,13 @@ export default function SettingsPage() {
       >
         <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6 backdrop-blur-3xl">
           <h2 className="text-xl font-bold flex items-center gap-2 text-white">
-            <Plus className="w-5 h-5 text-blue-500" /> Új ügyfél hozzáadása
+            <Plus className="w-5 h-5 text-blue-500" /> Add a brand
           </h2>
 
           <div className="grid gap-4">
             {/* ✅ Website import */}
             <input
-              placeholder="Weboldal (pl. contentfactoryapp.com)..."
+              placeholder="Website (e.g. example.com)…"
               className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 transition-all text-white placeholder:text-slate-600"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
@@ -223,14 +223,14 @@ export default function SettingsPage() {
               className="bg-white/5 border border-white/10 py-4 rounded-2xl font-black uppercase tracking-widest text-white hover:bg-white/10 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {isImporting ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-              {isImporting ? "Import..." : "Import adatok a weboldalról"}
+              {isImporting ? "Importing…" : "Import from website"}
             </button>
 
             {/* kis infó, ha importáltunk */}
             {(importedWebsite || importedPalette || importedFonts) && (
               <div className="bg-black/30 border border-white/10 rounded-2xl p-4 text-xs text-white/70 space-y-2">
                 <div className="font-black uppercase tracking-widest text-[10px] text-blue-500">
-                  Import eredmény
+                  Import summary
                 </div>
                 {importedWebsite && (
                   <div>
@@ -268,21 +268,21 @@ export default function SettingsPage() {
 
             {/* Márka mezők */}
             <input
-              placeholder="Márkanév (pl. Tesla, Starbucks)..."
+              placeholder="Brand name (e.g. Acme Co.)…"
               className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 transition-all text-white placeholder:text-slate-600"
               value={newBrand.name}
               onChange={(e) => setNewBrand({ ...newBrand, name: e.target.value })}
             />
 
             <textarea
-              placeholder="Márka leírása, tónusa, egyedi stílusjegyei..."
+              placeholder="Description, tone, differentiators…"
               className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 min-h-[120px] text-white placeholder:text-slate-600"
               value={newBrand.desc}
               onChange={(e) => setNewBrand({ ...newBrand, desc: e.target.value })}
             />
 
             <input
-              placeholder="Ki a célközönség? (pl. 25-40 év közötti vállalkozók)..."
+              placeholder="Who is the target audience?"
               className="bg-black/40 border border-white/5 p-5 rounded-2xl outline-none focus:border-blue-500 text-white placeholder:text-slate-600"
               value={newBrand.audience}
               onChange={(e) =>
@@ -294,7 +294,7 @@ export default function SettingsPage() {
               onClick={addBrand}
               className="bg-blue-600 py-5 rounded-2xl font-black uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-[0.98] transition-all"
             >
-              Ügyfél Mentése
+              Save brand
             </button>
           </div>
         </div>
@@ -302,7 +302,7 @@ export default function SettingsPage() {
         {brands.length >= limit && (
           <div className="mt-6 bg-blue-600/10 border border-blue-500/20 p-6 rounded-[30px] text-center">
             <p className="text-blue-500 font-bold uppercase text-xs tracking-widest">
-              Limit elérve ({limit}/{limit}). Frissíts csomagot több ügyfélhez!
+              Limit reached ({limit}/{limit}). Upgrade your plan for more brands.
             </p>
           </div>
         )}
@@ -311,13 +311,13 @@ export default function SettingsPage() {
       {/* MÁRKÁK LISTÁJA */}
       <section className="space-y-6">
         <h2 className="text-sm font-black uppercase tracking-[0.3em] text-slate-500">
-          Mentett Ügyfelek
+          Saved brands
         </h2>
         <div className="grid gap-4">
           {brands.length === 0 ? (
             <div className="p-10 border-2 border-dashed border-white/5 rounded-[40px] text-center">
               <p className="text-slate-600 text-sm font-medium">
-                Még nincsenek mentett márkáid.
+                No saved brands yet.
               </p>
             </div>
           ) : (
@@ -336,7 +336,7 @@ export default function SettingsPage() {
                       {brand.brand_name}
                     </h3>
                     <p className="text-xs text-slate-500 truncate max-w-[200px] md:max-w-md">
-                      {brand.description || "Nincs leírás megadva"}
+                      {brand.description || "No description"}
                     </p>
 
                     {/* ✅ opcionális: ha van website/palette, mutatjuk */}

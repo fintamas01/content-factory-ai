@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -8,8 +10,16 @@ export async function POST(req: Request) {
     const { content, critique, suggestions } = await req.json();
 
     if (!content || !critique) {
-      return NextResponse.json({ error: "Hiányzó adatok az újraíráshoz." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Hiányzó adatok az újraíráshoz." },
+        { status: 400 }
+      );
     }
+
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+
+    const { supabase, clientId } = gate;
 
     const prompt = `
     Te egy profi Senior Social Media Copywriter vagy.
@@ -17,7 +27,7 @@ export async function POST(req: Request) {
     "${critique}"
 
     A kötelezően beépítendő javaslatok:
-    ${suggestions.map((s: string) => `- ${s}`).join('\n')}
+    ${suggestions.map((s: string) => `- ${s}`).join("\n")}
 
     EREDETI POSZT:
     "${content}"
@@ -29,16 +39,20 @@ export async function POST(req: Request) {
     `;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o", // A leggyorsabb és legokosabb modell az újraíráshoz
+      model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],
     });
 
     const updatedText = completion.choices[0].message.content?.trim();
 
-    return NextResponse.json({ updatedText });
+    await incrementUsage(supabase, "content", clientId);
 
-  } catch (error: any) {
+    return NextResponse.json({ updatedText });
+  } catch (error: unknown) {
     console.error("Improvement Hiba:", error);
-    return NextResponse.json({ error: "Hiba az AI újraírás közben." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Hiba az AI újraírás közben." },
+      { status: 500 }
+    );
   }
 }

@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -14,9 +16,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+
+    const { supabase, clientId } = gate;
+
     let context = "";
     if (brandName || platform) {
-      context = `A márkanév: ${brandName ? brandName : 'N/A'}, Platform: ${platform ? platform : 'N/A'}.\n`;
+      context = `A márkanév: ${brandName ? brandName : "N/A"}, Platform: ${platform ? platform : "N/A"}.\n`;
     }
 
     const prompt = `
@@ -47,13 +54,15 @@ Magyarul válaszolj!
     const completion = await openai.chat.completions.create({
       model: "gpt-4-turbo",
       messages: [{ role: "user", content: prompt.trim() }],
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
     });
 
     const result = completion.choices[0].message.content;
 
+    await incrementUsage(supabase, "content", clientId);
+
     return NextResponse.json(JSON.parse(result!));
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Brand Voice Analyze Error:", err);
     return NextResponse.json(
       { error: "Hiba történt az elemzés során." },

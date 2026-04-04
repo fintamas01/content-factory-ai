@@ -1,14 +1,12 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = await cookies();
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnon =
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
@@ -19,27 +17,6 @@ export async function POST(req: Request) {
         { error: "Supabase env hiányzik (URL/ANON KEY)." },
         { status: 500 }
       );
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {}
-        },
-      },
-    });
-
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-    if (!user) {
-      return NextResponse.json({ error: "Nincs bejelentkezve." }, { status: 401 });
     }
 
     const body = await req.json();
@@ -58,6 +35,11 @@ export async function POST(req: Request) {
     if (!brandProfile?.name) {
       return NextResponse.json({ error: "Hiányzik a márkaprofil." }, { status: 400 });
     }
+
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+
+    const { supabase, clientId } = gate;
 
     const langMap: Record<string, string> = {
       hu: "Hungarian",
@@ -114,15 +96,17 @@ ${url ?? ""}`;
 
     const raw = resp.choices[0]?.message?.content ?? "{}";
 
-    let parsed: any;
+    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
         { error: "A modell nem adott vissza érvényes JSON-t." },
         { status: 500 }
       );
     }
+
+    await incrementUsage(supabase, "content", clientId);
 
     return NextResponse.json({
       headline: String(parsed.headline ?? ""),

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { openai, getCopilotModel } from "@/lib/openai/client";
 import { trimCopilotContext } from "@/lib/copilot/trim";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 function coerceMessage(x: unknown): string {
   if (typeof x !== "string") return "";
@@ -23,6 +25,11 @@ export async function POST(req: Request) {
     if (!message) {
       return NextResponse.json({ error: "Missing message." }, { status: 400 });
     }
+
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+
+    const { supabase, clientId } = gate;
 
     const context = trimCopilotContext(contextRaw ?? null);
 
@@ -56,10 +63,11 @@ export async function POST(req: Request) {
       );
     }
 
+    await incrementUsage(supabase, "content", clientId);
+
     return NextResponse.json({ response: content });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected server error.";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

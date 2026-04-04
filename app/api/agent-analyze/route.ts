@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -8,43 +10,43 @@ export async function POST(req: Request) {
     const { content, platform, brandName } = await req.json();
 
     if (!content) {
-      return NextResponse.json({ error: "Hiányzó tartalom az elemzéshez." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Hiányzó tartalom az elemzéshez." },
+        { status: 400 }
+      );
     }
 
-    console.log("🕵️‍♂️ AI Agent: Téma kinyerése a posztból...");
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
 
-    // 1. LÉPÉS: Miről szól a poszt? (Egy gyors keresőszó generálása)
+    const { supabase, clientId } = gate;
+
     const searchPrompt = `Készíts egy nagyon rövid, 3-4 szavas ANGOL nyelvű keresőkifejezést (search query), ami a leginkább lefedi ennek a posztnak a témáját, hogy rákereshessek az aktuális trendekre: "${content.substring(0, 150)}..." Csak a kifejezést add vissza!`;
     const searchCompletion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: searchPrompt }]
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: searchPrompt }],
     });
-    const searchQuery = searchCompletion.choices[0].message.content?.trim().replace(/['"]/g, '') || "current marketing trends";
+    const searchQuery =
+      searchCompletion.choices[0].message.content?.trim().replace(/['"]/g, "") ||
+      "current marketing trends";
 
-    console.log(`🌍 AI Agent: Keresés a weben a Tavily segítségével: "${searchQuery}"...`);
-
-    // 2. LÉPÉS: Élő webes keresés a Tavily-vel
-    // Ehhez nem is kell plusz csomagot telepítened, simán meghívjuk az API-jukat!
     const tavilyRes = await fetch("https://api.tavily.com/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            api_key: process.env.TAVILY_API_KEY,
-            query: `${searchQuery} current trends 2026`,
-            search_depth: "basic",
-            include_answer: true,
-            max_results: 3
-        })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: process.env.TAVILY_API_KEY,
+        query: `${searchQuery} current trends 2026`,
+        search_depth: "basic",
+        include_answer: true,
+        max_results: 3,
+      }),
     });
-    
+
     if (!tavilyRes.ok) throw new Error("A Tavily API nem válaszolt.");
-    
+
     const tavilyData = await tavilyRes.json();
     const webContext = tavilyData.answer || JSON.stringify(tavilyData.results);
 
-    console.log("🧠 AI Agent: Elemzés az élő adatok alapján...");
-
-    // 3. LÉPÉS: A kegyetlen elemzés GPT-4-gyel, JSON formátumban
     const analysisPrompt = `
     Te egy profi, adatalapú, kíméletlen Viral Social Media Elemző Agent vagy.
     A feladatod, hogy kielemezz egy poszttervezetet, amit a(z) '${brandName}' márka készített a(z) ${platform} platformra.
@@ -66,20 +68,21 @@ export async function POST(req: Request) {
     }`;
 
     const analysisCompletion = await openai.chat.completions.create({
-      model: "gpt-4-turbo", // Itt a nagyágyút használjuk a precíz formátum miatt
+      model: "gpt-4-turbo",
       response_format: { type: "json_object" },
       messages: [{ role: "user", content: analysisPrompt }],
     });
 
     const resultJson = analysisCompletion.choices[0].message.content;
-    
-    console.log("✅ AI Agent: Elemzés kész!");
-    
-    // Visszaküldjük a tökéletesen formázott JSON-t a felületednek
-    return NextResponse.json(JSON.parse(resultJson!));
 
-  } catch (error: any) {
+    await incrementUsage(supabase, "content", clientId);
+
+    return NextResponse.json(JSON.parse(resultJson!));
+  } catch (error: unknown) {
     console.error("Agent Hiba:", error);
-    return NextResponse.json({ error: "Hiba az AI Agent futtatása közben." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Hiba az AI Agent futtatása közben." },
+      { status: 500 }
+    );
   }
 }

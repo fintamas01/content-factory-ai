@@ -1,10 +1,17 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { incrementUsage } from "@/lib/usage/usage-service";
+import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
+    const gate = await requireSessionClientAndUsageAllowance("content");
+    if (!gate.ok) return gate.response;
+
+    const { supabase, clientId } = gate;
+
     const { text, action, lang } = await req.json();
 
     const prompts: { [key: string]: string } = {
@@ -12,16 +19,24 @@ export async function POST(req: Request) {
       expand: "Fejtsd ki bővebben ezt a gondolatot, adj hozzá több részletet.",
       emoji: "Adj a szöveghez odaillő emojikat a megfelelő helyekre.",
       professional: "Alakítsd át ezt a szöveget professzionális, üzleti stílusúra.",
-      funny: "Tedd ezt a szöveget humorossá és barátságossá."
+      funny: "Tedd ezt a szöveget humorossá és barátságossá.",
     };
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: `Te egy profi szerkesztő vagy. A válaszod nyelve szigorúan legyen: ${lang === 'hu' ? 'Magyar' : 'English'}. Csak a módosított szöveget küldd vissza, semmi mást.` },
-        { role: "user", content: `${prompts[action] || action}\n\nSzöveg: ${text}` }
+        {
+          role: "system",
+          content: `Te egy profi szerkesztő vagy. A válaszod nyelve szigorúan legyen: ${lang === "hu" ? "Magyar" : "English"}. Csak a módosított szöveget küldd vissza, semmi mást.`,
+        },
+        {
+          role: "user",
+          content: `${prompts[action] || action}\n\nSzöveg: ${text}`,
+        },
       ],
     });
+
+    await incrementUsage(supabase, "content", clientId);
 
     return NextResponse.json({ updatedText: response.choices[0].message.content });
   } catch (error) {
