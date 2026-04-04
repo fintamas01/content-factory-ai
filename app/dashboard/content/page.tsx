@@ -60,6 +60,7 @@ const languages = [
   { code: "fr", name: "French" },
   { code: "es", name: "Spanish" },
   { code: "it", name: "Italian" },
+  { code: "ro", name: "Romanian" },
 ];
 
 const templates = [
