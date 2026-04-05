@@ -18,4 +18,6 @@ export interface ProductGeneratorInput {
   existingDescription?: string;
   existingShortDescription?: string;
   goal?: "generate" | "improve";
+  /** ISO-ish code (en, hu, …). Defaults to English server-side if missing/invalid. */
+  lang?: string;
 }

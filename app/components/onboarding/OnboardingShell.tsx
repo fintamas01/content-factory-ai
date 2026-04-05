@@ -135,6 +135,24 @@ export function OnboardingShell({
         <p className="mt-6 text-center text-xs font-medium text-slate-600">
           Fast setup. Real outputs. You can refine everything later.
         </p>
+
+        <p className="mt-4 text-center text-[11px] font-medium text-slate-600">
+          <Link href="/privacy" className="text-slate-500 underline-offset-2 hover:text-slate-400">
+            Privacy
+          </Link>
+          <span className="mx-1.5 text-slate-700" aria-hidden>
+            ·
+          </span>
+          <Link href="/terms" className="text-slate-500 underline-offset-2 hover:text-slate-400">
+            Terms
+          </Link>
+          <span className="mx-1.5 text-slate-700" aria-hidden>
+            ·
+          </span>
+          <Link href="/pricing" className="text-slate-500 underline-offset-2 hover:text-slate-400">
+            Pricing
+          </Link>
+        </p>
       </div>
     </div>
   );

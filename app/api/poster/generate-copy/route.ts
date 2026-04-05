@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
+import { resolveOutputLanguage } from "@/lib/i18n/output-language";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -10,30 +11,30 @@ export async function POST(req: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnon =
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY;
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnon) {
       return NextResponse.json(
-        { error: "Supabase env hiányzik (URL/ANON KEY)." },
+        { error: "Server configuration error." },
         { status: 500 }
       );
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const {
       description,
       url,
       platform = "instagram_post",
-      lang = "hu",
+      lang,
       brandProfile,
-      tone = "szakmai",
+      tone = "professional",
     } = body ?? {};
 
     if (!description || typeof description !== "string") {
-      return NextResponse.json({ error: "Hiányzik a leírás." }, { status: 400 });
+      return NextResponse.json({ error: "Description is required." }, { status: 400 });
     }
     if (!brandProfile?.name) {
-      return NextResponse.json({ error: "Hiányzik a márkaprofil." }, { status: 400 });
+      return NextResponse.json({ error: "Brand profile is required." }, { status: 400 });
     }
 
     const gate = await requireSessionClientAndUsageAllowance("content");
@@ -41,47 +42,36 @@ export async function POST(req: Request) {
 
     const { supabase, clientId } = gate;
 
-    const langMap: Record<string, string> = {
-      hu: "Hungarian",
-      en: "English",
-      de: "German",
-      ro: "Romanian",
-      fr: "French",
-      es: "Spanish",
-      it: "Italian",
-    };
+    const { label: targetLang } = resolveOutputLanguage(lang);
 
-    const targetLang = langMap[lang] || "Hungarian";
+    const system = `You are a sharp advertising copywriter. Output short poster copy as JSON only.
 
-    const system = `Te egy brutál jó reklámszövegíró és marketing kreatív vagy.
-Feladatod: plakátra való rövid szövegeket adni.
-
-KÖTELEZŐ: csak érvényes JSON-t adj vissza így:
+REQUIRED JSON shape:
 {
   "headline": "...",
   "sub": "...",
   "cta": "..."
 }
 
-Szabályok:
-- Headline: max 6-8 szó (ütős)
-- Sub: 1-2 mondat, max ~140 karakter
-- CTA: max 5-7 szó
-- Nyelv: ${targetLang}
-- Tone: ${tone}
-- Platform: ${platform}
+Rules:
+- Headline: max 6–8 words, punchy.
+- Sub: 1–2 sentences, ~140 characters max.
+- CTA: max 5–7 words.
+- Language: all three strings must be entirely in ${targetLang}. Do not use Hungarian unless the output language is Hungarian.
+- Tone: ${String(tone)}
+- Platform: ${String(platform)}
 
-Márka:
-- Név: ${brandProfile.name}
-- Leírás: ${brandProfile.desc ?? ""}
-- Célközönség: ${brandProfile.audience ?? ""}
+Brand:
+- Name: ${brandProfile.name}
+- Description: ${brandProfile.desc ?? ""}
+- Audience: ${brandProfile.audience ?? ""}
 
-Ha van URL, használd kontextusnak, de NE írj hosszú linket a szövegbe.`;
+If a URL is provided, use it as context only — do not put long URLs in the copy.`;
 
-    const userMsg = `Leírás:
+    const userMsg = `Brief / description:
 ${description}
 
-URL (opcionális):
+Optional URL:
 ${url ?? ""}`;
 
     const resp = await openai.chat.completions.create({
@@ -101,7 +91,7 @@ ${url ?? ""}`;
       parsed = JSON.parse(raw) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
-        { error: "A modell nem adott vissza érvényes JSON-t." },
+        { error: "The model did not return valid JSON." },
         { status: 500 }
       );
     }
@@ -114,7 +104,7 @@ ${url ?? ""}`;
       cta: String(parsed.cta ?? ""),
     });
   } catch (e) {
-    console.error("generate-copy hiba:", e);
-    return NextResponse.json({ error: "Szerver hiba." }, { status: 500 });
+    console.error("poster generate-copy:", e);
+    return NextResponse.json({ error: "Server error." }, { status: 500 });
   }
 }

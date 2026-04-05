@@ -1,8 +1,33 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
-import { Lock, Sparkles, Loader2, Calendar, Copy, X, Check, Edit3, Image as ImageIcon, Download, Upload, ChevronLeft, ChevronRight, Trash2, Briefcase, History, RefreshCcw, FileText,
-  Smartphone, ThumbsUp, MessageCircle, Send, Bookmark, MoreHorizontal, Globe
- } from 'lucide-react';
+import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
+import {
+  Lock,
+  Sparkles,
+  Loader2,
+  Calendar,
+  Copy,
+  X,
+  Check,
+  Edit3,
+  Image as ImageIcon,
+  Download,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  Briefcase,
+  History,
+  RefreshCcw,
+  FileText,
+  Smartphone,
+  ThumbsUp,
+  MessageCircle,
+  Send,
+  Bookmark,
+  MoreHorizontal,
+  Globe,
+} from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +35,9 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
+import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
+import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
 import {
   clearWorkspace,
   loadWorkspace,
@@ -18,6 +46,28 @@ import {
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
+
+const shell =
+  "min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#080c14] via-[#070b12] to-[#05070c] text-zinc-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-100";
+
+const panel =
+  "rounded-2xl border border-white/[0.06] bg-[#0c1018]/90 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_24px_48px_-24px_rgba(0,0,0,0.55)] backdrop-blur-sm";
+
+const sectionLabel =
+  "text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500";
+
+/** Map legacy Hungarian tone values from saved workspaces */
+function normalizeMatrixTone(raw: string): string {
+  const m: Record<string, string> = {
+    Professzionális: "Professional",
+    Humoros: "Funny",
+    Provokatív: "Provocative",
+    professional: "Professional",
+    funny: "Funny",
+    provocative: "Provocative",
+  };
+  return m[raw] ?? raw;
+}
 
 interface MatrixItem {
   day: string;
@@ -66,7 +116,13 @@ export default function ContentMatrix() {
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
 
   const [matrixData, setMatrixData] = useState<MatrixItem[]>([]);
-  const [formData, setFormData] = useState({ brand: '', audience: '', topic: '', tone: 'Professzionális' });
+  const [formData, setFormData] = useState({
+    brand: "",
+    audience: "",
+    topic: "",
+    tone: "Professional",
+  });
+  const [usageBump, setUsageBump] = useState(0);
 
   // History states
   const [showHistory, setShowHistory] = useState(false);
@@ -84,6 +140,7 @@ export default function ContentMatrix() {
   const matrixWorkspaceHydrated = useRef(false);
   const [matrixWorkspaceReady, setMatrixWorkspaceReady] = useState(false);
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
+  const [outputLang, setOutputLang] = useState("en");
 
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -144,6 +201,7 @@ export default function ContentMatrix() {
     useResearch: boolean;
     isPreview: boolean;
     reviewItemId: string | null;
+    outputLang: string;
   };
 
   useEffect(() => {
@@ -155,7 +213,13 @@ export default function ContentMatrix() {
     );
     if (w) {
       if (Array.isArray(w.matrixData) && w.matrixData.length > 0) setMatrixData(w.matrixData);
-      if (w.formData) setFormData((prev) => ({ ...prev, ...w.formData }));
+      if (w.formData) {
+        setFormData((prev) => ({
+          ...prev,
+          ...w.formData,
+          tone: normalizeMatrixTone(w.formData.tone ?? prev.tone),
+        }));
+      }
       if (typeof w.selectedBrandId === "string") setSelectedBrandId(w.selectedBrandId);
       if (w.viewMode === "text" || w.viewMode === "visual" || w.viewMode === "image") {
         setViewMode(w.viewMode);
@@ -163,6 +227,7 @@ export default function ContentMatrix() {
       if (typeof w.useResearch === "boolean") setUseResearch(w.useResearch);
       if (typeof w.isPreview === "boolean") setIsPreview(w.isPreview);
       if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
+      if (typeof w.outputLang === "string" && w.outputLang.trim()) setOutputLang(w.outputLang);
     }
     matrixWorkspaceHydrated.current = true;
     setMatrixWorkspaceReady(true);
@@ -179,6 +244,7 @@ export default function ContentMatrix() {
         useResearch,
         isPreview,
         reviewItemId,
+        outputLang,
       } satisfies MatrixWorkspaceSnapshot);
     }, 600);
     return () => window.clearTimeout(t);
@@ -191,6 +257,7 @@ export default function ContentMatrix() {
     useResearch,
     isPreview,
     reviewItemId,
+    outputLang,
   ]);
 
   const startNewMatrix = () => {
@@ -198,7 +265,7 @@ export default function ContentMatrix() {
       clearWorkspace(workspaceScope.userId, workspaceScope.clientId, WORKSPACE_MODULES.matrix);
     }
     setMatrixData([]);
-    setFormData({ brand: "", audience: "", topic: "", tone: "Professzionális" });
+    setFormData({ brand: "", audience: "", topic: "", tone: "Professional" });
     setSelectedBrandId("");
     setSelectedPost(null);
     setIsPreview(false);
@@ -207,6 +274,7 @@ export default function ContentMatrix() {
     setSlideImages([]);
     setCurrentSlide(0);
     setReviewItemId(null);
+    setOutputLang("en");
   };
 
   useCopilotPageContext({
@@ -216,6 +284,7 @@ export default function ContentMatrix() {
       generating,
       useResearch,
       formData,
+      outputLang,
       matrixCount: matrixData.length,
       matrixPreview: matrixData.slice(0, 6).map((it) => ({
         day: it.day,
@@ -235,23 +304,20 @@ export default function ContentMatrix() {
     },
   });
 
-  // --- JAVÍTOTT PDF EXPORT (MAGYAR KARAKTEREKKEL) ---
   const handleExportPDF = async () => {
-    if (matrixData.length === 0) return alert("Nincs mit exportálni!");
+    if (matrixData.length === 0) return alert("Nothing to export yet.");
 
-    // Betöltés jelzése (opcionális, de szép UX)
+    // Loading cursor
     const originalText = document.body.style.cursor;
     document.body.style.cursor = 'wait';
 
     try {
-        // Keep the same export approach (jsPDF + autoTable), just improve layout/typography.
         const doc = new jsPDF({ unit: "pt", format: "a4" });
 
-        // 1. Font letöltése (Roboto - ez ismeri az ő/ű betűket)
+        // Roboto supports extended Latin
         const fontResponse = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf');
         const fontBlob = await fontResponse.blob();
         
-        // 2. Konvertálás base64-re (amit a jsPDF megért)
         const reader = new FileReader();
         reader.readAsDataURL(fontBlob);
         
@@ -259,20 +325,19 @@ export default function ContentMatrix() {
             const base64data = reader.result?.toString().split(',')[1];
             
             if (base64data) {
-                // 3. Font hozzáadása a PDF-hez
                 doc.addFileToVFS("Roboto-Regular.ttf", base64data);
                 doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-                doc.setFont("Roboto"); // Beállítjuk aktívnak
+                doc.setFont("Roboto");
                 const pageW = doc.internal.pageSize.getWidth();
                 const pageH = doc.internal.pageSize.getHeight();
                 const marginX = 54;
                 const contentW = pageW - marginX * 2;
 
-                const brand = (formData.brand || "Márka").trim();
+                const brand = (formData.brand || "Brand").trim();
                 const topic = (formData.topic || "").trim();
                 const audience = (formData.audience || "").trim();
                 const tone = (formData.tone || "").trim();
-                const generatedAt = new Date().toLocaleDateString("hu-HU");
+                const generatedAt = new Date().toLocaleDateString("en-US");
 
                 const safeFile = (s: string) =>
                   (s || "export")
@@ -305,9 +370,9 @@ export default function ContentMatrix() {
                 doc.setFontSize(11);
                 doc.setTextColor(150, 160, 180);
                 const metaLine = [
-                  `Generálva: ${generatedAt}`,
-                  matrixData.length ? `Bejegyzések: ${matrixData.length}` : null,
-                  tone ? `Hangnem: ${tone}` : null,
+                  `Generated: ${generatedAt}`,
+                  matrixData.length ? `Posts: ${matrixData.length}` : null,
+                  tone ? `Tone: ${tone}` : null,
                 ]
                   .filter(Boolean)
                   .join(" · ");
@@ -330,13 +395,13 @@ export default function ContentMatrix() {
                   doc.text(value || "—", x + 18, tileY + 54, { maxWidth: tileW - 36 });
                 };
 
-                tile(marginX, "Célközönség", audience);
-                tile(marginX + tileW + tileGap, "Fókusz", topic || "Tartalomterv");
+                tile(marginX, "Audience", audience);
+                tile(marginX + tileW + tileGap, "Focus", topic || "Content plan");
 
                 doc.setTextColor(120, 130, 155);
                 doc.setFontSize(10);
                 doc.text(
-                  "Megjegyzés: Ez a dokumentum automatikusan generált. Kérdés esetén jelezd a csapatnak.",
+                  "Note: This document was generated automatically. Verify details before publishing.",
                   marginX,
                   pageH - 56,
                   { maxWidth: contentW }
@@ -350,23 +415,21 @@ export default function ContentMatrix() {
                 doc.rect(0, 0, pageW, pageH, "F");
                 doc.setTextColor(15, 23, 42);
                 doc.setFontSize(18);
-                doc.text("Tartalomterv", marginX, 56);
+                doc.text("Content plan", marginX, 56);
 
                 doc.setFontSize(11);
                 doc.setTextColor(71, 85, 105);
                 doc.text(`${brand} · ${generatedAt}`, marginX, 74);
 
-                // Táblázat adatok
-                const tableRows = matrixData.map(post => [
+                const tableRows = matrixData.map((post) => [
                     post.day,
                     post.platform,
                     post.title,
-                    post.content // Itt már nem vágom le, hadd férjen ki
+                    post.content,
                 ]);
 
-                // Táblázat generálása (fontos: itt is megadjuk a fontot!)
                 autoTable(doc, {
-                    head: [['Nap', 'Platform', 'Cím', 'Tartalom']],
+                    head: [["Day", "Platform", "Title", "Content"]],
                     body: tableRows,
                     startY: 92,
                     theme: "grid",
@@ -389,10 +452,10 @@ export default function ContentMatrix() {
                     },
                     alternateRowStyles: { fillColor: [248, 250, 252] },
                     columnStyles: {
-                        0: { cellWidth: 44 }, // Nap
-                        1: { cellWidth: 72 }, // Platform
-                        2: { cellWidth: 150 }, // Cím
-                        3: { cellWidth: 'auto' } // Tartalom
+                        0: { cellWidth: 44 },
+                        1: { cellWidth: 72 },
+                        2: { cellWidth: 150 },
+                        3: { cellWidth: "auto" },
                     },
                     didDrawPage: (data) => {
                       // Footer
@@ -401,19 +464,18 @@ export default function ContentMatrix() {
                       doc.setFontSize(9);
                       doc.setTextColor(148, 163, 184);
                       doc.text(`${brand} · Content Matrix`, marginX, pageH - 22);
-                      doc.text(`Oldal ${pageNumber - 1}`, pageW - marginX, pageH - 22, { align: "right" });
+                      doc.text(`Page ${pageNumber - 1}`, pageW - marginX, pageH - 22, { align: "right" });
                     },
                 });
 
-                // Mentés
-                doc.save(`${safeFile(brand)}_content_matrix_${generatedAt.replace(/\./g, "-")}.pdf`);
+                doc.save(`${safeFile(brand)}_content_matrix_${generatedAt.replace(/\//g, "-")}.pdf`);
             }
             document.body.style.cursor = originalText;
         };
 
     } catch (error) {
-        console.error("PDF Hiba:", error);
-        alert("Hiba történt a PDF generálásakor.");
+        console.error("PDF export error:", error);
+        alert("Could not generate PDF.");
         document.body.style.cursor = originalText;
     }
   };
@@ -435,7 +497,7 @@ export default function ContentMatrix() {
   };
 
   const loadFromHistory = (item: HistoryItem) => {
-    if (confirm("Ez felülírja a jelenlegi képernyőt. Biztosan betöltöd?")) {
+    if (confirm("This will replace the current matrix. Continue?")) {
         setMatrixData(item.generation_data.days || []);
         setFormData(prev => ({ ...prev, brand: item.brand_name }));
         setShowHistory(false);
@@ -462,11 +524,11 @@ export default function ContentMatrix() {
       if (selectedPost.slides && selectedPost.slides.length > 0) {
         generatedSlides = selectedPost.slides;
       } else {
-        generatedSlides = [selectedPost.title, "Részletek a leírásban..."];
+        generatedSlides = [selectedPost.title, "Details in the caption…"];
       }
       const lastSlide = generatedSlides[generatedSlides.length - 1];
-      if (!lastSlide.includes('@')) {
-         generatedSlides.push(`Kövess minket!\n@${formData.brand || 'Márka'}`);
+      if (!lastSlide.includes("@")) {
+         generatedSlides.push(`Follow us!\n@${formData.brand || "Brand"}`);
       }
       setSlides(generatedSlides);
       setCurrentSlide(0);
@@ -511,7 +573,7 @@ export default function ContentMatrix() {
       link.click();
     } catch (err) {
       console.error(err);
-      alert("Hiba a letöltéskor.");
+      alert("Download failed.");
     } finally {
       setDownloading(false);
     }
@@ -527,14 +589,14 @@ export default function ContentMatrix() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: promptBase }),
       });
-      if (!res.ok) throw new Error("API Hiba");
+      if (!res.ok) throw new Error("API error");
       const data = await res.json();
       if (data.imageUrl) {
         setSelectedPost({ ...selectedPost, generatedImageUrl: data.imageUrl });
       }
     } catch (error) {
       console.error(error);
-      alert("Nem sikerült a képet legenerálni.");
+      alert("Could not generate image.");
     } finally {
       setImageGenerating(false);
     }
@@ -552,7 +614,7 @@ export default function ContentMatrix() {
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      alert("Használd a jobb klikk -> Mentés másként opciót.");
+      alert("Try right-click → Save image as…");
     }
   };
 
@@ -576,16 +638,18 @@ export default function ContentMatrix() {
                 tone: formData.tone,
                 day: postToRegenerate.day,
                 platform: postToRegenerate.platform,
-                currentPost: postToRegenerate
+                currentPost: postToRegenerate,
+                lang: outputLang,
             }),
         });
         const newPost = await res.json();
         const updatedData = [...matrixData];
         updatedData[index] = { ...newPost, isRegenerating: false };
         setMatrixData(updatedData);
+        setUsageBump((n) => n + 1);
     } catch (error) {
         console.error(error);
-        alert("Nem sikerült frissíteni a posztot.");
+        alert("Could not refresh this post.");
         const errorData = [...matrixData];
         errorData[index] = { ...postToRegenerate, isRegenerating: false };
         setMatrixData(errorData);
@@ -601,17 +665,17 @@ export default function ContentMatrix() {
   };
 
   const isPro = userPlan !== 'free';
-  const mockDays = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"];
-  
+  const mockDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
   const tones = [
-    { id: 'professional', label: '👔 Professzionális', value: 'Professzionális' },
-    { id: 'funny', label: '😂 Humoros', value: 'Humoros' },
-    { id: 'provocative', label: '🔥 Provokatív', value: 'Provokatív' },
+    { id: "professional", label: "Professional", value: "Professional" },
+    { id: "funny", label: "Funny", value: "Funny" },
+    { id: "provocative", label: "Bold", value: "Provocative" },
   ];
 
   const handleGenerate = async () => {
     if (!formData.brand || !formData.topic) {
-      alert("Kérlek töltsd ki a márka nevét és a témát!");
+      alert("Please enter a brand name and topic.");
       return;
     }
     setGenerating(true);
@@ -621,58 +685,98 @@ export default function ContentMatrix() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          useResearch // ÚJ: Küldjük a kutatás flag-et
+          useResearch,
+          lang: outputLang,
         }),
       });
       const data = await res.json();
       setMatrixData(data.days || []);
+      setUsageBump((n) => n + 1);
     } catch (error) {
       console.error(error);
-      alert("Hiba történt a generálás során.");
+      alert("Something went wrong while generating.");
     } finally {
       setGenerating(false);
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-blue-500"/></div>;
+  if (loading) {
+    return (
+      <div className={`${shell} flex min-h-[50vh] items-center justify-center`}>
+        <Loader2 className="h-10 w-10 animate-spin text-cyan-400/90" aria-hidden />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 md:p-8 bg-slate-950 min-h-screen text-white font-sans relative">
-      
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3 tracking-tight">
-            <Calendar className="text-blue-500" /> Smart Content Matrix
-          </h1>
-          <p className="text-slate-400 mt-1">Heti stratégia és kész posztok egy kattintással.</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
+    <div className={`${shell} relative font-sans`}>
+      <div className="mx-auto max-w-6xl space-y-8 pb-24 p-4 sm:p-6 lg:p-8">
+        <nav
+          className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-white/45"
+          aria-label="Module breadcrumb"
+        >
+          <Link href="/dashboard" className="text-white/40 hover:text-white/70 transition-colors">
+            {PLATFORM_DISPLAY_NAME}
+          </Link>
+          <ChevronRight className="h-3 w-3 opacity-50 shrink-0" aria-hidden />
+          <span className="text-cyan-200/90">Content Matrix</span>
+        </nav>
+
+        <ModuleUsageBanner feature="content" bump={usageBump} />
+
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+          <div>
+            <p className={`${sectionLabel} text-zinc-500`}>Content Matrix</p>
+            <div className="mt-2 flex items-start gap-4">
+              <div className="relative mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/15 via-violet-500/10 to-transparent" />
+                <Calendar className="relative h-6 w-6 text-cyan-200" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-[34px]">
+                  Weekly content plan
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/55">
+                  Five days of platform-specific posts in one run—edit, export, and ship.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
             {matrixData.length > 0 ? (
-                <button 
-                    onClick={handleExportPDF}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20"
-                >
-                    <FileText className="w-4 h-4" /> Export (PDF)
-                </button>
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.1]"
+              >
+                <FileText className="h-4 w-4" aria-hidden />
+                Export PDF
+              </button>
             ) : null}
 
-            <button 
-                onClick={() => { setShowHistory(true); fetchHistory(); }}
-                className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all border border-white/10"
+            <button
+              type="button"
+              onClick={() => {
+                setShowHistory(true);
+                void fetchHistory();
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.08]"
             >
-                <History className="w-4 h-4 text-slate-400" /> Előzmények
+              <History className="h-4 w-4 text-zinc-400" aria-hidden />
+              History
             </button>
 
-            {isPro && (
-            <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-full flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Pro Aktív</span>
-            </div>
-            )}
+            {isPro ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-4 py-2">
+                <Sparkles className="h-4 w-4 text-cyan-300" aria-hidden />
+                <span className="text-[10px] font-black uppercase tracking-widest text-cyan-200/90">
+                  Pro active
+                </span>
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
 
       {matrixData.length > 0 && matrixWorkspaceReady ? (
         <div className="mb-8">
@@ -687,7 +791,7 @@ export default function ContentMatrix() {
               className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-800 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700"
             >
               <RefreshCcw className="h-4 w-4 text-slate-400" />
-              Új mátrix
+              New matrix
             </button>
           }
         />
@@ -713,8 +817,7 @@ export default function ContentMatrix() {
         </div>
       ) : null}
 
-      {/* INPUT CONTAINER */}
-      <div className="mb-10 bg-slate-900/40 p-6 rounded-2xl border border-white/5 shadow-xl space-y-4">
+      <div className={`${panel} mb-10 space-y-4 p-6 sm:p-8`}>
         
         {savedBrands.length > 0 && (
             <div className="flex items-center gap-3 bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl animate-in fade-in">
@@ -724,7 +827,9 @@ export default function ContentMatrix() {
                     value={selectedBrandId}
                     onChange={(e) => handleBrandSelect(e.target.value)}
                 >
-                    <option value="" className="bg-slate-900">-- Válassz mentett ügyfelet / márkát --</option>
+                    <option value="" className="bg-slate-900">
+                      — Select a saved brand —
+                    </option>
                     {savedBrands.map(b => (
                         <option key={b.id} value={b.id} className="bg-slate-900">
                             {b.brand_name}
@@ -736,19 +841,19 @@ export default function ContentMatrix() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <input 
-            placeholder="Márka neve" 
+            placeholder="Brand name" 
             className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white transition-all"
             value={formData.brand}
             onChange={(e) => setFormData({...formData, brand: e.target.value})}
           />
           <input 
-            placeholder="Célközönség" 
+            placeholder="Target audience" 
             className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white transition-all"
             value={formData.audience}
             onChange={(e) => setFormData({...formData, audience: e.target.value})}
           />
           <input 
-            placeholder="Téma" 
+            placeholder="Topic" 
             className="bg-slate-800/50 border border-slate-700 p-3 rounded-xl focus:border-blue-500 outline-none text-white transition-all"
             value={formData.topic}
             onChange={(e) => setFormData({...formData, topic: e.target.value})}
@@ -767,12 +872,29 @@ export default function ContentMatrix() {
           </div>
         </div>
 
+        <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className={`${sectionLabel} text-zinc-500`}>Output language</span>
+          <select
+            value={outputLang}
+            onChange={(e) => setOutputLang(e.target.value)}
+            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white outline-none"
+          >
+            {OUTPUT_LANGUAGE_OPTIONS.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="flex items-center justify-between p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl">
           <div className="flex items-center gap-3">
              <Globe className={`w-5 h-5 ${useResearch ? 'text-blue-400 animate-pulse' : 'text-slate-500'}`} />
              <div>
-               <p className="text-xs font-bold uppercase tracking-widest text-white">Deep Research Üzemmód</p>
-               <p className="text-[10px] text-slate-400">Aktuális trendek és adatok keresése a weben a heti tervhez.</p>
+               <p className="text-xs font-bold uppercase tracking-widest text-white">Deep research</p>
+               <p className="text-[10px] text-slate-400">
+                 Pull current trends and sources from the web for this weekly plan (uses more capable models when on).
+               </p>
              </div>
           </div>
           <button 
@@ -792,7 +914,13 @@ export default function ContentMatrix() {
           disabled={generating || !isPro}
           className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
         >
-          {generating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Sparkles className="w-5 h-5" /> Generálás</>}
+          {generating ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" /> Generate week
+            </>
+          )}
         </button>
       </div>
       
@@ -802,8 +930,17 @@ export default function ContentMatrix() {
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-sm rounded-2xl border border-white/10">
             <div className="bg-slate-900 p-8 rounded-3xl border border-white/10 shadow-2xl text-center max-w-sm">
               <Lock className="w-12 h-12 text-blue-500 mb-4 mx-auto" />
-              <h2 className="text-2xl font-bold mb-2">Pro Funkció</h2>
-              <button onClick={() => router.push('/dashboard/billing')} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold mt-4">Upgrade Most</button>
+              <h2 className="text-2xl font-bold mb-2">Pro plan</h2>
+              <p className="text-sm text-slate-400 mb-4">
+                Content Matrix uses your content generation quota. Upgrade to generate full weekly plans.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/billing")}
+                className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold mt-2"
+              >
+                Upgrade
+              </button>
             </div>
           </div>
         )}
@@ -819,7 +956,7 @@ export default function ContentMatrix() {
                 onClick={(e) => handleRegenerateSingle(index, e)}
                 disabled={item.isRegenerating}
                 className="absolute top-3 right-3 p-2 bg-slate-800 hover:bg-blue-600 rounded-lg text-slate-400 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
-                title="Újragenerálás (Remix)"
+                title="Regenerate (remix)"
               >
                 <RefreshCcw className={`w-3.5 h-3.5 ${item.isRegenerating ? 'animate-spin text-blue-400' : ''}`} />
               </button>
@@ -829,13 +966,13 @@ export default function ContentMatrix() {
                 <span className="bg-white/5 text-[10px] px-2 py-1 rounded text-slate-300 font-medium">{item.platform}</span>
               </div>
               <h3 className="text-sm font-bold mb-3 leading-tight text-white group-hover:text-blue-200">
-                 {item.isRegenerating ? <span className="animate-pulse">Új verzió írása... ✍️</span> : item.title}
+                 {item.isRegenerating ? <span className="animate-pulse">Writing new version…</span> : item.title}
               </h3>
               <p className="text-xs text-slate-400 line-clamp-4 mb-4">
-                 {item.isRegenerating ? "Az AI éppen újragondolja ezt a posztot..." : item.outline}
+                 {item.isRegenerating ? "Regenerating this post…" : item.outline}
               </p>
               <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
-                <Edit3 className="w-3 h-3" /> Szerkesztés
+                <Edit3 className="w-3 h-3" /> Edit
               </div>
             </div>
           ))
@@ -861,13 +998,13 @@ export default function ContentMatrix() {
                
                <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
                   <button onClick={() => setViewMode('text')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'text' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
-                    <Edit3 className="w-4 h-4" /> Szöveg
+                    <Edit3 className="w-4 h-4" /> Text
                   </button>
                   <button onClick={() => setViewMode('visual')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'visual' ? 'bg-white text-black' : 'text-slate-400 hover:text-white'}`}>
-                    <ImageIcon className="w-4 h-4" /> Poszt Dizájn
+                    <ImageIcon className="w-4 h-4" /> Slide design
                   </button>
                   <button onClick={() => setViewMode('image')} className={`px-3 py-1.5 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'image' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-                    <Sparkles className="w-4 h-4" /> AI Illusztráció
+                    <Sparkles className="w-4 h-4" /> AI image
                   </button>
                </div>
                
@@ -881,24 +1018,24 @@ export default function ContentMatrix() {
               {viewMode === 'text' && (
                 <div className="p-8">
                    
-                   {/* --- TOGGLE BAR: Váltás Szerkesztő és Előnézet között --- */}
+                   {/* Editor vs preview */}
                    <div className="flex items-center justify-between mb-6">
                       <div className="bg-slate-900 border border-white/10 p-1 rounded-lg inline-flex">
                          <button 
                            onClick={() => setIsPreview(false)} 
                            className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${!isPreview ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-white'}`}
                          >
-                            <Edit3 className="w-3 h-3" /> Szerkesztő
+                            <Edit3 className="w-3 h-3" /> Editor
                          </button>
                          <button 
                            onClick={() => setIsPreview(true)} 
                            className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${isPreview ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
                          >
-                            <Smartphone className="w-3 h-3" /> Élő Előnézet
+                            <Smartphone className="w-3 h-3" /> Live preview
                          </button>
                       </div>
                       <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                         {selectedPost.platform === 'Insta' ? 'Instagram' : 'LinkedIn'} Nézet
+                         {selectedPost.platform === 'Insta' ? 'Instagram' : 'LinkedIn'} preview
                       </span>
                    </div>
 
@@ -906,7 +1043,7 @@ export default function ContentMatrix() {
                      // --- EDITOR VIEW (A régi szerkesztő felület) ---
                      <>
                         <div className="mb-6 bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
-                            <label className="block text-[10px] font-bold text-blue-400 uppercase mb-1">Stratégia</label>
+                            <label className="block text-[10px] font-bold text-blue-400 uppercase mb-1">Strategy</label>
                             <p className="text-sm text-slate-300 italic">{selectedPost.outline}</p>
                         </div>
                         <textarea 
@@ -967,7 +1104,7 @@ export default function ContentMatrix() {
 
                                             {/* Footer indikátor */}
                                             <div className="relative z-10 mt-auto pt-4 border-t border-white/10 flex justify-between items-center">
-                                                <span className="text-[8px] text-slate-400">Lapozz tovább 👉</span>
+                                                <span className="text-[8px] text-slate-400">Swipe for more →</span>
                                                 <div className="flex gap-1">
                                                     <div className="w-4 h-1 bg-blue-500 rounded-full"></div>
                                                     <div className="w-1 h-1 bg-slate-700 rounded-full"></div>
@@ -988,12 +1125,12 @@ export default function ContentMatrix() {
                                         </div>
                                         <Bookmark className="w-6 h-6 text-black" />
                                     </div>
-                                    <div className="text-xs font-bold mb-1">1,234 kedvelés</div>
+                                    <div className="text-xs font-bold mb-1">1,234 likes</div>
                                     <div className="text-sm">
                                         <span className="font-bold mr-1">{formData.brand?.toLowerCase().replace(/\s/g, '') || 'brand'}</span>
-                                        {selectedPost.content.slice(0, 120)}... <span className="text-gray-500 cursor-pointer">több</span>
+                                        {selectedPost.content.slice(0, 120)}... <span className="text-gray-500 cursor-pointer">more</span>
                                     </div>
-                                    <div className="text-[10px] text-gray-400 mt-2 uppercase">2 órája</div>
+                                    <div className="text-[10px] text-gray-400 mt-2 uppercase">2h ago</div>
                                 </div>
                             </div>
                         )}
@@ -1009,7 +1146,7 @@ export default function ContentMatrix() {
                                         </div>
                                         <div>
                                             <div className="text-sm font-bold flex items-center gap-1">
-                                                {formData.brand || 'Vállalat Neve'} <span className="text-gray-400 font-normal text-xs">• 1st</span>
+                                                {formData.brand || "Company"} <span className="text-gray-400 font-normal text-xs">• 1st</span>
                                             </div>
                                             <div className="text-xs text-gray-500">Marketing & Strategy • 2h • <Globe className="w-3 h-3 inline" /></div>
                                         </div>
@@ -1087,12 +1224,12 @@ export default function ContentMatrix() {
                   <div className="mb-6 flex gap-4">
                      <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold flex items-center gap-2 transition-all border border-white/10">
                         <Upload className="w-4 h-4" /> 
-                        Kép feltöltése erre a diára ({currentSlide + 1}.)
+                        Upload image for slide {currentSlide + 1}
                         <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                      </label>
                      {slideImages[currentSlide] && (
                         <button onClick={handleRemoveImage} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
-                           <Trash2 className="w-4 h-4" /> Törlés
+                           <Trash2 className="w-4 h-4" /> Remove
                         </button>
                      )}
                   </div>
@@ -1143,7 +1280,7 @@ export default function ContentMatrix() {
                       </div>
 
                       <div className="relative z-10 mt-6 flex justify-between items-center pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-                        <span className="text-xs" style={{ color: '#cbd5e1' }}>Lapozz tovább 👉</span>
+                        <span className="text-xs" style={{ color: '#cbd5e1' }}>Swipe →</span>
                         <div className="flex gap-1">
                           {slides.map((_, idx) => (
                             <div 
@@ -1179,17 +1316,17 @@ export default function ContentMatrix() {
                       <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                         <Sparkles className="w-10 h-10 text-blue-500" />
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2">AI Illusztráció</h3>
-                      <p className="text-slate-400 mb-8">Generálj egyedi, jogtiszta képet a DALL-E 3 segítségével.</p>
+                      <h3 className="text-xl font-bold text-white mb-2">AI image</h3>
+                      <p className="text-slate-400 mb-8">Generate a unique image with DALL·E 3 (usage applies).</p>
                       <button onClick={handleGenerateImage} className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white font-bold flex items-center gap-3">
-                        <ImageIcon className="w-5 h-5" /> Kép Generálása
+                        <ImageIcon className="w-5 h-5" /> Generate image
                       </button>
                     </div>
                   )}
                   {imageGenerating && (
                     <div className="text-center">
                       <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                      <p className="text-slate-300">Generálás... (kb. 15 mp)</p>
+                      <p className="text-slate-300">Generating… (~15s)</p>
                     </div>
                   )}
                   {selectedPost.generatedImageUrl && !imageGenerating && (
@@ -1207,17 +1344,17 @@ export default function ContentMatrix() {
             <div className="p-6 border-t border-white/5 bg-slate-900/50 flex justify-end gap-3 z-10">
                {viewMode === 'text' && (
                  <button onClick={handleCopy} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${isCopied ? 'bg-green-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}>
-                   {isCopied ? <><Check className="w-4 h-4" /> Másolva</> : <><Copy className="w-4 h-4" /> Szöveg Másolása</>}
+                   {isCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy text</>}
                  </button>
                )}
                {viewMode === 'visual' && (
                  <button onClick={handleDownloadSlide} disabled={downloading} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-2 shadow-lg">
-                   {downloading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />} Letöltés
+                   {downloading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />} Download
                  </button>
                )}
                {viewMode === 'image' && (
                  <button onClick={handleDownloadAIImage} disabled={!selectedPost.generatedImageUrl} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold flex items-center gap-2">
-                   <Download className="w-4 h-4" /> Kép Letöltése
+                   <Download className="w-4 h-4" /> Download image
                  </button>
                )}
             </div>
@@ -1226,7 +1363,7 @@ export default function ContentMatrix() {
         </div>
       )}
 
-      {/* --- ELŐZMÉNYEK MODAL --- */}
+      {/* History modal */}
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
@@ -1234,7 +1371,7 @@ export default function ContentMatrix() {
             <div className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in fade-in zoom-in">
                 <div className="p-5 border-b border-white/5 bg-slate-900 flex justify-between items-center">
                     <h2 className="text-xl font-bold flex items-center gap-2">
-                        <History className="w-5 h-5 text-blue-500" /> Előzmények (Smart Matrix)
+                        <History className="w-5 h-5 text-blue-500" /> History (Content Matrix)
                     </h2>
                     <button onClick={() => setShowHistory(false)} className="p-2 hover:bg-white/10 rounded-full">
                         <X className="w-5 h-5 text-slate-400" />
@@ -1245,7 +1382,7 @@ export default function ContentMatrix() {
                     {loadingHistory ? (
                         <div className="text-center py-10"><Loader2 className="animate-spin text-blue-500 mx-auto" /></div>
                     ) : historyItems.length === 0 ? (
-                        <div className="text-center py-10 text-slate-500">Még nincsenek mentett mátrixaid.</div>
+                        <div className="text-center py-10 text-slate-500">No saved matrices yet.</div>
                     ) : (
                         historyItems.map((item) => (
                             <div 
@@ -1257,11 +1394,17 @@ export default function ContentMatrix() {
                                     <div className="font-bold text-white mb-1">{item.brand_name}</div>
                                     <div className="text-xs text-slate-500 flex items-center gap-2">
                                         <Calendar className="w-3 h-3" />
-                                        {new Date(item.created_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(item.created_at).toLocaleString("en-US", {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
                                     </div>
                                 </div>
                                 <button className="bg-slate-800 text-xs px-3 py-1.5 rounded-lg text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                    Betöltés
+                                    Load
                                 </button>
                             </div>
                         ))
@@ -1271,6 +1414,7 @@ export default function ContentMatrix() {
         </div>
       )}
 
+      </div>
     </div>
   );
 }

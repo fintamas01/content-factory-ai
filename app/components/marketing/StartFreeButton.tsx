@@ -53,7 +53,10 @@ export function StartFreeButton({ variant = "primary" }: { variant?: Variant }) 
       }
       await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/dashboard` },
+        options: {
+          // Land on onboarding first; middleware sends completed users to /dashboard.
+          redirectTo: `${window.location.origin}/onboarding`,
+        },
       });
     } finally {
       setLoading(false);

@@ -1,4 +1,5 @@
 import { load } from "cheerio";
+import { getPublicSiteUrl } from "@/lib/env/public-site-url";
 
 /**
  * Fetch HTML and extract a single product price (MVP heuristics).
@@ -7,12 +8,17 @@ import { load } from "cheerio";
  * multi-SKU pages, and aggressive anti-scraping will often fail or return wrong values.
  * Treat output as directional; users should verify critical prices manually.
  */
+function priceIntelUserAgent(): string {
+  const site = getPublicSiteUrl();
+  const ref = site ? ` +${site}` : "";
+  return `Mozilla/5.0 (compatible; ContentFactoryPriceIntel/1.0${ref})`;
+}
+
 export async function fetchHtmlForPrice(url: string): Promise<string> {
   const res = await fetch(url, {
     redirect: "follow",
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; ContentFactoryPriceIntel/1.0; +https://example.com)",
+      "User-Agent": priceIntelUserAgent(),
       Accept: "text/html,application/xhtml+xml",
     },
     signal: AbortSignal.timeout(20000),

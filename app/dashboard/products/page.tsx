@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { MODULES } from "@/lib/platform/config";
+import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import type { ProductCopyResult } from "@/lib/products/types";
@@ -147,6 +148,7 @@ export default function ProductGeniePage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [unifiedBrand, setUnifiedBrand] = useState<UserBrandProfileRow | null>(null);
   const [usageBump, setUsageBump] = useState(0);
+  const [outputLang, setOutputLang] = useState("en");
 
   // WooCommerce connection + product selection
   const [wooConnected, setWooConnected] = useState(false);
@@ -317,6 +319,7 @@ export default function ProductGeniePage() {
       | { state: "updated"; fields: string[]; at: string }
       | { state: "error"; message: string };
     reviewItemId: string | null;
+    outputLang: string;
   };
 
   useEffect(() => {
@@ -347,6 +350,7 @@ export default function ProductGeniePage() {
       if (typeof w.wooStoreUrl === "string") setWooStoreUrl(w.wooStoreUrl);
       if (w.wooSyncStatus) setWooSyncStatus(w.wooSyncStatus);
       if (typeof w.reviewItemId === "string") setReviewItemId(w.reviewItemId);
+      if (typeof w.outputLang === "string" && w.outputLang.trim()) setOutputLang(w.outputLang);
     }
     workspaceHydrated.current = true;
     setWorkspaceReady(true);
@@ -374,6 +378,7 @@ export default function ProductGeniePage() {
         wooStoreUrl,
         wooSyncStatus,
         reviewItemId,
+        outputLang,
       } satisfies ProductsWorkspaceSnapshot);
     }, 500);
     return () => window.clearTimeout(t);
@@ -397,6 +402,7 @@ export default function ProductGeniePage() {
     wooStoreUrl,
     wooSyncStatus,
     reviewItemId,
+    outputLang,
   ]);
 
   const startNewProductWorkspace = () => {
@@ -421,6 +427,7 @@ export default function ProductGeniePage() {
     setWooUpdateFields({ title: true, description: true, short: true });
     setReviewItemId(null);
     setHealthProgress(null);
+    setOutputLang("en");
   };
 
   useEffect(() => {
@@ -471,6 +478,7 @@ export default function ProductGeniePage() {
             mode === "store" && wooSelectedId
               ? { product_id: wooSelectedId, store_url: wooStoreUrl || null }
               : null,
+          lang: outputLang,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -653,7 +661,7 @@ export default function ProductGeniePage() {
       const res = await fetch(`/api/woocommerce/products/${wooSelectedId}/optimize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ health: healthResult ?? undefined }),
+        body: JSON.stringify({ health: healthResult ?? undefined, lang: outputLang }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -881,6 +889,23 @@ export default function ProductGeniePage() {
               >
                 Connected store
               </Button>
+            </div>
+
+            <div className="relative mt-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+                Output language
+              </span>
+              <select
+                value={outputLang}
+                onChange={(e) => setOutputLang(e.target.value)}
+                className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white outline-none"
+              >
+                {OUTPUT_LANGUAGE_OPTIONS.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

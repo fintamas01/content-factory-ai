@@ -15,6 +15,10 @@ import type { ProductCopyResult, ProductGeneratorInput } from "@/lib/products/ty
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
 import { mergeBrandProfileForContent } from "@/lib/brand-profile/merge";
 import { buildProductBrandIdentityAddendumEn } from "@/lib/brand-profile/prompts";
+import {
+  resolveOutputLanguage,
+  outputLanguageContractProductCopy,
+} from "@/lib/i18n/output-language";
 
 const SYSTEM_BASE = `You are a principal e-commerce conversion copywriter for PDPs and on-site search. You write copy that could ship on a serious D2C or marketplace catalog: specific, benefit-led, and commercially defensible — never template filler.
 
@@ -81,9 +85,13 @@ function pickGoal(input: ProductGeneratorInput): "generate" | "improve" {
   return hasExisting ? "improve" : "generate";
 }
 
-function buildSystemPrompt(goal: "generate" | "improve", brandAppendix?: string) {
+function buildSystemPrompt(
+  goal: "generate" | "improve",
+  brandAppendix: string | undefined,
+  outputLangLabel: string
+) {
   const mode = goal === "improve" ? SYSTEM_MODE_IMPROVE : SYSTEM_MODE_GENERATE;
-  const base = `${SYSTEM_BASE}\n\n${mode}`.trim();
+  const base = `${SYSTEM_BASE}\n\n${mode}\n\n${outputLanguageContractProductCopy(outputLangLabel)}`.trim();
   return brandAppendix ? `${base}\n\n${brandAppendix}` : base;
 }
 
@@ -144,6 +152,8 @@ export async function generateProductCopy(args: {
     typeof args.input.productName === "string" ? args.input.productName.trim() : "";
   if (!productName) return { ok: false, error: "Product name is required." };
 
+  const { label: outputLangLabel } = resolveOutputLanguage(args.input.lang);
+
   const openai = new OpenAI({ apiKey: args.openaiApiKey });
 
   const effectiveBrand = mergeBrandProfileForContent(undefined, args.brandProfile);
@@ -152,7 +162,7 @@ export async function generateProductCopy(args: {
     args.brandProfile && effectiveBrand.name.trim()
       ? buildProductBrandIdentityAddendumEn(effectiveBrand)
       : "";
-  const systemContent = buildSystemPrompt(goal, brandAppendix || undefined);
+  const systemContent = buildSystemPrompt(goal, brandAppendix || undefined, outputLangLabel);
 
   const userPayload: Record<string, unknown> = {
     productName,

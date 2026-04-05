@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, LayoutGrid, Sparkles } from "lucide-react";
+import { isPaidPlanTier, planTierShortLabel } from "@/lib/usage/plan-ui";
 import type { UsageSummary } from "@/lib/usage/types";
 
 function Bar({
@@ -58,7 +59,7 @@ export function DashboardUsageOverview() {
 
   if (!summary) return null;
 
-  const isPro = summary.plan === "pro";
+  const paid = isPaidPlanTier(summary.plan);
   const u = summary.usage;
   const L = summary.limits;
 
@@ -80,10 +81,16 @@ export function DashboardUsageOverview() {
               Usage this month
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              {isPro ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-200">
+              {paid ? (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ${
+                    summary.plan === "elite"
+                      ? "border-amber-500/35 bg-amber-500/10 text-amber-100"
+                      : "border-blue-500/30 bg-blue-500/10 text-blue-200"
+                  }`}
+                >
                   <Sparkles className="h-3 w-3" aria-hidden />
-                  Pro
+                  {planTierShortLabel(summary.plan)}
                 </span>
               ) : (
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -94,7 +101,7 @@ export function DashboardUsageOverview() {
             </div>
           </div>
         </div>
-        {!isPro ? (
+        {!paid ? (
           <Link
             href="/dashboard/billing"
             className="inline-flex items-center justify-center gap-1.5 self-start rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-200 transition hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-white"
@@ -126,7 +133,7 @@ export function DashboardUsageOverview() {
         />
       </div>
 
-      {!isPro ? (
+      {!paid ? (
         <p className="mt-5 border-t border-white/[0.06] pt-4 text-[11px] font-medium leading-relaxed text-slate-500 dark:text-slate-500">
           Pro includes much higher monthly quotas across all modules.{" "}
           <Link href="/dashboard/billing" className="font-semibold text-slate-400 underline underline-offset-2 hover:text-slate-200">

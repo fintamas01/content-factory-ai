@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MODULES, PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { requireActiveClientId } from "@/lib/clients/server";
+import { planTierKpiTone, planTierShortLabel } from "@/lib/usage/plan-ui";
 import { buildUsageSummary } from "@/lib/usage/usage-service";
 import {
   mapAuditRow,
@@ -353,9 +354,9 @@ export default async function PlatformDashboardPage() {
           />
           <KpiCard
             label="Plan / usage"
-            value={usage.plan === "pro" ? "Pro" : "Free"}
+            value={planTierShortLabel(usage.plan)}
             icon={Sparkles}
-            tone={usage.plan === "pro" ? "violet" : "zinc"}
+            tone={planTierKpiTone(usage.plan)}
             helper={`Audits ${usage.usage.audit}/${usage.limits.audits_per_month} · Content ${usage.usage.content}/${usage.limits.content_generations_per_month}`}
           />
           </div>

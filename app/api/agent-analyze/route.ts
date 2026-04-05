@@ -74,10 +74,25 @@ export async function POST(req: Request) {
     });
 
     const resultJson = analysisCompletion.choices[0].message.content;
+    if (!resultJson?.trim()) {
+      return NextResponse.json(
+        { error: "Empty model response." },
+        { status: 502 }
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(resultJson);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON from model." },
+        { status: 502 }
+      );
+    }
 
     await incrementUsage(supabase, "content", clientId);
 
-    return NextResponse.json(JSON.parse(resultJson!));
+    return NextResponse.json(parsed);
   } catch (error: unknown) {
     console.error("Agent Hiba:", error);
     return NextResponse.json(

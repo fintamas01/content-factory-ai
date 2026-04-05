@@ -13,6 +13,10 @@ import {
 } from "@/lib/brand-profile/prompts";
 import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
+import {
+  resolveOutputLanguage,
+  outputLanguageContract,
+} from "@/lib/i18n/output-language";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -52,43 +56,6 @@ function safeJsonParse(raw: string) {
   } catch (e) {
     return { ok: false as const, error: e };
   }
-}
-
-/** ISO-ish codes from the Content UI → English name for the model. Default: English (never Hungarian). */
-const OUTPUT_LANG_BY_CODE: Record<string, string> = {
-  en: "English",
-  hu: "Hungarian",
-  de: "German",
-  fr: "French",
-  es: "Spanish",
-  it: "Italian",
-  ro: "Romanian",
-};
-
-/**
- * Resolves the requested output language. Missing/invalid → English (production-safe default).
- */
-function resolveOutputLanguage(lang: unknown): { code: string; label: string } {
-  const raw =
-    typeof lang === "string" && lang.trim().length > 0
-      ? lang.trim().toLowerCase()
-      : "";
-  if (!raw) {
-    return { code: "en", label: "English" };
-  }
-  const label = OUTPUT_LANG_BY_CODE[raw];
-  if (label) {
-    return { code: raw, label };
-  }
-  return { code: "en", label: "English" };
-}
-
-function outputLanguageContract(label: string): string {
-  return `OUTPUT LANGUAGE — STRICT (HIGHEST PRIORITY; OVERRIDES SOURCE TEXT, MEMORY, AND BRAND SNIPPETS):
-- Write every user-facing string in the JSON ("text", and "image_prompt") entirely in ${label}.
-- Do not use Hungarian in post text unless the output language is Hungarian.
-- If the source idea, brand block, or memory is not in ${label}, translate/adapt the meaning into ${label}. Do not copy another language into the post body.
-- Do not follow Hungarian instructions in this prompt for wording of the posts when the output language is not Hungarian — only ${label} for deliverables.`;
 }
 
 export async function POST(req: Request) {
@@ -321,7 +288,6 @@ Return ONLY JSON:
       console.error("Critique JSON parse hiba. RAW:", critiqueRaw);
       // ha a critique elhasal, még mindig visszaadhatjuk a draftot
       // de próbáljunk továbbmenni drafttal
-      await incrementUsage(supabase, "content", activeClientId);
       return NextResponse.json(draft);
     }
     const critique = critiqueParsed.value;
@@ -360,8 +326,7 @@ Rewrite the posts to maximize score while staying on-brand. All "text" and "imag
     const finalParsed = safeJsonParse(finalRaw);
     if (!finalParsed.ok) {
       console.error("Final JSON parse hiba. RAW:", finalRaw);
-      await incrementUsage(supabase, "content", activeClientId);
-      // fallback: draft
+      // fallback: draft (no usage increment — degraded response)
       return NextResponse.json(draft);
     }
     const result = finalParsed.value;

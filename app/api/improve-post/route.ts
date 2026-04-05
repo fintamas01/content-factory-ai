@@ -2,41 +2,47 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
+import { resolveOutputLanguage } from "@/lib/i18n/output-language";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
-    const { content, critique, suggestions } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { content, critique, suggestions, lang } = body;
 
-    if (!content || !critique) {
+    if (!content || typeof content !== "string" || !critique || typeof critique !== "string") {
       return NextResponse.json(
-        { error: "Hiányzó adatok az újraíráshoz." },
+        { error: "Missing content or critique for rewrite." },
         { status: 400 }
       );
     }
+
+    const list = Array.isArray(suggestions) ? suggestions.filter((s: unknown) => typeof s === "string") : [];
+    const { label: targetLang } = resolveOutputLanguage(lang);
 
     const gate = await requireSessionClientAndUsageAllowance("content");
     if (!gate.ok) return gate.response;
 
     const { supabase, clientId } = gate;
 
-    const prompt = `
-    Te egy profi Senior Social Media Copywriter vagy.
-    Az alábbi posztot egy AI Viral Agent elemezte az élő webtrendek alapján, és ezt a kritikát fogalmazta meg:
-    "${critique}"
+    const prompt = `You are a senior social media copywriter.
 
-    A kötelezően beépítendő javaslatok:
-    ${suggestions.map((s: string) => `- ${s}`).join("\n")}
+Critique from the analyzer:
+"${critique}"
 
-    EREDETI POSZT:
-    "${content}"
+Suggestions to incorporate (use all that apply):
+${list.map((s: string) => `- ${s}`).join("\n")}
 
-    FELADAT:
-    Írd át a posztot úgy, hogy TÖKÉLETESEN beépíted a javaslatokat és kijavítod a kritizált hibákat. 
-    A poszt legyen sokkal virálisabb, figyelemfelkeltőbb, és illeszkedjen az aktuális trendekhez.
-    CSAK AZ ÚJ POSZT SZÖVEGÉT ADD VISSZA formázva, semmi más magyarázatot ne fűzz hozzá!
-    `;
+ORIGINAL POST:
+"${content}"
+
+TASK:
+Rewrite the post so it fully addresses the critique and incorporates the suggestions. Make it more engaging and aligned with current social trends.
+
+OUTPUT LANGUAGE — STRICT: Write the entire post only in ${targetLang}. Do not use Hungarian unless the output language is Hungarian.
+
+Return ONLY the new post text — no preamble, no quotes around the whole thing, no explanation.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -44,14 +50,20 @@ export async function POST(req: Request) {
     });
 
     const updatedText = completion.choices[0].message.content?.trim();
+    if (!updatedText) {
+      return NextResponse.json(
+        { error: "Empty model response." },
+        { status: 502 }
+      );
+    }
 
     await incrementUsage(supabase, "content", clientId);
 
     return NextResponse.json({ updatedText });
   } catch (error: unknown) {
-    console.error("Improvement Hiba:", error);
+    console.error("improve-post:", error);
     return NextResponse.json(
-      { error: "Hiba az AI újraírás közben." },
+      { error: "Something went wrong while rewriting the post." },
       { status: 500 }
     );
   }

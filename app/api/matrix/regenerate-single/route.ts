@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
+import {
+  resolveOutputLanguage,
+  outputLanguageContractMatrixPack,
+} from "@/lib/i18n/output-language";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -12,40 +16,44 @@ export async function POST(req: Request) {
 
     const { supabase, clientId } = gate;
 
-    const { brand, audience, topic, tone, day, platform, currentPost } =
-      await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { brand, audience, topic, tone, day, platform, currentPost, lang } = body;
+    const { label: outputLabel } = resolveOutputLanguage(lang);
+    const langBlock = outputLanguageContractMatrixPack(outputLabel);
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: `Profi social media manager vagy. Hangnem: "${tone}".
-            
-            FELADAT: Írd újra a megadott social media posztot.
-            A felhasználónak nem tetszett az előző verzió, ezért csinálj egy KREATÍVABB, JOBB változatot ugyanarra a témára/napra.
-            
-            Generálj hozzá "slides" tömböt is (carousel szövegek), edukatív stílusban.
-            
-            JSON Válasz formátum:
+          content: `You are an expert social media manager. Tone: "${String(tone ?? "")}".
+
+            TASK: Rewrite the given social post in ${outputLabel}.
+            The user wants a more creative, stronger version for the same day/topic—do not repeat the old title or angle.
+
+            Include a "slides" array (carousel card copy) where it makes sense, educational and clear.
+
+            JSON response shape:
             {
-              "title": "Új, ütős cím",
-              "outline": "Új stratégiai megközelítés...",
-              "content": "A kész poszt szövege...",
-              "slides": ["Dia 1 szöveg", "Dia 2 szöveg", "Dia 3 szöveg", "Dia 4 szöveg"]
-            }`,
+              "title": "New compelling title",
+              "outline": "Updated strategic angle...",
+              "content": "Full post copy...",
+              "slides": ["Slide 1", "Slide 2", "Slide 3", "Slide 4"]
+            }
+
+            ${langBlock}`,
         },
         {
           role: "user",
           content: `
-            Márka: ${brand}
-            Célközönség: ${audience}
-            Téma: ${topic}
-            Nap: ${day}
-            Platform: ${platform}
-            
-            Ezt írtad előzőleg (EZT NE ISMÉTELD MEG, LEGYEN MÁS): 
-            "${currentPost.title}"
+            Brand: ${String(brand ?? "")}
+            Audience: ${String(audience ?? "")}
+            Topic: ${String(topic ?? "")}
+            Day: ${String(day ?? "")}
+            Platform: ${String(platform ?? "")}
+
+            Previous title to improve on (do not repeat; make it different):
+            "${currentPost?.title ?? ""}"
             `,
         },
       ],
@@ -67,6 +75,6 @@ export async function POST(req: Request) {
     });
   } catch (error: unknown) {
     console.error("Remix Error:", error);
-    return NextResponse.json({ error: "Szerver hiba" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

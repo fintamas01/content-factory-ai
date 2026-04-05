@@ -40,6 +40,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const body = await req.json().catch(() => ({}));
     const healthFromClient = parseHealthBody(body?.health);
+    const lang = typeof body?.lang === "string" ? body.lang.trim() : "";
 
     const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -135,6 +136,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         existingDescription: stripHtmlForAnalysis(existingDescription) || existingDescription,
         existingShortDescription: stripHtmlForAnalysis(existingShortDescription) || existingShortDescription,
         goal: "improve",
+        lang: lang || undefined,
       },
       brandProfile: brand,
       openaiApiKey: process.env.OPENAI_API_KEY,

@@ -20,14 +20,14 @@ export type SaasMonthlyLimits = {
 /** Logical limits per tier (not tied to Stripe product ids). */
 export const SAAS_LIMITS: Record<PlanTier, SaasMonthlyLimits> = {
   free: {
-    content_generations_per_month: 10,
-    product_generations_per_month: 10,
-    audits_per_month: 5,
+    content_generations_per_month: 3,
+    product_generations_per_month: 3,
+    audits_per_month: 3,
   },
   pro: {
-    content_generations_per_month: 500,
-    product_generations_per_month: 500,
-    audits_per_month: 100,
+    content_generations_per_month: 50,
+    product_generations_per_month: 50,
+    audits_per_month: 30,
   },
   elite: {
     content_generations_per_month: 500,
@@ -54,7 +54,7 @@ function getStripePriceIds() {
 
 /**
  * Resolve plan tier for usage limits.
- * - Active subscription with Elite Stripe price → elite (same quotas as pro + Elite features).
+ * - Active subscription with Elite Stripe price → elite (highest quotas + Elite features).
  * - Active Basic or Pro → pro.
  * - Otherwise → free.
  */

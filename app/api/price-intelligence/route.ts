@@ -6,7 +6,7 @@ import { assertPriceIntelligenceAccess } from "@/lib/price-intelligence/elite-ga
 import { assertPublicProductUrl } from "@/lib/price-intelligence/ssrf-guard";
 import { scrapeCompetitorPrice } from "@/lib/price-intelligence/scrape-price";
 import { computeDifferencePct } from "@/lib/price-intelligence/compute";
-import { generatePriceRecommendation } from "@/lib/price-intelligence/openai-recommendation";
+import { generatePriceRecommendationOrFallback } from "@/lib/price-intelligence/openai-recommendation";
 import type { PriceTrackingRow } from "@/lib/price-intelligence/types";
 
 function bad(message: string, status = 400) {
@@ -75,8 +75,6 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) return bad("OpenAI is not configured.", 500);
-
     const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnon =
@@ -154,19 +152,13 @@ export async function POST(req: Request) {
 
     const difference_pct = computeDifferencePct(ownNum, competitor_price);
 
-    let recommendation: string;
-    try {
-      recommendation = await generatePriceRecommendation({
-        productName: product_name,
-        ownPrice: ownNum,
-        competitorPrice: competitor_price,
-        differencePct: difference_pct,
-        scrapeFailed,
-      });
-    } catch (e) {
-      console.error("price intel openai:", e);
-      return bad("Could not generate recommendation.", 500);
-    }
+    const recommendation = await generatePriceRecommendationOrFallback({
+      productName: product_name,
+      ownPrice: ownNum,
+      competitorPrice: competitor_price,
+      differencePct: difference_pct,
+      scrapeFailed,
+    });
 
     const { data: row, error: insErr } = await supabase
       .from("price_tracking")

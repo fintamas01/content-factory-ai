@@ -97,6 +97,7 @@ export async function POST(req: Request) {
         : "manual";
     const sourceMeta =
       body?.sourceMeta && typeof body.sourceMeta === "object" ? body.sourceMeta : null;
+    const lang = typeof body?.lang === "string" ? body.lang.trim() : "";
 
     const input_data = {
       productDetails: productDetails || undefined,
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
       existingShortDescription: existingShortDescription || undefined,
       source,
       sourceMeta,
+      lang: lang || undefined,
     };
 
     const unified = await fetchUserBrandProfile(supabase, user.id, activeClientId);
@@ -125,6 +127,7 @@ export async function POST(req: Request) {
           existingTitle || existingDescription || existingShortDescription
             ? "improve"
             : "generate",
+        lang: lang || undefined,
       },
       brandProfile: unified,
       openaiApiKey: process.env.OPENAI_API_KEY,

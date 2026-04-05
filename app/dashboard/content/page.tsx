@@ -1,5 +1,6 @@
 "use client";
 import { ModulePageHeader } from "@/app/components/platform/ModulePageHeader";
+import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import { Button } from "@/app/components/ui/Button";
 import { Textarea } from "@/app/components/ui/Textarea";
@@ -52,16 +53,6 @@ const panel =
 
 const sectionLabel =
   "text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500";
-
-const languages = [
-  { code: "en", name: "English" },
-  { code: "hu", name: "Hungarian" },
-  { code: "de", name: "German" },
-  { code: "fr", name: "French" },
-  { code: "es", name: "Spanish" },
-  { code: "it", name: "Italian" },
-  { code: "ro", name: "Romanian" },
-];
 
 const templates = [
   { id: "custom", name: "✨ Pro content", prompt: "" },
@@ -515,7 +506,7 @@ export default function DashboardPage() {
                 onChange={(e) => setLang(e.target.value)}
                 className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white outline-none"
               >
-                {languages.map((l) => (
+                {OUTPUT_LANGUAGE_OPTIONS.map((l) => (
                   <option key={l.code} value={l.code}>
                     {l.name}
                   </option>
@@ -776,7 +767,8 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
         body: JSON.stringify({
           content: content,
           critique: agentResult.critique,
-          suggestions: agentResult.suggestions
+          suggestions: agentResult.suggestions,
+          lang,
         })
       });
       

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Sparkles } from "lucide-react";
+import { isPaidPlanTier, planTierShortLabel } from "@/lib/usage/plan-ui";
 import type { UsageSummary } from "@/lib/usage/types";
 
 type Feature = "content" | "product" | "audit";
@@ -106,7 +107,7 @@ export function ModuleUsageBanner({
   const pct = Math.round(ratio * 100);
   const atLimit = used >= cap;
   const warn = !atLimit && ratio >= 0.8;
-  const isPro = summary.plan === "pro";
+  const paid = isPaidPlanTier(summary.plan);
 
   const u = summary.usage;
   const L = summary.limits;
@@ -128,10 +129,19 @@ export function ModuleUsageBanner({
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-500">
               Plan & usage
             </span>
-            {isPro ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/35 bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-300 dark:text-blue-200">
-                <Sparkles className="h-3 w-3 text-blue-400" aria-hidden />
-                Pro
+            {paid ? (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ${
+                  summary.plan === "elite"
+                    ? "border-amber-500/35 bg-amber-500/10 text-amber-100 dark:text-amber-100"
+                    : "border-blue-500/35 bg-blue-500/10 text-blue-300 dark:text-blue-200"
+                }`}
+              >
+                <Sparkles
+                  className={`h-3 w-3 ${summary.plan === "elite" ? "text-amber-300" : "text-blue-400"}`}
+                  aria-hidden
+                />
+                {planTierShortLabel(summary.plan)}
               </span>
             ) : (
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400">
@@ -214,7 +224,7 @@ export function ModuleUsageBanner({
             </Link>{" "}
             for more headroom.
           </p>
-        ) : !isPro ? (
+        ) : !paid ? (
           <p className="mt-4 text-[11px] font-medium leading-relaxed text-slate-500 dark:text-slate-500">
             On Free, limits reset each calendar month.{" "}
             <Link

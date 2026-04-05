@@ -57,11 +57,26 @@ Magyarul válaszolj!
       response_format: { type: "json_object" },
     });
 
-    const result = completion.choices[0].message.content;
+    const raw = completion.choices[0].message.content;
+    if (!raw?.trim()) {
+      return NextResponse.json(
+        { error: "Empty model response." },
+        { status: 502 }
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON from model." },
+        { status: 502 }
+      );
+    }
 
     await incrementUsage(supabase, "content", clientId);
 
-    return NextResponse.json(JSON.parse(result!));
+    return NextResponse.json(parsed);
   } catch (err: unknown) {
     console.error("Brand Voice Analyze Error:", err);
     return NextResponse.json(

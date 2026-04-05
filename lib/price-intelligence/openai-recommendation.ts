@@ -1,5 +1,42 @@
 import OpenAI from "openai";
 
+/** Static brief when OpenAI is unavailable — honest about limits, no fake precision. */
+export function buildFallbackRecommendation(args: {
+  productName: string;
+  ownPrice: number | null;
+  competitorPrice: number | null;
+  differencePct: number | null;
+  scrapeFailed: boolean;
+}): string {
+  const name = args.productName.trim() || "this product";
+  const comp =
+    args.competitorPrice != null && Number.isFinite(args.competitorPrice)
+      ? `A scraped competitor price of about $${args.competitorPrice.toFixed(2)} was recorded, but automated reads are often wrong (tax, variants, bundles).`
+      : null;
+  const scrapeLine =
+    args.scrapeFailed || args.competitorPrice == null
+      ? "Snapshot — No reliable competitor price was extracted from the page (blocking, JavaScript-rendered prices, or unusual markup). Open the listing and confirm the live price before you react."
+      : `Snapshot — ${comp} Confirm the number on the seller’s site.`;
+
+  const ownLine =
+    args.ownPrice != null && Number.isFinite(args.ownPrice)
+      ? `Your stored price is $${args.ownPrice.toFixed(2)}.`
+      : "Your price was not provided—add it to measure a meaningful gap.";
+
+  const gapLine =
+    args.differencePct != null && Number.isFinite(args.differencePct) && args.ownPrice != null && args.competitorPrice != null
+      ? ` The computed gap is about ${args.differencePct >= 0 ? "+" : ""}${args.differencePct.toFixed(1)}% (competitor vs yours)—treat as indicative only.`
+      : "";
+
+  return `${scrapeLine} ${ownLine}${gapLine}
+
+Positioning & perceived value — Automated scraping is a noisy signal. Anchor decisions on your positioning for “${name}”: proof (reviews, materials, outcomes), who it is for, and what would cheapen perception if you cut price without a story.
+
+Moves — • Verify the competitor’s live price and your landed cost before any list-price change. • Prefer non-price tests first: bundle, shipping threshold, first-order incentive, or a clearer variant line. • If you move price, pair it with a specific value add (warranty, speed, clarity) so it does not read as a panic discount.
+
+Note — Full AI analysis is temporarily unavailable; this is a fixed safety summary. Retry later or refresh when the service is back.`;
+}
+
 function describeSituation(args: {
   ownPrice: number | null;
   competitorPrice: number | null;
@@ -103,4 +140,27 @@ export async function generatePriceRecommendation(args: {
   const text = r.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("Empty model response.");
   return text;
+}
+
+/**
+ * Uses OpenAI when configured and healthy; otherwise returns {@link buildFallbackRecommendation}
+ * so Elite users can still save and refresh rows without a hard failure.
+ */
+export async function generatePriceRecommendationOrFallback(args: {
+  productName: string;
+  ownPrice: number | null;
+  competitorPrice: number | null;
+  differencePct: number | null;
+  scrapeFailed: boolean;
+}): Promise<string> {
+  const key = process.env.OPENAI_API_KEY?.trim();
+  if (!key) {
+    return buildFallbackRecommendation(args);
+  }
+  try {
+    return await generatePriceRecommendation(args);
+  } catch (e) {
+    console.error("price intel OpenAI failure, using fallback:", e);
+    return buildFallbackRecommendation(args);
+  }
 }

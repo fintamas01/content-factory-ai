@@ -170,9 +170,9 @@ export default function PriceIntelligencePage() {
 
       <PageHero
         icon={<BarChart3 className="h-6 w-6" />}
-        eyebrow="Elite · Competitive pricing"
+        eyebrow="Elite · Competitive pricing · Beta"
         title="Price Intelligence"
-        description="Track a competitor URL, compare against your price, and get positioning guidance—not just “go cheaper.” Scraped prices are approximate; verify before you act."
+        description="Beta: track a competitor URL, compare against your price, and get positioning guidance—not just “go cheaper.” Automated reads are often incomplete or wrong; always confirm prices on the seller’s site before you act."
       />
 
       {loading ? (
@@ -213,7 +213,8 @@ export default function PriceIntelligencePage() {
             <h2 className="text-lg font-semibold text-white">Add competitor</h2>
             <p className="mt-1 text-sm text-white/50">
               Paste a public product page URL. We fetch HTML server-side and extract a best-effort
-              price.
+              price (many stores block bots or load prices in JavaScript—null or odd numbers are
+              normal).
             </p>
             <form onSubmit={onSubmit} className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">

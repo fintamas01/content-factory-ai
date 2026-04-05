@@ -84,9 +84,13 @@ export async function middleware(request: NextRequest) {
   // - /onboarding/* always allowed
   // - Keeps behavior production-safe (RLS-protected table, no auth changes)
   const isOnboardingPath = pathname === "/onboarding" || pathname.startsWith("/onboarding/");
-  const isDashboardPath = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+  /** App areas that assume onboarding is done (same as dashboard for gating). */
+  const isAppPathRequiringOnboarding =
+    pathname === "/settings" ||
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/");
 
-  if (user && isDashboardPath) {
+  if (user && isAppPathRequiringOnboarding) {
     const { data: onboardingRow } = await supabase
       .from("user_onboarding")
       .select("onboarding_completed")

@@ -6,7 +6,7 @@ import { assertPriceIntelligenceAccess } from "@/lib/price-intelligence/elite-ga
 import { assertPublicProductUrl } from "@/lib/price-intelligence/ssrf-guard";
 import { scrapeCompetitorPrice } from "@/lib/price-intelligence/scrape-price";
 import { computeDifferencePct } from "@/lib/price-intelligence/compute";
-import { generatePriceRecommendation } from "@/lib/price-intelligence/openai-recommendation";
+import { generatePriceRecommendationOrFallback } from "@/lib/price-intelligence/openai-recommendation";
 import { createNotification } from "@/lib/notifications/server";
 import type { PriceTrackingRow } from "@/lib/price-intelligence/types";
 
@@ -21,8 +21,6 @@ function priceChanged(a: number | null, b: number | null): boolean {
 
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    if (!process.env.OPENAI_API_KEY) return bad("OpenAI is not configured.", 500);
-
     const { id } = await ctx.params;
     if (!id) return bad("Missing id.");
 
@@ -98,19 +96,13 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     const ownNum = row.own_price != null ? Number(row.own_price) : null;
     const difference_pct = computeDifferencePct(ownNum, competitor_price);
 
-    let recommendation: string;
-    try {
-      recommendation = await generatePriceRecommendation({
-        productName: row.product_name,
-        ownPrice: ownNum,
-        competitorPrice: competitor_price,
-        differencePct: difference_pct,
-        scrapeFailed,
-      });
-    } catch (e) {
-      console.error("price intel openai refresh:", e);
-      return bad("Could not refresh recommendation.", 500);
-    }
+    const recommendation = await generatePriceRecommendationOrFallback({
+      productName: row.product_name,
+      ownPrice: ownNum,
+      competitorPrice: competitor_price,
+      differencePct: difference_pct,
+      scrapeFailed,
+    });
 
     const { data: updated, error: upErr } = await supabase
       .from("price_tracking")

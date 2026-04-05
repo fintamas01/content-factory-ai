@@ -5,6 +5,7 @@ import PosterCanvas from "@/app/components/poster/PosterCanvas";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { getTemplateById } from "@/lib/poster/templates/registry";
+import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
 
 type BrandProfileRow = {
   id: string;
@@ -65,6 +66,7 @@ export default function PosterStudioClient({
   const [description, setDescription] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [outputLang, setOutputLang] = useState("en");
 
   // --- Template state (URL param prop alapján) ---
   const [template, setTemplate] = useState(() =>
@@ -94,8 +96,7 @@ export default function PosterStudioClient({
     };
   }, [selectedBrand]);
 
-  const tone = "szakmai";
-  const lang = "hu";
+  const tone = "professional";
 
   // --- 1) Load brands ---
   useEffect(() => {
@@ -213,7 +214,7 @@ export default function PosterStudioClient({
 
   const handleAICopy = async () => {
     if (!description.trim()) {
-      alert("Írj be egy leírást!");
+      alert("Enter a short brief for the poster.");
       return;
     }
     setGenerating(true);
@@ -225,7 +226,7 @@ export default function PosterStudioClient({
           description,
           url: linkUrl || null,
           platform: "instagram_post",
-          lang,
+          lang: outputLang,
           tone,
           brandProfile,
         }),
@@ -233,14 +234,14 @@ export default function PosterStudioClient({
 
       const data = await res.json();
       if (!res.ok) {
-        alert(data?.error || "AI hiba");
+        alert(data?.error || "Could not generate copy.");
         return;
       }
 
       applyCopyToTemplate(data.headline, data.sub, data.cta);
     } catch (e) {
       console.error(e);
-      alert("AI hiba");
+      alert("Could not generate copy.");
     } finally {
       setGenerating(false);
     }
@@ -339,7 +340,22 @@ export default function PosterStudioClient({
           <div className="pt-3 border-t border-white/10" />
 
           {/* AI COPY */}
-          <div className="text-white font-medium">AI szöveg a plakátra</div>
+          <div className="text-white font-medium">Poster copy (AI)</div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-white/50">Output language</span>
+            <select
+              value={outputLang}
+              onChange={(e) => setOutputLang(e.target.value)}
+              className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none"
+            >
+              {OUTPUT_LANGUAGE_OPTIONS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <textarea
             value={description}

@@ -8,10 +8,10 @@ import { POSTER_TEMPLATES } from "@/lib/poster/templates/registry";
 import { Lock, Search, Sparkles } from "lucide-react";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
 
-type Plan = "free" | "basic" | "pro";
+type Plan = "free" | "basic" | "pro" | "elite";
 
 function getUnlockedCount(plan: Plan) {
-  if (plan === "pro") return 999;
+  if (plan === "pro" || plan === "elite") return 999;
   if (plan === "basic") return 6;
   return 2; // free
 }
@@ -46,6 +46,8 @@ export default function PosterTemplatesPage() {
 
       if (priceId && priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) {
         setPlan("pro");
+      } else if (priceId && priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE) {
+        setPlan("elite");
       } else if (
         priceId &&
         priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC

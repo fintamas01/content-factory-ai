@@ -262,7 +262,7 @@ export async function runPlaybook(args: {
             args.clientId
           );
           const gen = await generateProductCopy({
-            input: { productName },
+            input: { productName, lang: "en" },
             brandProfile: unified,
             openaiApiKey: process.env.OPENAI_API_KEY,
           });

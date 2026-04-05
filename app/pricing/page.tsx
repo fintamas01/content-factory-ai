@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, Check, Sparkles, Zap } from "lucide-react";
+import { ArrowRight, BarChart3, Check, Sparkles, Zap } from "lucide-react";
 import { getPlanMarketingCards } from "@/lib/billing/pricing";
 import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 
 export const metadata = {
   title: `Pricing — ${PLATFORM_DISPLAY_NAME}`,
-  description: "Free and Pro plans with clear monthly limits.",
+  description: "Free, Pro, and Elite plans with clear monthly limits for content, products, and audits.",
 };
 
 export default function PricingPage() {
-  const { free, pro } = getPlanMarketingCards();
+  const { free, pro, elite } = getPlanMarketingCards();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#030712] text-slate-100">
@@ -26,7 +26,7 @@ export default function PricingPage() {
         aria-hidden
       />
 
-      <div className="relative mx-auto max-w-5xl px-5 py-20 md:px-8 md:py-24">
+      <div className="relative mx-auto max-w-6xl px-5 py-20 md:px-8 md:py-24">
         <header className="text-center md:text-left">
           <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-400/90">
             Pricing
@@ -38,11 +38,11 @@ export default function PricingPage() {
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-sm font-medium leading-relaxed text-slate-400 md:mx-0">
-            Start free. Move to Pro when you need higher monthly limits across every module.
+            Start free. Upgrade to Pro or Elite when you need higher monthly limits across every module.
           </p>
         </header>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-2 lg:gap-8 lg:items-stretch">
+        <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:gap-6 lg:items-stretch">
           {/* Free */}
           <section className="group relative flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-sm transition hover:border-white/[0.12]">
             <div className="flex items-start justify-between gap-4">
@@ -143,6 +143,65 @@ export default function PricingPage() {
                 <ArrowRight className="h-5 w-5" aria-hidden />
               </Link>
               <p className="text-center text-[11px] font-medium text-blue-200/45">
+                Sign in required · Cancel anytime from billing
+              </p>
+            </div>
+          </section>
+
+          {/* Elite */}
+          <section className="relative flex flex-col overflow-hidden rounded-3xl border border-amber-500/35 bg-gradient-to-b from-amber-500/[0.12] via-[#0f1218] to-[#050810] p-8 shadow-[0_0_0_1px_rgba(245,158,11,0.15)]">
+            <div
+              className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-violet-600/20 blur-3xl"
+              aria-hidden
+            />
+            <div className="relative flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200/80">
+                  Top tier
+                </p>
+                <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight text-white">
+                  {elite.name}
+                  <BarChart3 className="h-5 w-5 text-amber-200/90" aria-hidden />
+                </h2>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-violet-600 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-amber-900/30">
+                Elite
+              </span>
+            </div>
+
+            <div className="relative mt-6 flex items-baseline gap-1.5">
+              <span className="text-5xl font-black tabular-nums tracking-tight text-white">
+                {elite.priceLine}
+              </span>
+              <span className="text-sm font-medium text-amber-200/50">/ {elite.periodNote}</span>
+            </div>
+            <p className="relative mt-2 text-xs text-amber-100/50">
+              Highest quotas · Price Intelligence and premium features
+            </p>
+
+            <ul className="relative mt-8 flex flex-1 flex-col gap-2.5">
+              {elite.bullets.map((b) => (
+                <li
+                  key={b}
+                  className="flex items-start gap-3 text-[13px] leading-snug text-amber-50/95"
+                >
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-amber-400/30 bg-amber-500/15">
+                    <Check className="h-3 w-3 text-amber-200" strokeWidth={2.5} aria-hidden />
+                  </span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+
+            <div className="relative mt-10 space-y-3">
+              <Link
+                href="/dashboard/billing"
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-violet-700 text-[15px] font-black text-white shadow-[0_8px_32px_-4px_rgba(245,158,11,0.45)] ring-1 ring-white/15 transition hover:brightness-110 active:scale-[0.99]"
+              >
+                Upgrade to Elite
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </Link>
+              <p className="text-center text-[11px] font-medium text-amber-200/40">
                 Sign in required · Cancel anytime from billing
               </p>
             </div>

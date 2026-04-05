@@ -7,6 +7,7 @@ import { getTemplateById } from "@/lib/poster/templates/registry";
 import { createBrowserClient } from "@supabase/ssr";
 import Link from "next/link";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
 
 type BrandProfileRow = {
   id: string;
@@ -65,6 +66,7 @@ function PosterStudioContent() {
   const [description, setDescription] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [outputLang, setOutputLang] = useState("en");
 
   // --- Template: from URL ?template= or default ---
   const searchParams = useSearchParams();
@@ -106,8 +108,7 @@ function PosterStudioContent() {
     };
   }, [selectedBrand?.id]);
 
-  const tone = "szakmai";
-  const lang = "hu";
+  const tone = "professional";
 
   useCopilotPageContext({
     page: "poster",
@@ -124,6 +125,7 @@ function PosterStudioContent() {
         descriptionPreview: description.slice(0, 900),
         linkUrl: linkUrl.trim() || null,
         generating,
+        outputLang,
       },
     },
   });
@@ -292,7 +294,7 @@ function PosterStudioContent() {
 
   const handleAICopy = async () => {
     if (!description.trim()) {
-      alert("Írj be egy leírást!");
+      alert("Enter a short brief for the poster.");
       return;
     }
     setGenerating(true);
@@ -304,7 +306,7 @@ function PosterStudioContent() {
           description,
           url: linkUrl || null,
           platform: "instagram_post",
-          lang,
+          lang: outputLang,
           tone,
           brandProfile,
         }),
@@ -312,14 +314,14 @@ function PosterStudioContent() {
 
       const data = await res.json();
       if (!res.ok) {
-        alert(data?.error || "AI hiba");
+        alert(data?.error || "Could not generate copy.");
         return;
       }
 
       applyCopyToTemplate(data.headline, data.sub, data.cta);
     } catch (e) {
       console.error(e);
-      alert("AI hiba");
+      alert("Could not generate copy.");
     } finally {
       setGenerating(false);
     }
@@ -495,12 +497,27 @@ function PosterStudioContent() {
           <div className="pt-3 border-t border-white/10" />
 
           {/* ✅ AI COPY */}
-          <div className="text-white font-medium">AI szöveg a plakátra</div>
+          <div className="text-white font-medium">Poster copy (AI)</div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-white/50">Output language</span>
+            <select
+              value={outputLang}
+              onChange={(e) => setOutputLang(e.target.value)}
+              className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none"
+            >
+              {OUTPUT_LANGUAGE_OPTIONS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Írd le röviden, miről szól a plakát (szolgáltatás, ajánlat, esemény, stb.)…"
+            placeholder="Briefly describe the poster (offer, event, product…)"
             className="w-full min-h-[120px] rounded-2xl bg-black/30 border border-white/10 p-3 text-white/90 placeholder:text-white/30 focus:outline-none"
           />
 
