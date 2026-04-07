@@ -4,6 +4,7 @@ import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
 import { ModuleUsageBanner } from "@/app/components/platform/ModuleUsageBanner";
 import { Button } from "@/app/components/ui/Button";
 import { Textarea } from "@/app/components/ui/Textarea";
+import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import {
   Sparkles,
@@ -97,6 +98,7 @@ function normalizeTone(raw: string): string {
 const allPlatforms = [
   { id: 'LinkedIn', label: 'LinkedIn' },
   { id: 'Instagram', label: 'Instagram' },
+  { id: 'Facebook', label: 'Facebook' },
   { id: 'X (Twitter)', label: 'X (Twitter)' },
   { id: 'Newsletter', label: 'Newsletter' },
   { id: 'TikTok Script', label: 'TikTok Script' },
@@ -459,30 +461,38 @@ export default function DashboardPage() {
               Generate multi-platform copy from one brief—fast, on-brand, and ready to ship.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setUseResearch(!useResearch)}
-            className={`flex items-center gap-3 rounded-2xl border px-5 py-3 transition-all ${
-              useResearch
-                ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-200"
-                : "border-white/10 bg-white/[0.04] text-zinc-500"
-            }`}
-          >
-            <Search className={`h-4 w-4 ${useResearch ? "animate-pulse" : ""}`} />
-            <span className="text-[11px] font-black uppercase tracking-[0.2em]">
-              Deep research {useResearch ? "on" : "off"}
-            </span>
-            <div
-              className={`relative h-4 w-8 rounded-full transition-colors ${
-                useResearch ? "bg-cyan-500" : "bg-zinc-700"
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/dashboard/social-connections"
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-[11px] font-black uppercase tracking-[0.2em] text-white/85 transition hover:bg-white/[0.08]"
+            >
+              Connect social accounts
+            </Link>
+            <button
+              type="button"
+              onClick={() => setUseResearch(!useResearch)}
+              className={`flex items-center gap-3 rounded-2xl border px-5 py-3 transition-all ${
+                useResearch
+                  ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-200"
+                  : "border-white/10 bg-white/[0.04] text-zinc-500"
               }`}
             >
-              <motion.div
-                animate={{ x: useResearch ? 16 : 2 }}
-                className="absolute top-1 h-2 w-2 rounded-full bg-white"
-              />
-            </div>
-          </button>
+              <Search className={`h-4 w-4 ${useResearch ? "animate-pulse" : ""}`} />
+              <span className="text-[11px] font-black uppercase tracking-[0.2em]">
+                Deep research {useResearch ? "on" : "off"}
+              </span>
+              <div
+                className={`relative h-4 w-8 rounded-full transition-colors ${
+                  useResearch ? "bg-cyan-500" : "bg-zinc-700"
+                }`}
+              >
+                <motion.div
+                  animate={{ x: useResearch ? 16 : 2 }}
+                  className="absolute top-1 h-2 w-2 rounded-full bg-white"
+                />
+              </div>
+            </button>
+          </div>
         </div>
 
         <motion.div
@@ -788,30 +798,50 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   };
 
   const handleImmediatePost = async () => {
-    // Biztonsági ellenőrzés: csak akkor engedjük posztolni, ha már van generált kép
-    if (!imageUrl) {
+    const platform = (title || "").toString();
+    const needsImage = platform === "Instagram";
+    if (needsImage && !imageUrl) {
       alert("Generate an image first.");
       return;
     }
 
     setIsPosting(true);
     try {
-      const res = await fetch('/api/instagram/post', {
+      const publishPlatform =
+        platform === "Instagram"
+          ? "instagram"
+          : platform === "Facebook"
+            ? "facebook"
+            : platform === "LinkedIn"
+              ? "linkedin"
+              : "";
+      if (!publishPlatform) {
+        alert("Publishing is only supported for Instagram, Facebook, and LinkedIn.");
+        return;
+      }
+
+      const res = await fetch('/api/social/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          imageUrl: imageUrl, // <--- MOST MÁR A DALL-E KÉPET KÜLDI EL!
-          caption: content    // A megszerkesztett szöveg
+          platform: publishPlatform,
+          imageUrl: needsImage ? imageUrl : null,
+          text: content
         }),
       });
 
       const resData = await res.json();
 
       if (!res.ok) {
+        if (resData?.code === "NOT_CONNECTED") {
+          throw new Error(
+            `${resData.error || "Not connected."}\n\nConnect accounts in: /dashboard/social-connections`
+          );
+        }
         throw new Error(resData.error || "Something went wrong on the server.");
       }
 
-      alert("Your post was published to Instagram.");
+      alert(`Your post was published to ${platform}.`);
       setShowResultModal(false); 
       
     } catch (error: any) {
@@ -823,7 +853,9 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
   };
 
   const handleSchedulePost = async () => {
-    if (!imageUrl) {
+    const platform = (title || "").toString();
+    const needsImage = platform === "Instagram";
+    if (needsImage && !imageUrl) {
       alert("Finalize an image first.");
       return;
     }
@@ -843,11 +875,25 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
 
     setIsScheduling(true);
     try {
+      const publishPlatform =
+        platform === "Instagram"
+          ? "instagram"
+          : platform === "Facebook"
+            ? "facebook"
+            : platform === "LinkedIn"
+              ? "linkedin"
+              : "";
+      if (!publishPlatform) {
+        alert("Scheduling is only supported for Instagram, Facebook, and LinkedIn.");
+        return;
+      }
+
       const res = await fetch('/api/schedule-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          imageUrl: imageUrl, 
+          platform: publishPlatform,
+          imageUrl: needsImage ? imageUrl : null,
           caption: content,
           scheduledTime: scheduledTimeUnix
         }),
@@ -856,6 +902,11 @@ function ResultCard({ title, data, brandName, lang, userId }: any) {
       const resData = await res.json();
 
       if (!res.ok) {
+        if (resData?.code === "NOT_CONNECTED") {
+          throw new Error(
+            `${resData.error || "Not connected."}\n\nConnect accounts in: /dashboard/social-connections`
+          );
+        }
         throw new Error(resData.error || "Scheduling failed.");
       }
 

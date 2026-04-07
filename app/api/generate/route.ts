@@ -193,6 +193,8 @@ export async function POST(req: Request) {
           return "- LinkedIn: professional, authority-building; include bullets and relevant hashtags where appropriate.";
         if (p === "Instagram")
           return "- Instagram: strong hook first line; emojis where natural; include an image_prompt describing the visual.";
+        if (p === "Facebook")
+          return "- Facebook: conversational but clear; 1–3 short paragraphs; avoid hashtag stuffing; optional CTA; include image_prompt if a visual would help.";
         if (p === "X (Twitter)")
           return "- X: short, punchy; respect character limits; thread-style only if needed.";
         return `- ${p}: Match the platform’s norms and format.`;

@@ -3,10 +3,10 @@ import { getPublicSiteUrl, publicAbsoluteUrl } from "@/lib/env/public-site-url";
 
 export async function POST(req: Request) {
   try {
-    const { imageUrl, caption, scheduledTime } = await req.json();
+    const { imageUrl, caption, scheduledTime, platform } = await req.json();
 
-    if (!imageUrl || !caption || !scheduledTime) {
-      return NextResponse.json({ error: "Hiányzó adatok az ütemezéshez." }, { status: 400 });
+    if (!caption || !scheduledTime || !platform) {
+      return NextResponse.json({ error: "Missing scheduling fields." }, { status: 400 });
     }
 
     if (!getPublicSiteUrl()) {
@@ -16,9 +16,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Ez a te meglévő, tökéletesen működő posztoló API-d linkje!
-    // Ezt fogja az Upstash meghívni a jövőben.
-    const targetUrl = publicAbsoluteUrl("/api/instagram/post");
+    const targetUrl = publicAbsoluteUrl("/api/social/publish");
 
     // Elküldjük a feladatot az Upstash QStash-nek
     const response = await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {
@@ -30,8 +28,10 @@ export async function POST(req: Request) {
         'Upstash-Not-Before': scheduledTime.toString() 
       },
       body: JSON.stringify({ 
-        imageUrl: imageUrl, 
-        caption: caption 
+        platform,
+        imageUrl: imageUrl || null,
+        text: caption,
+        scheduledTime,
       })
     });
 
@@ -40,12 +40,12 @@ export async function POST(req: Request) {
       throw new Error(`Upstash hiba: ${errorText}`);
     }
 
-    return NextResponse.json({ success: true, message: "Sikeresen ütemezve!" });
+    return NextResponse.json({ success: true, message: "Scheduled." });
 
   } catch (error: any) {
-    console.error("Ütemezési hiba:", error);
+    console.error("schedule-post:", error);
     return NextResponse.json(
-      { error: error.message || "Ismeretlen hiba történt az ütemezés során." }, 
+      { error: error.message || "Scheduling failed." }, 
       { status: 500 }
     );
   }
