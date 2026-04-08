@@ -46,6 +46,9 @@ import {
 } from "@/lib/persistence/workspace-storage";
 import { WorkspaceSessionBanner } from "@/app/components/persistence/WorkspaceSessionBanner";
 import { ReviewWorkspaceStrip } from "@/app/components/review/ReviewWorkspaceStrip";
+import type { PlanTier } from "@/lib/plan-config";
+import { canAccess } from "@/lib/entitlements/features";
+import { LockedFeatureStateClient } from "@/app/components/entitlements/LockedFeatureStateClient";
 
 const shell =
   "min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#080c14] via-[#070b12] to-[#05070c] text-zinc-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-100";
@@ -98,6 +101,7 @@ interface HistoryItem {
 
 export default function ContentMatrix() {
   const [userPlan, setUserPlan] = useState('free');
+  const [gateReady, setGateReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   
@@ -152,15 +156,14 @@ export default function ContentMatrix() {
     async function loadInitialData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: sub } = await supabase
-          .from('subscriptions')
-          .select('price_id, status')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .maybeSingle();
-        
-        if (sub?.price_id) setUserPlan('pro'); 
-        else setUserPlan('free');
+        const billingRes = await fetch("/api/billing").catch(() => null);
+        if (billingRes && billingRes.ok) {
+          const j = (await billingRes.json().catch(() => ({}))) as { plan?: PlanTier };
+          setUserPlan((j.plan ?? "free") as any);
+        } else {
+          setUserPlan("free");
+        }
+        setGateReady(true);
 
         const { data: brands } = await supabase
           .from('brand_profiles')
@@ -174,6 +177,17 @@ export default function ContentMatrix() {
     }
     loadInitialData();
   }, [supabase]);
+
+  if (gateReady && !canAccess((userPlan as PlanTier) ?? "free", "contentMatrix")) {
+    return (
+      <div className={`${shell} p-4 sm:p-6 lg:p-8`}>
+        <LockedFeatureStateClient
+          featureKey="contentMatrix"
+          currentPlan={((userPlan as PlanTier) ?? "free")}
+        />
+      </div>
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;

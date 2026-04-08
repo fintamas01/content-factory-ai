@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireActiveClientId } from "@/lib/clients/server";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -47,6 +48,13 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return bad("Unauthorized.", 401);
+
+  const denied = await requireFeatureAccess({
+    supabase,
+    userId: user.id,
+    featureKey: "socialConnections",
+  });
+  if (denied) return denied;
 
   const active = await requireActiveClientId(supabase, cookieStore, user.id);
 

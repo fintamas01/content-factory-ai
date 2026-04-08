@@ -20,6 +20,7 @@ import {
   buildAutopilotInsightsUserPrompt,
 } from "@/lib/autopilot/prompt";
 import { createNotification } from "@/lib/notifications/server";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 async function getRouteCtx() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -67,6 +68,13 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
     }
+
+    const denied = await requireFeatureAccess({
+      supabase,
+      userId: user.id,
+      featureKey: "autopilot",
+    });
+    if (denied) return denied;
 
     let clientId: string;
     try {

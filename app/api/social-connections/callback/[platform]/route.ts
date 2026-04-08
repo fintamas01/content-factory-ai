@@ -9,6 +9,7 @@ import {
   fetchMetaPages,
 } from "@/lib/social/meta";
 import { encryptToken } from "@/lib/social/crypto";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 function bad(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -77,6 +78,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ platform: strin
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return bad("Unauthorized.", 401);
+
+    const denied = await requireFeatureAccess({
+      supabase,
+      userId: user.id,
+      featureKey: "socialConnections",
+    });
+    if (denied) return redirectErr("feature_locked");
 
     const u = new URL(req.url);
     const code = u.searchParams.get("code");

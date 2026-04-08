@@ -2,6 +2,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Bell,
@@ -18,6 +19,7 @@ import {
   Users,
   ClipboardCheck,
   BarChart3,
+  Lock,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
@@ -25,11 +27,21 @@ import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
 import { SIDEBAR_NAV_ITEMS, type SidebarNavId } from "@/lib/platform/navigation";
 import { SidebarPlanBadge } from "@/app/components/SidebarPlanBadge";
 import { ClientSwitcher } from "@/app/components/ClientSwitcher";
+import type { PlanTier } from "@/lib/plan-config";
+import { canAccess, type FeatureKey } from "@/lib/entitlements/features";
+import { UpgradeAccessModal } from "@/app/components/entitlements/UpgradeAccessModal";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
 );
+
+const NAV_FEATURE_KEY: Partial<Record<SidebarNavId, FeatureKey>> = {
+  autopilot: "autopilot",
+  playbooks: "playbooks",
+  team: "team",
+  priceIntelligence: "priceIntelligence",
+} as const;
 
 function isNavActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
@@ -63,6 +75,8 @@ function NavRow({
   exact,
   pathname,
   onNavigate,
+  locked,
+  onLockedClick,
 }: {
   id: SidebarNavId;
   label: string;
@@ -70,13 +84,21 @@ function NavRow({
   exact?: boolean;
   pathname: string;
   onNavigate?: () => void;
+  locked?: boolean;
+  onLockedClick?: () => void;
 }) {
   const Icon = SIDEBAR_ICONS[id];
   const active = isNavActive(pathname, href, exact);
   return (
     <Link
       href={href}
-      onClick={() => {
+      aria-disabled={locked ? true : undefined}
+      onClick={(e) => {
+        if (locked) {
+          e.preventDefault();
+          onLockedClick?.();
+          return;
+        }
         onNavigate?.();
       }}
     >
@@ -91,14 +113,18 @@ function NavRow({
           className={`relative flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200 ${
             active
               ? "text-white"
-              : "text-white/70 hover:text-white hover:bg-white/[0.04]"
+              : locked
+                ? "text-white/45 hover:text-white/70 hover:bg-white/[0.03]"
+                : "text-white/70 hover:text-white hover:bg-white/[0.04]"
           }`}
         >
           <span
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-inner transition-colors ${
               active
                 ? "border-white/10 bg-white/[0.06] text-cyan-200"
-                : "border-white/5 bg-black/20 text-white/65"
+                : locked
+                  ? "border-white/5 bg-black/20 text-white/45"
+                  : "border-white/5 bg-black/20 text-white/65"
             }`}
             aria-hidden
           >
@@ -109,6 +135,14 @@ function NavRow({
               {label}
             </p>
           </div>
+          {locked ? (
+            <span
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/60"
+              aria-hidden
+            >
+              <Lock className="h-4 w-4" />
+            </span>
+          ) : null}
           {active ? (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.55)]"
@@ -132,6 +166,29 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [plan, setPlan] = useState<PlanTier>("free");
+  const [planReady, setPlanReady] = useState(false);
+  const [lockedFeature, setLockedFeature] = useState<FeatureKey | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing");
+        const j = await res.json().catch(() => ({}));
+        const p = (j?.plan ?? "free") as PlanTier;
+        if (!cancelled) {
+          setPlan(p);
+          setPlanReady(true);
+        }
+      } catch {
+        if (!cancelled) setPlanReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -192,18 +249,33 @@ export default function Sidebar({
         className="relative flex-1 px-4 pb-5 space-y-1.5 overflow-y-auto"
         aria-label="Main navigation"
       >
-        {SIDEBAR_NAV_ITEMS.map((item) => (
-          <NavRow
-            key={item.id}
-            id={item.id}
-            label={item.label}
-            href={item.href}
-            exact={"exact" in item ? item.exact : undefined}
-            pathname={pathname}
-            onNavigate={onNavigate}
-          />
-        ))}
+        {SIDEBAR_NAV_ITEMS.map((item) => {
+          const fk = NAV_FEATURE_KEY[item.id];
+          const locked = planReady && fk ? !canAccess(plan, fk) : false;
+          return (
+            <NavRow
+              key={item.id}
+              id={item.id}
+              label={item.label}
+              href={item.href}
+              exact={"exact" in item ? item.exact : undefined}
+              pathname={pathname}
+              onNavigate={onNavigate}
+              locked={locked}
+              onLockedClick={fk ? () => setLockedFeature(fk) : undefined}
+            />
+          );
+        })}
       </nav>
+
+      {lockedFeature ? (
+        <UpgradeAccessModal
+          featureKey={lockedFeature}
+          open={Boolean(lockedFeature)}
+          onClose={() => setLockedFeature(null)}
+          currentPlan={plan}
+        />
+      ) : null}
 
       <div className="relative p-4 mt-auto border-t border-white/[0.08]">
         <button

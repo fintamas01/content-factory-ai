@@ -6,6 +6,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2, Copy, Check, RotateCcw } from "lucide-react";
 import { PLAYBOOKS, type PlaybookDefinition } from "@/lib/playbooks/definitions";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import type { PlanTier } from "@/lib/plan-config";
+import { canAccess } from "@/lib/entitlements/features";
+import { LockedFeatureStateClient } from "@/app/components/entitlements/LockedFeatureStateClient";
 import {
   clearWorkspace,
   loadWorkspace,
@@ -96,6 +99,9 @@ type PlaybooksWorkspaceSnapshot = {
 };
 
 export default function PlaybooksPage() {
+  const [plan, setPlan] = useState<PlanTier>("free");
+  const [gateReady, setGateReady] = useState(false);
+
   const [active, setActive] = useState<PlaybookDefinition | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,6 +118,34 @@ export default function PlaybooksPage() {
   } | null>(null);
   const workspaceHydrated = useRef(false);
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing");
+        const j = await res.json().catch(() => ({}));
+        const p = (j?.plan ?? "free") as PlanTier;
+        if (!cancelled) {
+          setPlan(p);
+          setGateReady(true);
+        }
+      } catch {
+        if (!cancelled) setGateReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (gateReady && !canAccess(plan, "playbooks")) {
+    return (
+      <div className={`${shell} p-4 sm:p-6 lg:p-8`}>
+        <LockedFeatureStateClient featureKey="playbooks" currentPlan={plan} />
+      </div>
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;

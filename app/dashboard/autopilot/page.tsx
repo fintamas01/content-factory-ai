@@ -11,6 +11,9 @@ import { Textarea } from "@/app/components/ui/Textarea";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { useCopilotPageContext } from "@/app/components/copilot/useCopilotPageContext";
+import type { PlanTier } from "@/lib/plan-config";
+import { canAccess } from "@/lib/entitlements/features";
+import { LockedFeatureStateClient } from "@/app/components/entitlements/LockedFeatureStateClient";
 
 type Focus = "seo" | "content" | "conversion" | "ai_visibility";
 const FOCUS: { id: Focus; label: string; desc: string }[] = [
@@ -55,6 +58,9 @@ function fmt(ts: string | null) {
 }
 
 export default function AutoPilotPage() {
+  const [plan, setPlan] = useState<PlanTier>("free");
+  const [gateReady, setGateReady] = useState(false);
+
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +74,35 @@ export default function AutoPilotPage() {
   const [enabled, setEnabled] = useState(true);
 
   const primaryJob = jobs[0] ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing");
+        const j = await res.json().catch(() => ({}));
+        const p = (j?.plan ?? "free") as PlanTier;
+        if (!cancelled) {
+          setPlan(p);
+          setGateReady(true);
+        }
+      } catch {
+        if (!cancelled) setGateReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (gateReady && !canAccess(plan, "autopilot")) {
+    return (
+      <Page>
+        <ModulePageHeader moduleId="siteAudit" className="mb-2" />
+        <LockedFeatureStateClient featureKey="autopilot" currentPlan={plan} />
+      </Page>
+    );
+  }
 
   const competitors = useMemo(() => {
     return competitorsText

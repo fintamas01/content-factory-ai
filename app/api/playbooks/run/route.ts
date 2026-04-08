@@ -6,6 +6,7 @@ import { enforceUsageLimit } from "@/lib/usage/enforce";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { getPlaybookDefinition } from "@/lib/playbooks/definitions";
 import { runPlaybook } from "@/lib/playbooks/runner";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
@@ -50,6 +51,13 @@ export async function POST(req: Request) {
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user;
     if (!user) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
+
+    const denied = await requireFeatureAccess({
+      supabase,
+      userId: user.id,
+      featureKey: "playbooks",
+    });
+    if (denied) return denied;
 
     let activeClientId: string;
     try {

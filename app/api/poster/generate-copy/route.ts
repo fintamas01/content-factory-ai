@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 import { resolveOutputLanguage } from "@/lib/i18n/output-language";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -40,7 +41,14 @@ export async function POST(req: Request) {
     const gate = await requireSessionClientAndUsageAllowance("content");
     if (!gate.ok) return gate.response;
 
-    const { supabase, clientId } = gate;
+    const { supabase, user, clientId } = gate;
+
+    const denied = await requireFeatureAccess({
+      supabase,
+      userId: user.id,
+      featureKey: "posterStudio",
+    });
+    if (denied) return denied;
 
     const { label: targetLang } = resolveOutputLanguage(lang);
 

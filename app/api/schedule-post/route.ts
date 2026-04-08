@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPublicSiteUrl, publicAbsoluteUrl } from "@/lib/env/public-site-url";
+import { requireAuthenticatedClient } from "@/lib/usage/require-session-usage";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 export async function POST(req: Request) {
   try {
@@ -17,6 +19,16 @@ export async function POST(req: Request) {
     }
 
     const targetUrl = publicAbsoluteUrl("/api/social/publish");
+
+    const gate = await requireAuthenticatedClient();
+    if (!gate.ok) return gate.response;
+
+    const denied = await requireFeatureAccess({
+      supabase: gate.supabase,
+      userId: gate.user.id,
+      featureKey: "socialPublish",
+    });
+    if (denied) return denied;
 
     // Elküldjük a feladatot az Upstash QStash-nek
     const response = await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {

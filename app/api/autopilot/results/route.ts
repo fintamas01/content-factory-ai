@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireActiveClientId } from "@/lib/clients/server";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 async function getRouteCtx() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -38,6 +39,13 @@ export async function GET(req: Request) {
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const denied = await requireFeatureAccess({
+    supabase,
+    userId: user.id,
+    featureKey: "autopilot",
+  });
+  if (denied) return denied;
 
   let clientId: string;
   try {

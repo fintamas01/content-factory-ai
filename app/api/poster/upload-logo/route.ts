@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { requireAuthenticatedClient } from "@/lib/usage/require-session-usage";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +13,7 @@ export async function POST(req: Request) {
 
     if (!supabaseUrl || !serviceKey) {
       return NextResponse.json(
-        { error: "Supabase service role key hiányzik." },
+        { error: "Server configuration error." },
         { status: 500 }
       );
     }
@@ -19,21 +21,30 @@ export async function POST(req: Request) {
     // 🔥 ADMIN CLIENT (megkerüli RLS-t)
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
+    const gate = await requireAuthenticatedClient();
+    if (!gate.ok) return gate.response;
+    const denied = await requireFeatureAccess({
+      supabase: gate.supabase,
+      userId: gate.user.id,
+      featureKey: "posterStudio",
+    });
+    if (denied) return denied;
+
     const form = await req.formData();
     const file = form.get("file");
 
     if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: "Hiányzik a file." }, { status: 400 });
+      return NextResponse.json({ error: "Missing file." }, { status: 400 });
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      return NextResponse.json({ error: "Max 2MB fájl." }, { status: 400 });
+      return NextResponse.json({ error: "Max file size is 2MB." }, { status: 400 });
     }
 
     const allowed = ["image/png", "image/jpeg", "image/webp"];
     if (!allowed.includes(file.type)) {
       return NextResponse.json(
-        { error: "Csak PNG/JPG/WEBP engedélyezett." },
+        { error: "Only PNG/JPG/WEBP are allowed." },
         { status: 400 }
       );
     }
@@ -58,7 +69,7 @@ export async function POST(req: Request) {
 
     if (uploadErr) {
       console.error("Upload error:", uploadErr);
-      return NextResponse.json({ error: "Upload hiba." }, { status: 500 });
+      return NextResponse.json({ error: "Upload failed." }, { status: 500 });
     }
 
     // Signed URL
@@ -70,7 +81,7 @@ export async function POST(req: Request) {
     if (signErr || !signed?.signedUrl) {
       console.error("Signed url error:", signErr);
       return NextResponse.json(
-        { error: "Signed URL hiba." },
+        { error: "Could not create signed URL." },
         { status: 500 }
       );
     }
@@ -81,6 +92,6 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("upload-logo hiba:", e);
-    return NextResponse.json({ error: "Szerver hiba." }, { status: 500 });
+    return NextResponse.json({ error: "Server error." }, { status: 500 });
   }
 }

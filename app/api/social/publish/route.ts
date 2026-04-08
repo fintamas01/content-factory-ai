@@ -8,6 +8,7 @@ import {
   publishFacebookPagePost,
   publishInstagramImage,
 } from "@/lib/social/meta";
+import { requireFeatureAccess } from "@/lib/entitlements/api";
 
 function bad(message: string, status = 400, extra?: Record<string, unknown>) {
   return NextResponse.json({ error: message, ...(extra ?? {}) }, { status });
@@ -57,6 +58,13 @@ export async function POST(req: Request) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return bad("Unauthorized.", 401);
+
+    const denied = await requireFeatureAccess({
+      supabase,
+      userId: user.id,
+      featureKey: "socialPublish",
+    });
+    if (denied) return denied;
 
     const active = await requireActiveClientId(supabase, cookieStore, user.id);
 
