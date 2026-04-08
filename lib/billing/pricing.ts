@@ -10,18 +10,25 @@ import {
   envStripePriceIdPro,
 } from "@/lib/billing/stripe-price-ids";
 
+/** Display string for Basic monthly price (set in env for marketing accuracy). */
+export function getBasicPriceMonthlyDisplay(): string {
+  const v = process.env.NEXT_PUBLIC_BASIC_PRICE_MONTHLY?.trim();
+  if (v && v.length > 0) return v;
+  return "$9.99";
+}
+
 /** Display string for Pro monthly price (set in env for marketing accuracy). */
 export function getProPriceMonthlyDisplay(): string {
   const v = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY?.trim();
   if (v && v.length > 0) return v;
-  return "$29";
+  return "$49.99";
 }
 
 /** Display string for Elite monthly price (marketing; set in env). */
 export function getElitePriceMonthlyDisplay(): string {
   const v = process.env.NEXT_PUBLIC_ELITE_PRICE_MONTHLY?.trim();
   if (v && v.length > 0) return v;
-  return "$99";
+  return "$149.99";
 }
 
 export function getStripePriceIdPro(): string {
@@ -61,13 +68,15 @@ export type PlanMarketingCard = {
   bullets: string[];
 };
 
-/** Free vs Pro vs Elite cards for pricing / billing (limits from SAAS_LIMITS). */
+/** Free vs Basic vs Pro vs Elite cards for pricing / billing (limits from SAAS_LIMITS). */
 export function getPlanMarketingCards(): {
   free: PlanMarketingCard;
+  basic: PlanMarketingCard;
   pro: PlanMarketingCard;
   elite: PlanMarketingCard;
 } {
   const f = SAAS_LIMITS.free;
+  const b = SAAS_LIMITS.basic;
   const p = SAAS_LIMITS.pro;
   const e = SAAS_LIMITS.elite;
   return {
@@ -81,6 +90,19 @@ export function getPlanMarketingCards(): {
         `${f.product_generations_per_month} product generations / month`,
         `${f.audits_per_month} site audits / month`,
         "Core modules: Brand, Content, Products, Growth Audit",
+      ],
+    },
+    basic: {
+      tier: "basic",
+      name: "Basic",
+      priceLine: getBasicPriceMonthlyDisplay(),
+      periodNote: "per month",
+      bullets: [
+        `${b.content_generations_per_month} content generations / month`,
+        `${b.product_generations_per_month} product generations / month`,
+        `${b.audits_per_month} site audits / month`,
+        "More room to publish consistently",
+        "Great for solo creators and small shops",
       ],
     },
     pro: {

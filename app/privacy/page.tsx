@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   return (
     <LegalPageShell
       title="Privacy Policy"
-      effectiveLabel="Effective date: April 2, 2026 · Last updated: April 2, 2026"
+      effectiveLabel="Effective date: April 2, 2026 · Last updated: April 8, 2026"
     >
       <p>
         This Privacy Policy describes how {PLATFORM_DISPLAY_NAME} (“we”, “us”, “our”) handles personal
@@ -39,6 +39,11 @@ export default function PrivacyPage() {
           <strong>Billing and subscription data:</strong> plan selection, subscription status, and payment
           transaction references. Payment card details are handled by our payment processor (for example,
           Stripe); we do not store full card numbers on our servers.
+        </li>
+        <li>
+          <strong>Connected third-party accounts:</strong> if you connect social media accounts, we may
+          process platform account identifiers (such as Page/account IDs), connection metadata, and
+          authorization tokens required to operate the integration.
         </li>
         <li>
           <strong>Content and prompts you submit:</strong> text, files, URLs, brand inputs, product data,
@@ -72,6 +77,11 @@ export default function PrivacyPage() {
         <li>
           Run AI features you invoke—this includes sending relevant inputs to model providers to generate
           outputs, enforcing usage limits tied to your plan, and storing results for your continued access;
+        </li>
+        <li>
+          Operate connected platform integrations you enable—this includes storing access tokens (encrypted
+          at rest) and using them to perform actions you request (such as publishing to a connected
+          account);
         </li>
         <li>Analyze aggregated or de-identified usage to understand feature adoption and reliability;</li>
         <li>Comply with legal obligations and enforce our Terms of Service.</li>

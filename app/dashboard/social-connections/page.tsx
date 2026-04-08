@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Link2, Loader2, LogOut, XCircle } from "lucide-react";
+import { CheckCircle2, HelpCircle, Link2, Loader2, LogOut, XCircle } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
 import { useSearchParams } from "next/navigation";
+import { SimpleModal } from "@/app/components/ui/SimpleModal";
 
 type Connection = {
   id: string;
@@ -163,6 +164,7 @@ export default function SocialConnectionsPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const byPlatform = useMemo(() => {
     const pick = (p: Connection["platform"]) =>
@@ -231,6 +233,17 @@ export default function SocialConnectionsPage() {
         <OAuthResultBanner />
       </Suspense>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.06]"
+        >
+          <HelpCircle className="h-4 w-4 text-white/70" aria-hidden />
+          How connections work
+        </button>
+      </div>
+
       {error ? (
         <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {error}
@@ -278,6 +291,56 @@ export default function SocialConnectionsPage() {
           disabledReason="Coming soon"
         />
       </div>
+
+      <SimpleModal
+        title="Social connections: what to expect"
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+      >
+        <div className="space-y-5">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+              What a connection means
+            </p>
+            <p className="mt-2 text-sm text-slate-300">
+              A connection links your social account to this workspace so you can publish posts directly
+              from the Content module. Publishing happens only after you explicitly connect and choose to
+              publish.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+              Requirements before connecting
+            </p>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-300">
+              <li>Facebook: you must have access to at least one Facebook Page.</li>
+              <li>
+                Instagram: you need an <strong>Instagram Business or Creator</strong> account connected to a{" "}
+                <strong>Facebook Page</strong> (Meta requirement for publishing).
+              </li>
+              <li>LinkedIn: not enabled yet in this release.</li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">How it works</p>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-300">
+              <li>You authenticate with the platform (OAuth) and grant permissions.</li>
+              <li>
+                We store the access token <strong>encrypted</strong> on the server, scoped to your current
+                workspace.
+              </li>
+              <li>When you publish, we use that token to post on your behalf to the connected Page/account.</li>
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-slate-400">
+            Instagram publishing requires a connected Facebook Page and an Instagram Business/Creator account
+            linked to that Page.
+          </div>
+        </div>
+      </SimpleModal>
     </Page>
   );
 }

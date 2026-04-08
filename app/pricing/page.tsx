@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, Check, Sparkles, Zap } from "lucide-react";
 import { getPlanMarketingCards } from "@/lib/billing/pricing";
 import { PLATFORM_DISPLAY_NAME } from "@/lib/platform/config";
+import { PricingClient } from "@/app/pricing/PricingClient";
 
 export const metadata = {
   title: `Pricing — ${PLATFORM_DISPLAY_NAME}`,
-  description: "Free, Pro, and Elite plans with clear monthly limits for content, products, and audits.",
+  description:
+    "Free, Basic, Pro, and Elite plans with clear monthly limits for content, products, and audits.",
 };
 
 export default function PricingPage() {
-  const { free, pro, elite } = getPlanMarketingCards();
+  const { free, basic, pro, elite } = getPlanMarketingCards();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#030712] text-slate-100">
@@ -38,175 +39,11 @@ export default function PricingPage() {
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-sm font-medium leading-relaxed text-slate-400 md:mx-0">
-            Start free. Upgrade to Pro or Elite when you need higher monthly limits across every module.
+            Start free. Upgrade when you need higher monthly limits across every module.
           </p>
         </header>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:gap-6 lg:items-stretch">
-          {/* Free */}
-          <section className="group relative flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-sm transition hover:border-white/[0.12]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                  Starter
-                </p>
-                <h2 className="mt-2 text-2xl font-bold tracking-tight text-white">{free.name}</h2>
-              </div>
-              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Forever
-              </span>
-            </div>
-
-            <div className="mt-6 flex items-baseline gap-1.5">
-              <span className="text-5xl font-black tabular-nums tracking-tight text-white">
-                {free.priceLine}
-              </span>
-              <span className="text-sm font-medium text-slate-500">/ {free.periodNote}</span>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Best for trying the full workflow.</p>
-
-            <ul className="mt-8 flex flex-1 flex-col gap-2.5">
-              {free.bullets.map((b) => (
-                <li
-                  key={b}
-                  className="flex items-start gap-3 text-[13px] leading-snug text-slate-300"
-                >
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10">
-                    <Check className="h-3 w-3 text-emerald-400" strokeWidth={2.5} aria-hidden />
-                  </span>
-                  {b}
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href="/"
-              className="mt-10 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-bold text-white transition hover:border-white/20 hover:bg-white/[0.08]"
-            >
-              Start free
-              <ArrowRight className="h-4 w-4 opacity-70" aria-hidden />
-            </Link>
-          </section>
-
-          {/* Pro — primary */}
-          <section className="relative flex flex-col overflow-hidden rounded-3xl border border-blue-500/40 bg-gradient-to-b from-blue-500/[0.12] via-[#0a1628] to-[#050b14] p-8 shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_24px_80px_-12px_rgba(37,99,235,0.35)]">
-            <div
-              className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-blue-500/25 blur-3xl"
-              aria-hidden
-            />
-            <div className="relative flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300/90">
-                  Best value
-                </p>
-                <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight text-white">
-                  {pro.name}
-                  <Sparkles className="h-5 w-5 text-amber-300/90" aria-hidden />
-                </h2>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-900/40">
-                <Zap className="h-3 w-3" aria-hidden />
-                Pro
-              </span>
-            </div>
-
-            <div className="relative mt-6 flex items-baseline gap-1.5">
-              <span className="text-5xl font-black tabular-nums tracking-tight text-white">
-                {pro.priceLine}
-              </span>
-              <span className="text-sm font-medium text-blue-200/60">/ {pro.periodNote}</span>
-            </div>
-            <p className="relative mt-2 text-xs text-blue-100/50">
-              Full monthly quotas · Secure Stripe checkout
-            </p>
-
-            <ul className="relative mt-8 flex flex-1 flex-col gap-2.5">
-              {pro.bullets.map((b) => (
-                <li
-                  key={b}
-                  className="flex items-start gap-3 text-[13px] leading-snug text-blue-50/90"
-                >
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-blue-400/30 bg-blue-500/20">
-                    <Check className="h-3 w-3 text-blue-200" strokeWidth={2.5} aria-hidden />
-                  </span>
-                  {b}
-                </li>
-              ))}
-            </ul>
-
-            <div className="relative mt-10 space-y-3">
-              <Link
-                href="/dashboard/billing"
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-[15px] font-black text-white shadow-[0_8px_32px_-4px_rgba(37,99,235,0.55)] ring-1 ring-white/20 transition hover:brightness-110 active:scale-[0.99]"
-              >
-                Upgrade to Pro
-                <ArrowRight className="h-5 w-5" aria-hidden />
-              </Link>
-              <p className="text-center text-[11px] font-medium text-blue-200/45">
-                Sign in required · Cancel anytime from billing
-              </p>
-            </div>
-          </section>
-
-          {/* Elite */}
-          <section className="relative flex flex-col overflow-hidden rounded-3xl border border-amber-500/35 bg-gradient-to-b from-amber-500/[0.12] via-[#0f1218] to-[#050810] p-8 shadow-[0_0_0_1px_rgba(245,158,11,0.15)]">
-            <div
-              className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-violet-600/20 blur-3xl"
-              aria-hidden
-            />
-            <div className="relative flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200/80">
-                  Top tier
-                </p>
-                <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight text-white">
-                  {elite.name}
-                  <BarChart3 className="h-5 w-5 text-amber-200/90" aria-hidden />
-                </h2>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-violet-600 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-amber-900/30">
-                Elite
-              </span>
-            </div>
-
-            <div className="relative mt-6 flex items-baseline gap-1.5">
-              <span className="text-5xl font-black tabular-nums tracking-tight text-white">
-                {elite.priceLine}
-              </span>
-              <span className="text-sm font-medium text-amber-200/50">/ {elite.periodNote}</span>
-            </div>
-            <p className="relative mt-2 text-xs text-amber-100/50">
-              Highest quotas · Price Intelligence and premium features
-            </p>
-
-            <ul className="relative mt-8 flex flex-1 flex-col gap-2.5">
-              {elite.bullets.map((b) => (
-                <li
-                  key={b}
-                  className="flex items-start gap-3 text-[13px] leading-snug text-amber-50/95"
-                >
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-amber-400/30 bg-amber-500/15">
-                    <Check className="h-3 w-3 text-amber-200" strokeWidth={2.5} aria-hidden />
-                  </span>
-                  {b}
-                </li>
-              ))}
-            </ul>
-
-            <div className="relative mt-10 space-y-3">
-              <Link
-                href="/dashboard/billing"
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-violet-700 text-[15px] font-black text-white shadow-[0_8px_32px_-4px_rgba(245,158,11,0.45)] ring-1 ring-white/15 transition hover:brightness-110 active:scale-[0.99]"
-              >
-                Upgrade to Elite
-                <ArrowRight className="h-5 w-5" aria-hidden />
-              </Link>
-              <p className="text-center text-[11px] font-medium text-amber-200/40">
-                Sign in required · Cancel anytime from billing
-              </p>
-            </div>
-          </section>
-        </div>
+        <PricingClient cards={{ free, basic, pro, elite }} />
 
         <footer className="mt-16 border-t border-white/[0.06] pt-8 text-xs text-slate-600">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

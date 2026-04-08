@@ -20,6 +20,7 @@ import { subscriptionPlanLabel } from "@/lib/billing/plan-display";
 import {
   getAllowedCheckoutPriceIds,
   getPlanMarketingCards,
+  getStripePriceIdBasic,
   getStripePriceIdElite,
   getStripePriceIdPro,
 } from "@/lib/billing/pricing";
@@ -172,10 +173,12 @@ export function BillingDashboardClient() {
   const planTier = data?.usage?.plan ?? data?.plan ?? "free";
   const isElite = planTier === "elite";
   const isProTier = planTier === "pro";
-  const isPaid = isElite || isProTier;
+  const isBasicTier = planTier === "basic";
+  const isPaid = isElite || isProTier || isBasicTier;
   const stripeStatus = sub?.status ?? null;
   const planLabel = isPaid ? subscriptionPlanLabel(sub) : "Free";
   /** Server returns runtime env; client NEXT_PUBLIC_* can be stale until rebuild. */
+  const basicPriceId = data?.checkoutPriceIds?.basic ?? getStripePriceIdBasic();
   const proPriceId = data?.checkoutPriceIds?.pro ?? getStripePriceIdPro();
   const elitePriceId = data?.checkoutPriceIds?.elite ?? getStripePriceIdElite();
   const allowedCheckout =
@@ -260,7 +263,7 @@ export function BillingDashboardClient() {
                   ? "Pro-level quotas plus Price Intelligence — track competitor listings and get AI pricing briefs."
                   : isPaid
                     ? "Paid monthly quotas are active across Content, Products, and Growth Audit."
-                    : "Starter quotas each month. Upgrade to Pro or Elite when you need more headroom."}
+                    : "Starter quotas each month. Upgrade to Basic, Pro, or Elite when you need more headroom."}
               </p>
             </div>
 
@@ -287,7 +290,7 @@ export function BillingDashboardClient() {
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-3 lg:w-[min(100%,320px)] lg:shrink-0">
+          <div className="flex w-full flex-col gap-3 lg:w-[min(100%,360px)] lg:shrink-0">
             {isPaid ? (
               <>
                 <button
@@ -303,7 +306,7 @@ export function BillingDashboardClient() {
                   )}
                   Manage subscription
                 </button>
-                {isProTier && elitePriceId ? (
+                {(isBasicTier || isProTier) && elitePriceId ? (
                   <button
                     type="button"
                     onClick={() => void startCheckout(elitePriceId, "Elite")}
@@ -319,9 +322,45 @@ export function BillingDashboardClient() {
                     <ArrowRight className="h-4 w-4" aria-hidden />
                   </button>
                 ) : null}
+                {isBasicTier && proPriceId ? (
+                  <button
+                    type="button"
+                    onClick={() => void startCheckout(proPriceId, "Pro")}
+                    disabled={checkoutBusy}
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-blue-400/35 bg-blue-500/15 text-sm font-bold text-blue-100 transition hover:bg-blue-500/20 disabled:opacity-40"
+                  >
+                    {checkoutPriceId === proPriceId ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4" aria-hidden />
+                    )}
+                    Upgrade to Pro
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  onClick={() => void startCheckout(basicPriceId, "Basic")}
+                  disabled={
+                    checkoutBusy ||
+                    allowedCheckout.length === 0 ||
+                    !basicPriceId
+                  }
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/35 bg-gradient-to-r from-cyan-600/25 to-blue-600/20 text-sm font-bold text-cyan-50 transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {checkoutPriceId === basicPriceId ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Zap className="h-5 w-5" aria-hidden />
+                      Upgrade to Basic
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => void startCheckout(proPriceId, "Pro")}
@@ -431,7 +470,7 @@ export function BillingDashboardClient() {
         >
           Plans
         </h2>
-        <div className="mt-5 grid gap-6 lg:grid-cols-3">
+        <div className="mt-5 grid gap-6 lg:grid-cols-4">
           <div className="flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
               Starter
@@ -457,6 +496,61 @@ export function BillingDashboardClient() {
             >
               Open dashboard
             </Link>
+          </div>
+
+          <div className="relative flex flex-col overflow-hidden rounded-3xl border border-cyan-500/25 bg-gradient-to-b from-cyan-500/[0.09] via-[#0a1424] to-[#050a12] p-8 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]">
+            <div className="absolute right-5 top-5 rounded-full bg-gradient-to-r from-cyan-600 to-blue-600 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+              Basic
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-cyan-300/80">
+              Consistent
+            </p>
+            <h3 className="mt-2 flex items-center gap-2 text-xl font-bold text-white">
+              {cards.basic.name}
+              <Sparkles className="h-5 w-5 text-cyan-200/80" aria-hidden />
+            </h3>
+            <div className="mt-4 flex items-baseline gap-1">
+              <span className="text-4xl font-black text-white">{cards.basic.priceLine}</span>
+              <span className="text-sm text-cyan-200/50">/ {cards.basic.periodNote}</span>
+            </div>
+            <ul className="mt-6 flex flex-1 flex-col gap-2">
+              {cards.basic.bullets.map((b) => (
+                <li key={b} className="flex items-start gap-2.5 text-[13px] leading-snug text-cyan-50/90">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/10">
+                    <Check className="h-3 w-3 text-cyan-200" strokeWidth={2.5} aria-hidden />
+                  </span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => void startCheckout(basicPriceId, "Basic")}
+              disabled={
+                checkoutBusy ||
+                isElite ||
+                isProTier ||
+                isBasicTier ||
+                !basicPriceId ||
+                allowedCheckout.length === 0
+              }
+              className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/35 bg-gradient-to-r from-cyan-600/25 to-blue-600/20 text-[15px] font-black text-white shadow-lg shadow-cyan-900/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {checkoutPriceId === basicPriceId ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isElite || isProTier ? (
+                "Included in your plan"
+              ) : isBasicTier ? (
+                "Your current plan"
+              ) : !basicPriceId ? (
+                "Configure Basic in Stripe"
+              ) : (
+                <>
+                  Upgrade to Basic
+                  <ArrowRight className="h-5 w-5" aria-hidden />
+                </>
+              )}
+            </button>
           </div>
 
           <div className="relative flex flex-col overflow-hidden rounded-3xl border border-blue-500/35 bg-gradient-to-b from-blue-500/10 via-[#0a1424] to-[#050a12] p-8 shadow-[0_0_0_1px_rgba(59,130,246,0.12)]">
@@ -491,6 +585,7 @@ export function BillingDashboardClient() {
                 checkoutBusy ||
                 isElite ||
                 isProTier ||
+                isBasicTier ||
                 !proPriceId ||
                 allowedCheckout.length === 0
               }
@@ -502,6 +597,8 @@ export function BillingDashboardClient() {
                 "Included in Elite"
               ) : isProTier ? (
                 "Your current plan"
+              ) : isBasicTier ? (
+                "Upgrade from Basic"
               ) : (
                 <>
                   Upgrade to Pro

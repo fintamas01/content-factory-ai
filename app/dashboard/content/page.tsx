@@ -197,10 +197,15 @@ export default function DashboardPage() {
       setUser(user);
       
       if (user) {
-        const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', user.id).single();
-        if (sub?.status === 'active') {
-          if (sub.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) setIsPro(true);
-          else setIsBasic(true);
+        const billingRes = await fetch("/api/billing").catch(() => null);
+        if (billingRes && billingRes.ok) {
+          const j = (await billingRes.json().catch(() => ({}))) as { plan?: string };
+          const p = String(j.plan ?? "free");
+          setIsPro(p === "pro" || p === "elite");
+          setIsBasic(p === "basic");
+        } else {
+          setIsPro(false);
+          setIsBasic(false);
         }
         const { count } = await supabase.from('generations').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
         setGenCount(count || 0);

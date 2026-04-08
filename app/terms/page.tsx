@@ -11,7 +11,7 @@ export default function TermsPage() {
   return (
     <LegalPageShell
       title="Terms of Service"
-      effectiveLabel="Effective date: April 2, 2026 · Last updated: April 2, 2026"
+      effectiveLabel="Effective date: April 2, 2026 · Last updated: April 8, 2026"
     >
       <p>
         These Terms of Service (“Terms”) govern your access to and use of {PLATFORM_DISPLAY_NAME} and any
@@ -39,10 +39,11 @@ export default function TermsPage() {
 
       <h2>3. Subscriptions, billing, and taxes</h2>
       <p>
-        Certain features require a paid subscription. Fees, renewal cycles, and usage limits are described
-        at checkout or in the product. Unless stated otherwise, subscriptions renew automatically until
-        cancelled. You authorize us and our payment processors (such as Stripe) to charge your payment method
-        for applicable fees and taxes.
+        Certain features require a paid subscription. We offer plan tiers such as Free, Basic, Pro, and
+        Elite. Fees, renewal cycles, and usage limits are described at checkout or in the product and may
+        vary by plan. Unless stated otherwise, subscriptions renew automatically until cancelled. You
+        authorize us and our payment processors (such as Stripe) to charge your payment method for
+        applicable fees and taxes.
       </p>
       <p>
         You may cancel renewal through the billing or subscription management interface we provide. If you
@@ -114,8 +115,16 @@ export default function TermsPage() {
       <h2>8. Third-party services</h2>
       <p>
         The Service may integrate with third-party services (including hosting, authentication, payments,
-        and AI providers). Your use of those services may be subject to separate terms and privacy policies.
-        We are not responsible for third-party services we do not control.
+        and AI providers). The Service may also integrate with third-party social media platforms (for
+        example Meta services for Facebook/Instagram, or LinkedIn). Your use of those services may be
+        subject to separate terms and privacy policies. We are not responsible for third-party services we
+        do not control.
+      </p>
+      <p>
+        If you choose to connect a third-party social account, you authorize the Service to access that
+        account as permitted by you through the connection flow and to perform actions you request (for
+        example publishing content to a connected Page/account). You are responsible for complying with
+        the platform’s policies and ensuring you have the rights and permissions needed to post.
       </p>
 
       <h2>9. Disclaimers</h2>

@@ -1,14 +1,16 @@
 import type { PlanTier } from "@/lib/plan-config";
 
-/** Pro or Elite — both are paid tiers with higher quotas than Free. */
+/** Basic, Pro, or Elite — paid tiers with higher quotas than Free. */
 export function isPaidPlanTier(plan: PlanTier): boolean {
-  return plan === "pro" || plan === "elite";
+  return plan === "basic" || plan === "pro" || plan === "elite";
 }
 
 export function planTierShortLabel(plan: PlanTier): string {
   switch (plan) {
     case "elite":
       return "Elite";
+    case "basic":
+      return "Basic";
     case "pro":
       return "Pro";
     default:
@@ -27,5 +29,6 @@ export type PlanKpiTone =
 export function planTierKpiTone(plan: PlanTier): PlanKpiTone {
   if (plan === "elite") return "amber";
   if (plan === "pro") return "violet";
+  if (plan === "basic") return "blue";
   return "zinc";
 }

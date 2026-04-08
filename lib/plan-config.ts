@@ -9,7 +9,7 @@ import {
   envStripePriceIdPro,
 } from "@/lib/billing/stripe-price-ids";
 
-export type PlanTier = "free" | "pro" | "elite";
+export type PlanTier = "free" | "basic" | "pro" | "elite";
 
 export type SaasMonthlyLimits = {
   content_generations_per_month: number;
@@ -23,6 +23,11 @@ export const SAAS_LIMITS: Record<PlanTier, SaasMonthlyLimits> = {
     content_generations_per_month: 3,
     product_generations_per_month: 3,
     audits_per_month: 3,
+  },
+  basic: {
+    content_generations_per_month: 10,
+    product_generations_per_month: 10,
+    audits_per_month: 5,
   },
   pro: {
     content_generations_per_month: 50,
@@ -55,7 +60,8 @@ function getStripePriceIds() {
 /**
  * Resolve plan tier for usage limits.
  * - Active subscription with Elite Stripe price → elite (highest quotas + Elite features).
- * - Active Basic or Pro → pro.
+ * - Active Pro → pro.
+ * - Active Basic → basic.
  * - Otherwise → free.
  */
 export function resolvePlanTier(sub: SubscriptionRow | null | undefined): PlanTier {
@@ -64,7 +70,8 @@ export function resolvePlanTier(sub: SubscriptionRow | null | undefined): PlanTi
   const pid = sub.price_id?.trim() ?? "";
   if (!pid) return "free";
   if (elite && pid === elite) return "elite";
-  if (pid === pro || pid === basic) return "pro";
+  if (pro && pid === pro) return "pro";
+  if (basic && pid === basic) return "basic";
   console.warn(
     "[billing] Active subscription price_id does not match NEXT_PUBLIC_STRIPE_PRICE_* env vars; treating plan as free. price_id=",
     pid

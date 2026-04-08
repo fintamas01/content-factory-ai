@@ -41,25 +41,18 @@ export default function SettingsPage() {
         setUser(activeUser);
 
         if (activeUser) {
-          const [subRes, brandsRes] = await Promise.all([
-            supabase
-              .from("subscriptions")
-              .select("price_id")
-              .eq("user_id", activeUser.id)
-              .maybeSingle(),
-            supabase
-              .from("brand_profiles")
-              .select("*")
-              .eq("user_id", activeUser.id),
+          const [billingRes, brandsRes] = await Promise.all([
+            fetch("/api/billing").catch(() => null),
+            supabase.from("brand_profiles").select("*").eq("user_id", activeUser.id),
           ]);
 
-          if (subRes.data) {
-            if (subRes.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO)
-              setSubscription("pro");
-            else if (
-              subRes.data.price_id === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC
-            )
-              setSubscription("basic");
+          if (billingRes && billingRes.ok) {
+            const j = (await billingRes.json().catch(() => ({}))) as { plan?: string };
+            const p = String(j.plan ?? "free");
+            if (p === "basic" || p === "pro" || p === "elite") setSubscription(p);
+            else setSubscription("free");
+          } else {
+            setSubscription("free");
           }
 
           setBrands(brandsRes.data || []);

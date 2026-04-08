@@ -35,27 +35,10 @@ export default function PosterTemplatesPage() {
       const { data: auth } = await supabase.auth.getUser();
       const user = auth?.user;
       if (!user) return;
-
-      const subRes = await supabase
-        .from("subscriptions")
-        .select("price_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const priceId = subRes.data?.price_id ?? null;
-
-      if (priceId && priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO) {
-        setPlan("pro");
-      } else if (priceId && priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE) {
-        setPlan("elite");
-      } else if (
-        priceId &&
-        priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC
-      ) {
-        setPlan("basic");
-      } else {
-        setPlan("free");
-      }
+      const r = await fetch("/api/billing").catch(() => null);
+      const json = r && r.ok ? ((await r.json()) as { plan?: Plan }) : null;
+      const p = json?.plan;
+      if (p === "basic" || p === "pro" || p === "elite" || p === "free") setPlan(p);
     };
 
     loadPlan();
