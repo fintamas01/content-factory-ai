@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Link2, Loader2, LogOut, XCircle } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
+import { useSearchParams } from "next/navigation";
 
 type Connection = {
   id: string;
@@ -92,6 +93,71 @@ function PlatformCard({
   );
 }
 
+function OAuthResultBanner() {
+  const searchParams = useSearchParams();
+  const [banner, setBanner] = useState<{ kind: "success" | "error"; message: string } | null>(
+    null
+  );
+
+  useEffect(() => {
+    const success = searchParams?.get("success");
+    const err = searchParams?.get("error");
+    if (!success && !err) return;
+
+    const successMsg: Record<string, string> = {
+      facebook_connected: "Facebook connected successfully.",
+      instagram_connected: "Instagram connected successfully.",
+      connected: "Connected successfully.",
+    };
+    const errorMsg: Record<string, string> = {
+      oauth_denied: "Connection was cancelled or denied in Meta.",
+      missing_code: "OAuth callback missing code. Please try again.",
+      meta_exchange_failed:
+        "Could not complete Meta OAuth exchange. Check app credentials and redirect URIs.",
+      meta_pages_fetch_failed: "Could not load Pages from Meta. Check permissions and try again.",
+      meta_pages_missing: "No Facebook Page was found for this account (or missing permissions).",
+      missing_instagram_business_account:
+        "No Instagram Business/Creator account is linked to the selected Facebook Page.",
+      save_facebook_failed: "Could not save Facebook connection. Please try again.",
+      save_instagram_failed: "Could not save Instagram connection. Please try again.",
+      linkedin_not_enabled: "LinkedIn connections aren’t enabled yet.",
+      oauth_callback_failed: "OAuth callback failed. Please try again.",
+    };
+
+    if (success) {
+      setBanner({
+        kind: "success",
+        message: successMsg[success] ?? "Connected successfully.",
+      });
+    } else if (err) {
+      setBanner({
+        kind: "error",
+        message: errorMsg[err] ?? `Connection failed (${err}).`,
+      });
+    }
+
+    // Clear the query params so refresh/back doesn't re-trigger banners.
+    try {
+      window.history.replaceState(null, "", "/dashboard/social-connections");
+    } catch {
+      /* ignore */
+    }
+  }, [searchParams]);
+
+  if (!banner) return null;
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+        banner.kind === "success"
+          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+          : "border-red-500/25 bg-red-500/10 text-red-200"
+      }`}
+    >
+      {banner.message}
+    </div>
+  );
+}
+
 export default function SocialConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -160,6 +226,10 @@ export default function SocialConnectionsPage() {
         title="Social connections"
         description="Connect your accounts to publish generated content directly. Tokens are stored server-side and scoped to your current workspace."
       />
+
+      <Suspense fallback={null}>
+        <OAuthResultBanner />
+      </Suspense>
 
       {error ? (
         <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
