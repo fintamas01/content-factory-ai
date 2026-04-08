@@ -29,10 +29,16 @@ function decodeState(raw: string | null): any | null {
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ platform: string }> }) {
-  const redirectOk = (code: string) =>
-    NextResponse.redirect(`/dashboard/social-connections?success=${encodeURIComponent(code)}`);
-  const redirectErr = (code: string) =>
-    NextResponse.redirect(`/dashboard/social-connections?error=${encodeURIComponent(code)}`);
+  const redirectToSocialConnections = (q: { success?: string; error?: string }) => {
+    const url = new URL(req.url);
+    url.pathname = "/dashboard/social-connections";
+    url.search = "";
+    if (q.success) url.searchParams.set("success", q.success);
+    if (q.error) url.searchParams.set("error", q.error);
+    return NextResponse.redirect(url);
+  };
+  const redirectOk = (code: string) => redirectToSocialConnections({ success: code });
+  const redirectErr = (code: string) => redirectToSocialConnections({ error: code });
 
   try {
     const { platform: raw } = await ctx.params;
