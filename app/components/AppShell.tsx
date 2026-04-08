@@ -104,7 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
-            <div className="h-full border-r border-white/[0.08] bg-[#05070c]/75 shadow-2xl shadow-black/55 backdrop-blur-xl">
+            <div className="h-full flex flex-col border-r border-white/[0.08] bg-[#05070c]/75 shadow-2xl shadow-black/55 backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-white/[0.08]">
                 <p className="text-sm font-semibold tracking-tight text-white">Menu</p>
                 <button
@@ -117,11 +117,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
 
-              <Sidebar
-                className="w-full h-full"
-                onNavigate={() => setMobileOpen(false)}
-                inDrawer
-              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <Sidebar
+                  className="w-full h-full"
+                  onNavigate={() => setMobileOpen(false)}
+                  inDrawer
+                />
+              </div>
             </div>
           </div>
         </div>

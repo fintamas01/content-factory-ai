@@ -200,7 +200,7 @@ export default function Sidebar({
   return (
     <aside
       className={`relative flex flex-col ${
-        inDrawer ? "h-full" : "h-screen"
+        inDrawer ? "h-full min-h-0" : "h-screen"
       } ${inDrawer ? "" : "border-r border-white/[0.08]"} ${
         className ?? ""
       }`}
@@ -246,7 +246,7 @@ export default function Sidebar({
       </div>
 
       <nav
-        className="relative flex-1 px-4 pb-5 space-y-1.5 overflow-y-auto"
+        className="relative flex-1 min-h-0 px-4 pb-5 space-y-1.5 overflow-y-auto"
         aria-label="Main navigation"
       >
         {SIDEBAR_NAV_ITEMS.map((item) => {
