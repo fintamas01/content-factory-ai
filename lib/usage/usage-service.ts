@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getSaasLimitsForTier,
-  resolvePlanTier,
+  resolveEffectivePlanTier,
   type PlanTier,
   type SubscriptionRow,
 } from "@/lib/plan-config";
+import { isAdminEmail } from "@/lib/auth/is-admin";
 import type {
   MonthlyUsageCounts,
   UsageCheckResult,
@@ -41,7 +42,7 @@ export async function fetchSubscriptionRow(
 }
 
 export function getUserPlanTier(subscription: SubscriptionRow | null): PlanTier {
-  return resolvePlanTier(subscription);
+  return resolveEffectivePlanTier(subscription, null);
 }
 
 /** Resolved tier for a user (reads `subscriptions` row). */
@@ -50,7 +51,10 @@ export async function getUserPlan(
   userId: string
 ): Promise<PlanTier> {
   const sub = await fetchSubscriptionRow(supabase, userId);
-  return resolvePlanTier(sub);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return resolveEffectivePlanTier(sub, user?.email ?? null);
 }
 
 type UsageRow = {
@@ -108,7 +112,10 @@ export async function buildUsageSummary(
 ): Promise<UsageSummary> {
   const monthKey = getCurrentMonthKeyUtc();
   const sub = await fetchSubscriptionRow(supabase, userId);
-  const plan = getUserPlanTier(sub);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const plan = resolveEffectivePlanTier(sub, user?.email ?? null);
   const limits = getSaasLimitsForTier(plan);
   const usage = await getCurrentUsage(supabase, userId, monthKey, clientId);
   return { monthKey, plan, limits, usage };
@@ -120,6 +127,14 @@ export async function canUseFeature(
   feature: UsageFeature,
   clientId: string
 ): Promise<UsageCheckResult> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (isAdminEmail(user?.email ?? null)) {
+    // Admin/owner override: never blocked by monthly caps.
+    const summary = await buildUsageSummary(supabase, userId, clientId);
+    return { allowed: true, summary };
+  }
   const summary = await buildUsageSummary(supabase, userId, clientId);
   const used = countForFeature(summary.usage, feature);
   const cap = limitForFeature(summary.limits, feature);
@@ -143,6 +158,13 @@ export async function incrementUsage(
   feature: UsageFeature,
   clientId: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (isAdminEmail(user?.email ?? null)) {
+    // Admin/owner override: do not consume quota.
+    return { ok: true };
+  }
   const { error } = await supabase.rpc("increment_monthly_usage", {
     p_feature: feature,
     p_client_id: clientId,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlanTier, SubscriptionRow } from "@/lib/plan-config";
-import { resolvePlanTier } from "@/lib/plan-config";
+import { resolveEffectivePlanTier } from "@/lib/plan-config";
 import { canAccess, requiredPlan, type FeatureKey } from "@/lib/entitlements/features";
 
 export async function requireFeatureAccess(params: {
@@ -15,7 +15,10 @@ export async function requireFeatureAccess(params: {
     .select("user_id,status,price_id,stripe_subscription_id,current_period_end")
     .eq("user_id", userId)
     .maybeSingle();
-  const plan = resolvePlanTier(sub as SubscriptionRow | null);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const plan = resolveEffectivePlanTier(sub as SubscriptionRow | null, user?.email ?? null);
   if (!canAccess(plan, featureKey)) {
     return NextResponse.json(
       {

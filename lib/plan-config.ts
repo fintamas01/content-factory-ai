@@ -8,6 +8,7 @@ import {
   envStripePriceIdElite,
   envStripePriceIdPro,
 } from "@/lib/billing/stripe-price-ids";
+import { isAdminEmail } from "@/lib/auth/is-admin";
 
 export type PlanTier = "free" | "basic" | "pro" | "elite";
 
@@ -77,6 +78,18 @@ export function resolvePlanTier(sub: SubscriptionRow | null | undefined): PlanTi
     pid
   );
   return "free";
+}
+
+/**
+ * Resolve the *effective* plan tier for access/limits.
+ * Admin/owner accounts are always treated as Elite (override) without touching billing rows.
+ */
+export function resolveEffectivePlanTier(
+  sub: SubscriptionRow | null | undefined,
+  userEmail?: string | null
+): PlanTier {
+  if (isAdminEmail(userEmail)) return "elite";
+  return resolvePlanTier(sub);
 }
 
 export function getSaasLimitsForTier(tier: PlanTier): SaasMonthlyLimits {

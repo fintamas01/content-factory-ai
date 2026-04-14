@@ -8,9 +8,10 @@ import {
   getStripePriceIdElite,
   getStripePriceIdPro,
 } from "@/lib/billing/pricing";
-import { buildUsageSummary, getUserPlanTier } from "@/lib/usage/usage-service";
+import { buildUsageSummary } from "@/lib/usage/usage-service";
 import type { UsageSummary } from "@/lib/usage/types";
 import type { PlanTier, SubscriptionRow } from "@/lib/plan-config";
+import { resolveEffectivePlanTier } from "@/lib/plan-config";
 
 export type BillingApiResponse = {
   subscription: Record<string, unknown> | null;
@@ -76,7 +77,7 @@ export async function GET() {
       .maybeSingle();
 
     const subRow = subscription as SubscriptionRow | null;
-    const plan = getUserPlanTier(subRow);
+    const plan = resolveEffectivePlanTier(subRow, user.email ?? null);
 
     let usage: UsageSummary | null = null;
     try {
