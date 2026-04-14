@@ -28,6 +28,7 @@ import type {
   AdCreativeAssets,
   AdCreativeAsset,
   AdCreativeAssetImageDraft,
+  AdCreativeAssetVideoDraft,
   AdCreativeAspectRatio,
 } from "@/lib/ad-creative/types";
 import {
@@ -70,6 +71,30 @@ type SocialPlatform = "instagram" | "facebook" | "linkedin";
 type GenerationApiResponse =
   | { ok: true; generationId: string; result: AdCreativeResult }
   | { ok: false; error: string; details?: string; generationId?: string | null };
+
+type VideoStyle = "cinematic" | "handheld" | "product_showcase" | "ugc";
+type VideoPlatform = "tiktok" | "reels" | "square";
+
+type VideoStartResponse =
+  | {
+      ok: true;
+      status: "processing";
+      provider: string;
+      job_id: string;
+      poll?: { method: "GET"; url: string };
+      metadata?: any;
+    }
+  | {
+      ok: true;
+      status: "completed";
+      provider: string;
+      job_id?: string;
+      video_url: string;
+      thumbnail?: string;
+      metadata?: any;
+    }
+  | { ok: true; status: "failed"; provider: string; job_id: string; error: string; metadata?: any }
+  | { ok: false; error: string };
 
 type GenerationRow = {
   id: string;
@@ -140,6 +165,22 @@ export default function AiAdCreativeStudioPage() {
   const [publishText, setPublishText] = useState("");
   const [publishImageUrl, setPublishImageUrl] = useState<string>("");
   const [scheduleDateTime, setScheduleDateTime] = useState<string>("");
+
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoAngleId, setVideoAngleId] = useState<string>("");
+  const [videoImageUrl, setVideoImageUrl] = useState<string>("");
+  const [videoStyle, setVideoStyle] = useState<VideoStyle>("cinematic");
+  const [videoPlatform, setVideoPlatform] = useState<VideoPlatform>("reels");
+  const [videoDuration, setVideoDuration] = useState<number>(6);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoStatus, setVideoStatus] = useState<"idle" | "processing" | "completed" | "failed">(
+    "idle"
+  );
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoJobId, setVideoJobId] = useState<string>("");
+  const [videoUrl, setVideoUrl] = useState<string>("");
+  const [videoThumb, setVideoThumb] = useState<string>("");
+  const pollAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,6 +448,157 @@ export default function AiAdCreativeStudioPage() {
     setPublishSuccess(null);
     setScheduleDateTime("");
     setPublishOpen(true);
+  }
+
+  function closeVideoModal() {
+    pollAbortRef.current?.abort();
+    pollAbortRef.current = null;
+    setVideoOpen(false);
+  }
+
+  function openVideoModal(params: { angleId: string; imageUrl: string }) {
+    pollAbortRef.current?.abort();
+    pollAbortRef.current = null;
+    setVideoAngleId(params.angleId);
+    setVideoImageUrl(params.imageUrl);
+    setVideoError(null);
+    setVideoStatus("idle");
+    setVideoJobId("");
+    setVideoUrl("");
+    setVideoThumb(params.imageUrl);
+    setVideoOpen(true);
+  }
+
+  async function pollVideoJob(jobId: string, sourceImageUrl: string, signal: AbortSignal) {
+    let attempt = 0;
+    while (!signal.aborted) {
+      // backoff: 1s, 1.5s, 2s, 3s, 4s ... capped
+      const delayMs = Math.min(4500, Math.round(1000 * Math.pow(1.35, attempt)));
+      if (attempt > 0) {
+        await new Promise((r) => window.setTimeout(r, delayMs));
+      }
+      attempt += 1;
+
+      const res = await fetch(
+        `/api/ad-creative/video?job_id=${encodeURIComponent(jobId)}&image_url=${encodeURIComponent(
+          sourceImageUrl
+        )}`,
+        { method: "GET", signal }
+      );
+      const j = (await res.json().catch(() => ({}))) as VideoStartResponse;
+      if (!res.ok || !j || (j as any).ok !== true) {
+        throw new Error(typeof (j as any)?.error === "string" ? (j as any).error : "Video polling failed.");
+      }
+
+      const status = (j as any).status as string;
+      if (status === "processing") {
+        setVideoStatus("processing");
+        continue;
+      }
+      if (status === "failed") {
+        setVideoStatus("failed");
+        setVideoError(typeof (j as any)?.error === "string" ? (j as any).error : "Video generation failed.");
+        return;
+      }
+      if (status === "completed") {
+        setVideoStatus("completed");
+        setVideoUrl((j as any).video_url ?? "");
+        setVideoThumb((j as any).thumbnail ?? sourceImageUrl);
+
+        // Attach as a draft asset in local result state so it stays visible in the angle card.
+        setResult((prev) => {
+          if (!prev) return prev;
+          const assets: AdCreativeAssets = prev.assets ?? { items: [], provider: null };
+          const nextItems = Array.isArray(assets.items) ? [...assets.items] : [];
+          const already = nextItems.some(
+            (x) =>
+              x.kind === "video" &&
+              x.angleId === videoAngleId &&
+              x.status === "succeeded" &&
+              typeof (x as any).url === "string" &&
+              (x as any).url === (j as any).video_url
+          );
+          if (!already && (j as any).video_url) {
+            const vid: AdCreativeAssetVideoDraft = {
+              id: `video:${jobId}`,
+              kind: "video",
+              angleId: videoAngleId,
+              aspectRatio: "9:16",
+              durationSeconds: videoDuration,
+              posterImageUrl: (j as any).thumbnail ?? sourceImageUrl,
+              url: (j as any).video_url,
+              createdAt: new Date().toISOString(),
+              provider: (j as any).provider ?? "video",
+              status: "succeeded",
+              draft: true,
+            };
+            nextItems.unshift(vid);
+          }
+          return { ...prev, assets: { ...assets, items: nextItems } };
+        });
+
+        return;
+      }
+    }
+  }
+
+  async function createVideo() {
+    if (!videoImageUrl.trim()) return;
+    pollAbortRef.current?.abort();
+    const abort = new AbortController();
+    pollAbortRef.current = abort;
+
+    setVideoBusy(true);
+    setVideoError(null);
+    setVideoStatus("processing");
+    setVideoUrl("");
+    try {
+      const res = await fetch("/api/ad-creative/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_url: videoImageUrl,
+          style: videoStyle,
+          platform: videoPlatform,
+          duration: videoDuration,
+        }),
+        signal: abort.signal,
+      });
+      const j = (await res.json().catch(() => ({}))) as VideoStartResponse;
+      if (!res.ok || !j || (j as any).ok !== true) {
+        const msg = typeof (j as any)?.error === "string" ? (j as any).error : "Video generation failed.";
+        setVideoStatus("failed");
+        setVideoError(msg);
+        return;
+      }
+
+      const status = (j as any).status as string;
+      if (status === "processing") {
+        const jobId = (j as any).job_id ?? "";
+        if (!jobId) throw new Error("Provider did not return a job id.");
+        setVideoJobId(jobId);
+        setVideoStatus("processing");
+        await pollVideoJob(jobId, videoImageUrl, abort.signal);
+        return;
+      }
+
+      if (status === "failed") {
+        setVideoStatus("failed");
+        setVideoError(typeof (j as any)?.error === "string" ? (j as any).error : "Video generation failed.");
+        return;
+      }
+
+      // Completed
+      setVideoStatus("completed");
+      setVideoUrl((j as any).video_url ?? "");
+      setVideoThumb((j as any).thumbnail ?? videoImageUrl);
+    } catch (e: any) {
+      if (abort.signal.aborted) return;
+      setVideoStatus("failed");
+      setVideoError(String(e?.message ?? e ?? "Video generation failed."));
+    } finally {
+      if (!abort.signal.aborted) setVideoBusy(false);
+    }
   }
 
   async function doPublish() {
@@ -940,21 +1132,38 @@ export default function AiAdCreativeStudioPage() {
                                     )
                                     .slice(0, 2)
                                     .map((img: any, i) => (
-                                      <a
+                                      <div
                                         key={`${a.id}-img-${i}`}
-                                        href={img.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20"
+                                        className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20"
                                       >
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                          src={img.url}
-                                          alt="Draft ad creative (AI generated)"
-                                          className="h-auto w-full transition group-hover:scale-[1.01]"
-                                          loading="lazy"
-                                        />
-                                      </a>
+                                        <a
+                                          href={img.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="group block"
+                                        >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img
+                                            src={img.url}
+                                            alt="Draft ad creative (AI generated)"
+                                            className="h-auto w-full transition group-hover:scale-[1.01]"
+                                            loading="lazy"
+                                          />
+                                        </a>
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.08] bg-black/20 p-3">
+                                          <p className="text-[11px] font-semibold text-white/55">
+                                            Convert to video
+                                          </p>
+                                          <Button
+                                            type="button"
+                                            variant="secondary"
+                                            className="h-9 rounded-2xl px-3 text-[11px] font-bold"
+                                            onClick={() => openVideoModal({ angleId: a.id, imageUrl: String(img.url) })}
+                                          >
+                                            Create Video Ad
+                                          </Button>
+                                        </div>
+                                      </div>
                                     ))}
                                 </div>
                                 {(result.assets?.items ?? []).some(
@@ -967,15 +1176,71 @@ export default function AiAdCreativeStudioPage() {
                                 <p className="mt-2 text-xs text-white/45">
                                   Draft only — not production-ready. No guaranteed brand compliance.
                                 </p>
-                                <div className="mt-4 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
-                                  <p className="text-[11px] font-black uppercase tracking-wider text-white/45">
-                                    Video draft (coming later)
-                                  </p>
-                                  <p className="mt-2 text-xs text-white/50">
-                                    This module is now structured to support short-form video drafts as assets in the
-                                    same list as images. No video generation is enabled in V1.
-                                  </p>
-                                </div>
+                                {(result.assets?.items ?? []).some(
+                                  (x) => x.kind === "video" && x.angleId === a.id && x.status === "succeeded"
+                                ) ? (
+                                  <div className="mt-4 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+                                    <p className="text-[11px] font-black uppercase tracking-wider text-white/45">
+                                      Video draft
+                                    </p>
+                                    <div className="mt-3 space-y-3">
+                                      {(result.assets?.items ?? [])
+                                        .filter(
+                                          (x) =>
+                                            x.kind === "video" &&
+                                            x.angleId === a.id &&
+                                            x.status === "succeeded" &&
+                                            typeof (x as any).url === "string"
+                                        )
+                                        .slice(0, 1)
+                                        .map((v: any) => (
+                                          <div key={v.id} className="space-y-2">
+                                            <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25">
+                                              <video
+                                                src={v.url}
+                                                controls
+                                                playsInline
+                                                className="h-auto w-full"
+                                                preload="metadata"
+                                              />
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                              <a
+                                                href={v.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex h-10 items-center rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/[0.06] hover:text-white/85"
+                                              >
+                                                Download video
+                                              </a>
+                                              <Button
+                                                type="button"
+                                                variant="secondary"
+                                                className="h-10 rounded-2xl px-4 text-sm font-semibold"
+                                                onClick={() =>
+                                                  openVideoModal({
+                                                    angleId: a.id,
+                                                    imageUrl: pickDraftImageUrlForAngle(a.id),
+                                                  })
+                                                }
+                                              >
+                                                Regenerate
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-4 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+                                    <p className="text-[11px] font-black uppercase tracking-wider text-white/45">
+                                      Video draft
+                                    </p>
+                                    <p className="mt-2 text-xs text-white/50">
+                                      Turn any generated image into a short-form ad video with subtle motion.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             ) : null}
                           </div>
@@ -1229,6 +1494,151 @@ export default function AiAdCreativeStudioPage() {
               className="rounded-2xl"
               onClick={() => setPublishOpen(false)}
               disabled={publishBusy}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      </SimpleModal>
+
+      <SimpleModal
+        open={videoOpen}
+        onClose={closeVideoModal}
+        title="Create video ad"
+      >
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-xs font-semibold text-white/60">Source image</p>
+              <div className="mt-2 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={videoImageUrl} alt="Source" className="h-auto w-full" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-white/60">Style</label>
+              <select
+                value={videoStyle}
+                onChange={(e) => setVideoStyle(e.target.value as VideoStyle)}
+                className="mt-1.5 h-11 w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-white/85 outline-none transition focus:border-cyan-400/30 focus:ring-2 focus:ring-cyan-500/10"
+                disabled={videoBusy}
+              >
+                <option value="cinematic">Cinematic</option>
+                <option value="handheld">Handheld</option>
+                <option value="product_showcase">Product showcase</option>
+                <option value="ugc">UGC</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-white/60">Platform</label>
+              <select
+                value={videoPlatform}
+                onChange={(e) => setVideoPlatform(e.target.value as VideoPlatform)}
+                className="mt-1.5 h-11 w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-white/85 outline-none transition focus:border-cyan-400/30 focus:ring-2 focus:ring-cyan-500/10"
+                disabled={videoBusy}
+              >
+                <option value="tiktok">TikTok (9:16)</option>
+                <option value="reels">Reels (9:16)</option>
+                <option value="square">Square (1:1)</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="text-xs font-semibold text-white/60">Duration</label>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {[5, 6, 7, 8].map((s) => {
+                  const active = videoDuration === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setVideoDuration(s)}
+                      disabled={videoBusy}
+                      className={`rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-wider transition ${
+                        active
+                          ? "border border-transparent bg-cyan-500/20 text-cyan-100 shadow-[0_0_22px_-10px_rgba(34,211,238,0.55)]"
+                          : "border border-white/[0.1] bg-white/[0.03] text-white/55 hover:bg-white/[0.06] hover:text-white/75"
+                      }`}
+                    >
+                      {s}s
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-white/45">
+                Subtle camera motion, stable lighting, and realistic movement.
+              </p>
+            </div>
+          </div>
+
+          {videoError ? (
+            <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {videoError}
+            </div>
+          ) : null}
+
+          {videoStatus === "processing" ? (
+            <div className="flex items-center gap-2 text-white/55">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Rendering your video…
+              {videoJobId ? (
+                <span className="ml-auto text-[11px] font-mono text-white/35">
+                  job:{videoJobId.slice(0, 10)}…
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {videoStatus === "completed" && videoUrl ? (
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25">
+                <video src={videoUrl} controls playsInline className="h-auto w-full" preload="metadata" />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 items-center rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/[0.06] hover:text-white/85"
+                >
+                  Download
+                </a>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 rounded-2xl px-4 text-sm font-semibold"
+                  onClick={() => void createVideo()}
+                  disabled={videoBusy}
+                >
+                  Regenerate
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button
+              type="button"
+              className="rounded-2xl"
+              onClick={() => void createVideo()}
+              disabled={videoBusy || !videoImageUrl.trim()}
+            >
+              {videoBusy ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating…
+                </>
+              ) : (
+                "Create Video Ad"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="rounded-2xl"
+              onClick={closeVideoModal}
+              disabled={videoBusy}
             >
               Close
             </Button>
