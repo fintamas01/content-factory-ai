@@ -19,25 +19,25 @@ const modules = [
     icon: BarChart3,
     title: "AI Growth Audit",
     description:
-      "Find quick wins on pages, SEO, and conversion—then turn them into an action plan.",
+      "Spot conversion leaks, SEO gaps, and quick wins—then get a prioritized fix list.",
   },
   {
     icon: Megaphone,
     title: "Content Generator",
     description:
-      "Ship campaign-ready posts in minutes with consistent quality and faster iteration.",
+      "Publish scroll-stopping posts and ads in minutes—without losing your brand voice.",
   },
   {
     icon: Package,
     title: "Product Generator",
     description:
-      "Turn product specs into high-converting descriptions, bullets, and SEO copy—at scale.",
+      "Turn specs into high-converting product pages (benefits, bullets, SEO) at scale.",
   },
   {
     icon: Target,
     title: "Brand Profile",
     description:
-      "Keep your voice consistent across every module, channel, and generation.",
+      "Lock your tone and positioning—so every output sounds like your store.",
   },
 ] as const;
 
@@ -79,20 +79,20 @@ export default function HomePage() {
         <header className="text-center md:text-left">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-200/80">
             <Sparkles className="h-4 w-4 text-amber-200/90" aria-hidden />
-            Built for ecommerce teams shipping weekly
+            Built for Shopify + WooCommerce sellers
           </div>
 
           <h1 className="mt-5 text-4xl font-black tracking-tight text-white md:text-6xl">
-            Turn product pages into{" "}
+            Rewrite your product pages to{" "}
             <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">
-              traffic + sales
+              convert more
             </span>
             .
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-relaxed text-slate-400 md:mx-0 md:text-base">
-            Generate high-converting product descriptions, SEO-ready page copy, and scroll-stopping social posts—in minutes.
-            Spend less time writing, and more time selling.
+            Generate conversion-focused product copy, SEO-ready sections, and ready-to-post social content in minutes—so you
+            stop guessing and start shipping.
           </p>
 
           <div className="mt-8 flex flex-col items-stretch justify-start gap-3 sm:flex-row sm:items-center">
@@ -101,27 +101,27 @@ export default function HomePage() {
               href="#features"
               className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-6 text-sm font-bold text-white transition hover:bg-white/[0.08]"
             >
-              See features
+              See what you get
               <ArrowRight className="h-4 w-4 opacity-70" aria-hidden />
             </Link>
           </div>
 
           <div className="mt-3 text-xs font-medium text-slate-500">
-            No credit card required · Start free in 1 minute
+            No credit card required · Start free in 1 minute · Get your first product page rewrite today
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
               <Zap className="h-3.5 w-3.5 text-blue-300" aria-hidden />
-              Shopify + WooCommerce friendly
+              Create 1 product page in minutes
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
               <FileText className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-              Consistent tone across your store
+              Benefits-first copy (not fluff)
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
               <Check className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
-              Upgrade anytime
+              Cancel anytime
             </span>
           </div>
         </header>
@@ -133,14 +133,17 @@ export default function HomePage() {
               What you can do
             </p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-white">
-              Ship ecommerce content that actually converts.
+              Turn “good enough” listings into revenue drivers.
             </h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-400">
+              Everything is designed to move shoppers from “maybe” to “add to cart”—fast.
+            </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
-                "Generate product descriptions",
-                "Create social media posts",
-                "Optimize product pages for SEO",
-                "Analyze store performance",
+                "Generate benefit-led product descriptions that reduce hesitation",
+                "Create social posts and ad angles that match your brand voice",
+                "Optimize product pages for SEO (titles, bullets, sections)",
+                "Find conversion leaks and quick wins with a growth audit",
               ].map((t) => (
                 <div
                   key={t}
@@ -208,12 +211,12 @@ export default function HomePage() {
               The problem
             </p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-white">
-              Your store can’t grow on inconsistent content.
+              Your product pages are doing less selling than you think.
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-400">
-              You lose hours rewriting product pages, posts, and ad angles—then still get low conversions because the copy
-              doesn’t highlight the right benefits. SEO is an afterthought, messaging drifts across channels, and the “next
-              best action” is never clear.
+              Most stores bleed conversions because product pages are generic, benefits are buried, and SEO is inconsistent.
+              You waste hours rewriting the same sections, publish less often, and shoppers bounce because the copy doesn’t
+              answer the real objections.
             </p>
           </div>
 
@@ -226,11 +229,11 @@ export default function HomePage() {
               The solution
             </p>
             <h2 className="relative mt-3 text-2xl font-bold tracking-tight text-white">
-              One place to generate, optimize, and publish.
+              Generate the copy that makes shoppers buy.
             </h2>
             <p className="relative mt-3 text-sm leading-relaxed text-blue-50/80">
-              Save your brand voice once. Then generate product descriptions, SEO-ready page sections, and social posts that
-              match your store—plus a growth audit that tells you what to fix next to drive more traffic and sales.
+              Save your brand voice once. Then generate product-page copy built for conversions (benefits, bullets, SEO),
+              plus social posts that sound like you—and a growth audit that tells you exactly what to fix next.
             </p>
           </div>
         </section>
@@ -246,7 +249,7 @@ export default function HomePage() {
                 Everything you need to publish, rank, and convert.
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-slate-400">
-                Four modules that work together—so your product pages, social posts, and insights stay aligned.
+                Four modules that work together—so your product pages, social posts, and insights drive the same outcome.
               </p>
             </div>
             <Link
@@ -313,27 +316,27 @@ export default function HomePage() {
             Social proof
           </p>
           <h2 className="mt-2 text-3xl font-black tracking-tight text-white md:text-4xl">
-            Results teams can feel.
+            The outcome you’re buying: faster output + better pages.
           </h2>
           <p className="mt-3 max-w-2xl text-sm text-slate-400">
-            Swap these placeholders with real testimonials when you’re ready.
+            Replace these placeholders with real testimonials when you’re ready.
           </p>
 
           <div className="mt-8 grid gap-6 md:grid-cols-3">
             {[
               {
                 quote:
-                  "“We went from ‘ideas’ to publish-ready content in one afternoon.”",
+                  "“We refreshed 20 product pages in a weekend—then stopped rewriting the same sections over and over.”",
                 who: "Marketing lead · Placeholder",
               },
               {
                 quote:
-                  "“The audit surfaced quick wins we had missed for months.”",
+                  "“The audit told us exactly what to fix first. It removed the guesswork.”",
                 who: "Founder · Placeholder",
               },
               {
                 quote:
-                  "“Our product pages finally sound consistent and convert better.”",
+                  "“Our product pages finally sound consistent—and shoppers stay on the page longer.”",
                 who: "Ecommerce manager · Placeholder",
               },
             ].map((t) => (
@@ -438,11 +441,11 @@ export default function HomePage() {
                 Ready?
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-white md:text-4xl">
-                Start your free trial. Publish faster this week.
+                Start your free trial—and ship your next product page today.
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-slate-400">
-                In one session you can refresh a product page, generate a week of posts, and get a growth audit with clear
-                next steps. Less busywork—more sales.
+                Don’t wait for “more time” to fix your pages. Generate conversion-focused copy, publish faster, and improve
+                SEO without hiring another writer.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <StartFreeButton />
@@ -455,7 +458,7 @@ export default function HomePage() {
                 </Link>
               </div>
               <p className="mt-6 text-xs font-medium text-slate-500">
-                No credit card required · Start free in 1 minute · Upgrade only when it pays for itself
+                No credit card required · Start free in 1 minute · Cancel anytime
               </p>
             </div>
           </div>
