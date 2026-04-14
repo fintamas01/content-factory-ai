@@ -1,4 +1,4 @@
-export type HistoryKind = "content" | "product" | "audit" | "matrix";
+export type HistoryKind = "content" | "product" | "audit" | "matrix" | "adCreative";
 
 /** Normalized row for list + detail (full payload in `data`). */
 export type HistoryListItem = {

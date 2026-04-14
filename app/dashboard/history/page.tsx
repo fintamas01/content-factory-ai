@@ -35,6 +35,7 @@ const TABS: { id: FilterTab; label: string }[] = [
   { id: "product", label: "Products" },
   { id: "audit", label: "Audit" },
   { id: "matrix", label: "Matrix" },
+  { id: "adCreative", label: "Ad Creative" },
 ];
 
 function kindIcon(kind: HistoryKind) {
@@ -45,6 +46,8 @@ function kindIcon(kind: HistoryKind) {
       return Package;
     case "audit":
       return Radar;
+    case "adCreative":
+      return History;
     default:
       return LayoutGrid;
   }

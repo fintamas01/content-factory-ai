@@ -14,6 +14,7 @@ import {
   Package,
   Radar,
   Palette,
+  Images,
   Sparkles,
   Orbit,
   Users,
@@ -41,6 +42,7 @@ const NAV_FEATURE_KEY: Partial<Record<SidebarNavId, FeatureKey>> = {
   playbooks: "playbooks",
   team: "team",
   priceIntelligence: "priceIntelligence",
+  adCreativeStudio: "adCreativeStudio",
 } as const;
 
 function isNavActive(pathname: string, href: string, exact?: boolean) {
@@ -60,6 +62,7 @@ const SIDEBAR_ICONS: Record<
   playbooks: Sparkles,
   brand: Palette,
   content: Megaphone,
+  adCreativeStudio: Images,
   products: Package,
   priceIntelligence: BarChart3,
   siteAudit: Radar,

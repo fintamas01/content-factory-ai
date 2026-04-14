@@ -1,6 +1,7 @@
 import type { PlanTier } from "@/lib/plan-config";
 
 export type FeatureKey =
+  | "adCreativeStudio"
   | "posterStudio"
   | "posterTemplates"
   | "socialConnections"
@@ -34,6 +35,16 @@ export function isPlanAtLeast(plan: PlanTier, minPlan: PlanTier): boolean {
 }
 
 export const FEATURES: Record<FeatureKey, FeatureDef> = {
+  adCreativeStudio: {
+    key: "adCreativeStudio",
+    label: "AI Ad Creative Studio",
+    description:
+      "Generate static ad creative concepts and high-converting copy variants for multiple placements.",
+    // V1 recommendation: Basic+ (fits the new pricing tiers and keeps value clear).
+    // Change this later in one place to adjust access.
+    minPlan: "basic",
+    href: "/dashboard/ai-ad-creative-studio",
+  },
   posterStudio: {
     key: "posterStudio",
     label: "Poster Studio",

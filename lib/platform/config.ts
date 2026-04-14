@@ -21,6 +21,14 @@ export const MODULES = {
     description: "Shared brand voice and positioning for AI modules.",
     href: "/dashboard/brand",
   },
+  adCreativeStudio: {
+    id: "ai-ad-creative-studio",
+    productName: "AI Ad Creative Studio",
+    label: "Ad Creative Studio",
+    description:
+      "Generate static ad creative concepts and copy variants for multiple placements and languages.",
+    href: "/dashboard/ai-ad-creative-studio",
+  },
   content: {
     id: "content",
     productName: "ContentFactory",

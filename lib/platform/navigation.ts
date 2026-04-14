@@ -47,6 +47,11 @@ export const SIDEBAR_NAV_ITEMS = [
     href: MODULES.content.href,
   },
   {
+    id: "adCreativeStudio",
+    label: "AI Ad Creative Studio",
+    href: "/dashboard/ai-ad-creative-studio",
+  },
+  {
     id: "products",
     label: "Products",
     href: MODULES.products.href,

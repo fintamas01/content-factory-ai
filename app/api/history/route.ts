@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import {
   mapAuditRow,
   mapContentRow,
+  mapAdCreativeRow,
   mapMatrixRow,
   mapProductRow,
   mergeAndSort,
@@ -60,7 +61,7 @@ export async function GET() {
       return NextResponse.json({ error: "No active client." }, { status: 400 });
     }
 
-    const [genRes, prodRes, auditRes, matrixRes] = await Promise.all([
+    const [genRes, prodRes, auditRes, matrixRes, adCreativeRes] = await Promise.all([
       supabase
         .from("generations")
         .select("*")
@@ -81,6 +82,12 @@ export async function GET() {
         .limit(LIMIT),
       supabase
         .from("matrix_generations")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(LIMIT),
+      supabase
+        .from("ad_creative_generations")
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false })
@@ -120,12 +127,23 @@ export async function GET() {
         code: (matrixRes.error as any).code,
       });
     }
+    if (adCreativeRes.error) {
+      console.error("history ad_creative_generations:", adCreativeRes.error);
+      errors.push({
+        table: "ad_creative_generations",
+        message: adCreativeRes.error.message,
+        code: (adCreativeRes.error as any).code,
+      });
+    }
 
     const items = mergeAndSort([
       ...(genRes.data ?? []).map((r) => mapContentRow(r as Record<string, unknown>)),
       ...(prodRes.data ?? []).map((r) => mapProductRow(r as Record<string, unknown>)),
       ...(auditRes.data ?? []).map((r) => mapAuditRow(r as Record<string, unknown>)),
       ...(matrixRes.data ?? []).map((r) => mapMatrixRow(r as Record<string, unknown>)),
+      ...(adCreativeRes.data ?? []).map((r) =>
+        mapAdCreativeRow(r as Record<string, unknown>)
+      ),
     ]);
 
     return NextResponse.json({ items, errors: errors.length ? errors : undefined });
@@ -143,7 +161,8 @@ function isKind(v: unknown): v is HistoryKind {
     v === "content" ||
     v === "product" ||
     v === "audit" ||
-    v === "matrix"
+    v === "matrix" ||
+    v === "adCreative"
   );
 }
 
@@ -203,7 +222,9 @@ export async function DELETE(req: Request) {
           ? "product_generations"
           : kind === "audit"
             ? "site_audit_runs"
-            : "matrix_generations";
+            : kind === "matrix"
+              ? "matrix_generations"
+              : "ad_creative_generations";
 
     const { error } = await supabase.from(table).delete().eq("id", id);
 

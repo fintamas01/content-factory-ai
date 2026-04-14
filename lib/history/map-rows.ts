@@ -98,6 +98,41 @@ export function mapMatrixRow(row: Record<string, unknown>): HistoryListItem {
   };
 }
 
+export function mapAdCreativeRow(row: Record<string, unknown>): HistoryListItem {
+  const product = String(row.product_name ?? "Ad creative");
+  const brand = String(row.brand_name ?? "");
+  const title =
+    String(row.title ?? "").trim() || `${product}${brand ? ` · ${brand}` : ""}`;
+
+  const copy = row.generated_copy as Record<string, unknown> | undefined;
+  const angles = Array.isArray(copy?.angles) ? (copy?.angles as any[]) : [];
+  const first = angles[0] as Record<string, unknown> | undefined;
+  const hook = typeof first?.hook === "string" ? first.hook : "";
+
+  const lang = String(row.language ?? "").trim();
+  const status = String(row.status ?? "").trim();
+
+  const previewBase = hook || String(row.offer_summary ?? row.audience ?? "");
+  const suffix = [
+    status ? `Status: ${status}` : "",
+    lang ? `Lang: ${lang}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    id: String(row.id),
+    kind: "adCreative",
+    title: clip(title, 88) || "AI Ad Creative Studio",
+    preview: clip(
+      [previewBase, suffix].filter(Boolean).join(" · "),
+      160
+    ),
+    created_at: String(row.created_at ?? ""),
+    data: row,
+  };
+}
+
 export function mergeAndSort(items: HistoryListItem[]): HistoryListItem[] {
   return [...items].sort((a, b) => {
     const tb = new Date(b.created_at).getTime();
@@ -111,4 +146,5 @@ export const KIND_LABEL: Record<HistoryKind, string> = {
   product: "Products",
   audit: "Audit",
   matrix: "Matrix",
+  adCreative: "Ad Creative",
 };

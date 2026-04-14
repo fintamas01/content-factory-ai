@@ -70,4 +70,5 @@ export const WORKSPACE_MODULES = {
   siteAudit: "site-audit",
   playbooks: "playbooks",
   matrix: "matrix",
+  adCreativeStudio: "ad-creative-studio",
 } as const;

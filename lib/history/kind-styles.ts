@@ -49,6 +49,15 @@ export const KIND_VISUAL: Record<
     badge: "border-amber-500/30 bg-amber-500/10 text-orange-100",
     headerGradient: "from-amber-600/80 via-orange-500/40 to-rose-500/30",
   },
+  adCreative: {
+    label: "Ad Creative",
+    leftBar: "from-cyan-500 via-sky-400 to-indigo-500",
+    iconRing: "ring-cyan-500/30",
+    iconBg: "from-cyan-600/30 to-indigo-600/20",
+    iconText: "text-cyan-100",
+    badge: "border-cyan-500/30 bg-cyan-500/10 text-sky-100",
+    headerGradient: "from-cyan-600/80 via-sky-500/40 to-indigo-500/30",
+  },
 };
 
 export function formatHistoryDate(iso: string): { primary: string; sub: string } {
