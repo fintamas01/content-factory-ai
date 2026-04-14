@@ -22,6 +22,12 @@ export async function fetchStoreConnectionsSnapshot(params: {
     .eq("client_id", clientId)
     .maybeSingle();
 
+  const { data: sh } = await supabase
+    .from("shopify_connections")
+    .select("store_domain, created_at, updated_at, status")
+    .eq("client_id", clientId)
+    .maybeSingle();
+
   const woocommerce = woo?.store_url
     ? {
         platform: "woocommerce" as const,
@@ -38,14 +44,22 @@ export async function fetchStoreConnectionsSnapshot(params: {
         updatedAt: null,
       };
 
-  // Shopify: staged for future implementation.
-  const shopify = {
-    platform: "shopify" as const,
-    status: "not_connected" as const,
-    storeDomain: null,
-    connectedAt: null,
-    updatedAt: null,
-  };
+  const shopify =
+    sh?.store_domain && sh?.status === "connected"
+      ? {
+          platform: "shopify" as const,
+          status: "connected" as const,
+          storeDomain: String(sh.store_domain),
+          connectedAt: String(sh.created_at ?? ""),
+          updatedAt: String(sh.updated_at ?? ""),
+        }
+      : {
+          platform: "shopify" as const,
+          status: "not_connected" as const,
+          storeDomain: null,
+          connectedAt: null,
+          updatedAt: null,
+        };
 
   return { woocommerce, shopify };
 }

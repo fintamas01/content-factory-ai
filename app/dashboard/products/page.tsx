@@ -184,6 +184,17 @@ export default function ProductGeniePage() {
     queue: Array<{ id: number; name: string; heuristicScore: number; sku?: string | null }>;
   } | null>(null);
 
+  // Shopify connection + product selection (MVP: browse + pull product fields for generation)
+  const [shopifyConnected, setShopifyConnected] = useState(false);
+  const [shopifyStoreDomain, setShopifyStoreDomain] = useState("");
+  const [shopifyLoadingList, setShopifyLoadingList] = useState(false);
+  const [shopifyLastRefreshAt, setShopifyLastRefreshAt] = useState<string | null>(null);
+  const [shopifyQuery, setShopifyQuery] = useState("");
+  const [shopifyItems, setShopifyItems] = useState<Array<any>>([]);
+  const [shopifySelectedId, setShopifySelectedId] = useState<number | null>(null);
+  const [shopifyProductLoading, setShopifyProductLoading] = useState(false);
+  const [storePlatform, setStorePlatform] = useState<"woocommerce" | "shopify">("woocommerce");
+
   const [workspaceScope, setWorkspaceScope] = useState<{
     userId: string;
     clientId: string;
@@ -220,17 +231,32 @@ export default function ProductGeniePage() {
 
   const canGenerate = useMemo(() => {
     if (mode === "manual") return productName.trim().length > 0;
-    if (mode === "store") return wooSelectedId !== null && productName.trim().length > 0;
+    if (mode === "store") {
+      const selected = storePlatform === "woocommerce" ? wooSelectedId : shopifySelectedId;
+      return selected !== null && productName.trim().length > 0;
+    }
     return false;
-  }, [mode, productName, wooSelectedId]);
+  }, [mode, productName, storePlatform, wooSelectedId, shopifySelectedId]);
 
   const canImprove = useMemo(() => {
     const hasExisting =
       existingTitle.trim() || existingDescription.trim() || existingShortDescription.trim();
     if (mode === "manual") return Boolean(hasExisting) && productName.trim().length > 0;
-    if (mode === "store") return Boolean(hasExisting) && wooSelectedId !== null;
+    if (mode === "store") {
+      const selected = storePlatform === "woocommerce" ? wooSelectedId : shopifySelectedId;
+      return Boolean(hasExisting) && selected !== null;
+    }
     return false;
-  }, [mode, existingTitle, existingDescription, existingShortDescription, productName, wooSelectedId]);
+  }, [
+    mode,
+    existingTitle,
+    existingDescription,
+    existingShortDescription,
+    productName,
+    storePlatform,
+    wooSelectedId,
+    shopifySelectedId,
+  ]);
 
   useEffect(() => {
     (async () => {
@@ -267,6 +293,32 @@ export default function ProductGeniePage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/shopify/connection");
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.connected) {
+        setShopifyConnected(true);
+        if (typeof json.connection?.store_domain === "string") {
+          setShopifyStoreDomain(json.connection.store_domain);
+        }
+      } else {
+        setShopifyConnected(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "store") return;
+    if (wooConnected) {
+      setStorePlatform("woocommerce");
+      return;
+    }
+    if (shopifyConnected) {
+      setStorePlatform("shopify");
+    }
+  }, [mode, wooConnected, shopifyConnected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -469,10 +521,14 @@ export default function ProductGeniePage() {
             kind === "improve" ? existingDescription.trim() || undefined : undefined,
           existingShortDescription:
             kind === "improve" ? existingShortDescription.trim() || undefined : undefined,
-          source: mode === "store" ? "woocommerce" : "manual",
+          source: mode === "store" ? storePlatform : "manual",
           sourceMeta:
-            mode === "store" && wooSelectedId
-              ? { product_id: wooSelectedId, store_url: wooStoreUrl || null }
+            mode === "store"
+              ? storePlatform === "woocommerce" && wooSelectedId
+                ? { product_id: wooSelectedId, store_url: wooStoreUrl || null }
+                : storePlatform === "shopify" && shopifySelectedId
+                  ? { product_id: shopifySelectedId, store_domain: shopifyStoreDomain || null }
+                  : null
               : null,
           lang: outputLang,
         }),
@@ -524,11 +580,33 @@ export default function ProductGeniePage() {
     }
   };
 
+  const loadShopifyProducts = async () => {
+    if (!shopifyConnected) return;
+    setShopifyLoadingList(true);
+    try {
+      const qs = new URLSearchParams();
+      if (shopifyQuery.trim()) qs.set("search", shopifyQuery.trim());
+      const res = await fetch(`/api/shopify/products?${qs.toString()}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof json.error === "string" ? json.error : "Could not fetch products.");
+        return;
+      }
+      setShopifyItems(Array.isArray(json.items) ? json.items : []);
+      setShopifyLastRefreshAt(new Date().toISOString());
+    } catch {
+      setError("Network error fetching products.");
+    } finally {
+      setShopifyLoadingList(false);
+    }
+  };
+
   useEffect(() => {
-    if (mode !== "store" || !wooConnected) return;
-    void loadWooProducts();
+    if (mode !== "store") return;
+    if (storePlatform === "woocommerce" && wooConnected) void loadWooProducts();
+    if (storePlatform === "shopify" && shopifyConnected) void loadShopifyProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, wooConnected]);
+  }, [mode, storePlatform, wooConnected, shopifyConnected]);
 
   const loadWooProduct = async (productId: number) => {
     setError(null);
@@ -556,6 +634,30 @@ export default function ProductGeniePage() {
       setError("Network error fetching product.");
     } finally {
       setWooProductLoading(false);
+    }
+  };
+
+  const loadShopifyProduct = async (productId: number) => {
+    setError(null);
+    setShopifyProductLoading(true);
+    setWooSyncStatus({ state: "idle" });
+    try {
+      const res = await fetch(`/api/shopify/products/${productId}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof json.error === "string" ? json.error : "Could not fetch product.");
+        return;
+      }
+      const p = json.product;
+      setProductName(String(p?.title ?? ""));
+      setExistingTitle(String(p?.title ?? ""));
+      setExistingDescription(String(p?.description ?? ""));
+      setExistingShortDescription(String(p?.description ?? ""));
+      setHealthResult(null);
+    } catch {
+      setError("Network error fetching product.");
+    } finally {
+      setShopifyProductLoading(false);
     }
   };
 
@@ -872,23 +974,44 @@ export default function ProductGeniePage() {
                       Store connection
                     </p>
                     <h3 className="text-lg font-semibold tracking-tight text-white leading-tight">
-                      WooCommerce
+                      {storePlatform === "woocommerce" ? "WooCommerce" : "Shopify"}
                     </h3>
                   </div>
                 </div>
-                {wooConnected && wooStoreUrl ? (
+                {(storePlatform === "woocommerce" ? wooConnected && wooStoreUrl : shopifyConnected && shopifyStoreDomain) ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-200">
                     <LinkIcon className="h-3.5 w-3.5" /> Connected
                   </span>
                 ) : null}
               </div>
 
-              {!wooConnected ? (
+              {wooConnected && shopifyConnected ? (
+                <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/25 p-2">
+                  <Button
+                    type="button"
+                    onClick={() => setStorePlatform("woocommerce")}
+                    variant={storePlatform === "woocommerce" ? "primary" : "secondary"}
+                    className="h-10 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                  >
+                    WooCommerce
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setStorePlatform("shopify")}
+                    variant={storePlatform === "shopify" ? "primary" : "secondary"}
+                    className="h-10 rounded-2xl text-[11px] font-black uppercase tracking-[0.22em]"
+                  >
+                    Shopify
+                  </Button>
+                </div>
+              ) : null}
+
+              {!(storePlatform === "woocommerce" ? wooConnected : shopifyConnected) ? (
                 <div className="mt-5 grid gap-4">
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/15 px-4 py-4 text-sm text-white/55">
                     <p className="font-semibold text-white/80">No store connected yet</p>
                     <p className="mt-1">
-                      Connect WooCommerce (and soon Shopify) on the Connections page. Products stays focused on product operations.
+                      Connect your store on the Connections page. Products stays focused on product operations.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -915,13 +1038,13 @@ export default function ProductGeniePage() {
                       Connected domain
                     </p>
                     <p className="mt-1 break-all text-sm font-mono text-white/70 leading-snug">
-                      {wooStoreUrl}
+                      {storePlatform === "woocommerce" ? wooStoreUrl : shopifyStoreDomain}
                     </p>
-                    {wooLastRefreshAt ? (
+                    {(storePlatform === "woocommerce" ? wooLastRefreshAt : shopifyLastRefreshAt) ? (
                       <p className="mt-1 text-[11px] text-white/40">
                         Last refreshed{" "}
                         <span className="font-mono text-white/60">
-                          {new Date(wooLastRefreshAt).toLocaleString()}
+                          {new Date((storePlatform === "woocommerce" ? wooLastRefreshAt : shopifyLastRefreshAt) as string).toLocaleString()}
                         </span>
                       </p>
                     ) : (
@@ -934,12 +1057,14 @@ export default function ProductGeniePage() {
                   <div className="flex min-w-0 flex-col gap-2">
                     <Button
                       type="button"
-                      onClick={() => loadWooProducts()}
-                      disabled={wooLoadingList}
+                      onClick={() =>
+                        storePlatform === "woocommerce" ? loadWooProducts() : loadShopifyProducts()
+                      }
+                      disabled={storePlatform === "woocommerce" ? wooLoadingList : shopifyLoadingList}
                       variant="primary"
                       className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                     >
-                      {wooLoadingList ? (
+                      {(storePlatform === "woocommerce" ? wooLoadingList : shopifyLoadingList) ? (
                         <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                       ) : (
                         <RefreshCcw className="h-4 w-4 shrink-0" />
@@ -958,16 +1083,22 @@ export default function ProductGeniePage() {
                     <div className="relative min-w-0">
                       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
                       <Input
-                        value={wooQuery}
-                        onChange={(e) => setWooQuery(e.target.value)}
+                        value={storePlatform === "woocommerce" ? wooQuery : shopifyQuery}
+                        onChange={(e) =>
+                          storePlatform === "woocommerce"
+                            ? setWooQuery(e.target.value)
+                            : setShopifyQuery(e.target.value)
+                        }
                         placeholder="Search products…"
                         className="min-w-0 rounded-2xl pl-10"
                       />
                     </div>
                     <Button
                       type="button"
-                      onClick={() => loadWooProducts()}
-                      disabled={wooLoadingList}
+                      onClick={() =>
+                        storePlatform === "woocommerce" ? loadWooProducts() : loadShopifyProducts()
+                      }
+                      disabled={storePlatform === "woocommerce" ? wooLoadingList : shopifyLoadingList}
                       variant="secondary"
                       className="h-11 w-full shrink-0 whitespace-normal rounded-2xl px-4 text-[11px] font-black uppercase leading-tight tracking-[0.18em] sm:w-auto sm:self-start"
                     >
@@ -980,41 +1111,48 @@ export default function ProductGeniePage() {
                       Select product
                     </label>
                     <select
-                      value={wooSelectedId ?? ""}
+                      value={(storePlatform === "woocommerce" ? wooSelectedId : shopifySelectedId) ?? ""}
                       onChange={(e) => {
                         const n = Number(e.target.value);
                         if (!n) {
-                          setWooSelectedId(null);
+                          if (storePlatform === "woocommerce") setWooSelectedId(null);
+                          else setShopifySelectedId(null);
                           setHealthResult(null);
                           return;
                         }
-                        setWooSelectedId(n);
+                        if (storePlatform === "woocommerce") setWooSelectedId(n);
+                        else setShopifySelectedId(n);
                         setHealthResult(null);
-                        void loadWooProduct(n);
+                        void (storePlatform === "woocommerce" ? loadWooProduct(n) : loadShopifyProduct(n));
                       }}
                       className="w-full rounded-2xl border border-white/[0.10] bg-black/30 px-4 py-3.5 text-sm font-semibold text-white outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-white/[0.14] focus:shadow-[0_0_0_3px_var(--ring)] cursor-pointer"
-                      disabled={wooProductLoading || wooLoadingList}
+                      disabled={
+                        storePlatform === "woocommerce"
+                          ? wooProductLoading || wooLoadingList
+                          : shopifyProductLoading || shopifyLoadingList
+                      }
                     >
                       <option value="">Choose a product…</option>
-                      {wooItems.map((p: any) => (
+                      {(storePlatform === "woocommerce" ? wooItems : shopifyItems).map((p: any) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
-                          {p.sku ? ` · ${p.sku}` : ""}
+                          {storePlatform === "woocommerce" ? p.name : p.title}
+                          {storePlatform === "woocommerce" && p.sku ? ` · ${p.sku}` : ""}
                         </option>
                       ))}
                     </select>
-                    {wooProductLoading ? (
+                    {(storePlatform === "woocommerce" ? wooProductLoading : shopifyProductLoading) ? (
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
                         <div className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
                           Loading product…
                         </div>
                       </div>
-                    ) : wooItems.length === 0 && !wooLoadingList ? (
+                    ) : (storePlatform === "woocommerce" ? wooItems : shopifyItems).length === 0 &&
+                      !(storePlatform === "woocommerce" ? wooLoadingList : shopifyLoadingList) ? (
                       <div className="rounded-2xl border border-dashed border-white/10 bg-black/15 px-4 py-4 text-sm text-white/45">
                         No products loaded yet. Click <span className="text-white/80">Refresh</span> to pull your latest catalog.
                       </div>
-                    ) : wooLoadingList ? (
+                    ) : (storePlatform === "woocommerce" ? wooLoadingList : shopifyLoadingList) ? (
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65">
                         <div className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
@@ -1024,7 +1162,7 @@ export default function ProductGeniePage() {
                     ) : null}
                   </div>
 
-                  {wooInsights?.connected ? (
+                  {storePlatform === "woocommerce" && wooInsights?.connected ? (
                     <div className="min-w-0 rounded-2xl border border-violet-500/20 bg-violet-500/[0.06] p-4">
                       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                         <div className="min-w-0">
@@ -1066,7 +1204,8 @@ export default function ProductGeniePage() {
                     </div>
                   ) : null}
 
-                  <div className="min-w-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4">
+                  {storePlatform === "woocommerce" ? (
+                    <div className="min-w-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4">
                     <div className="flex min-w-0 items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-200">
                         <Activity className="h-5 w-5" />
@@ -1131,6 +1270,17 @@ export default function ProductGeniePage() {
                       </div>
                     </div>
                   </div>
+                  ) : (
+                    <div className="min-w-0 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                        Shopify notes
+                      </p>
+                      <p className="mt-2 text-xs text-white/55 leading-relaxed">
+                        Shopify MVP supports product browsing + pulling fields into generation. Health analysis, optimization queue,
+                        and store writeback are currently WooCommerce-only.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
