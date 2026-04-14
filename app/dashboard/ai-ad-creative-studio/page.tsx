@@ -336,13 +336,9 @@ export default function AiAdCreativeStudioPage() {
       });
       const json = (await res.json().catch(() => ({}))) as GenerationApiResponse;
 
-      if (!res.ok || !json || (json as any).ok !== true) {
-        const msg =
-          typeof (json as any)?.error === "string"
-            ? (json as any).error
-            : "Generation failed.";
-        const details =
-          typeof (json as any)?.details === "string" ? (json as any).details : "";
+      if (!res.ok || !json || json.ok !== true) {
+        const msg = typeof (json as any)?.error === "string" ? (json as any).error : "Generation failed.";
+        const details = typeof (json as any)?.details === "string" ? (json as any).details : "";
         setError(details ? `${msg} ${details}` : msg);
         if (typeof (json as any)?.generationId === "string") {
           setGenerationId((json as any).generationId);
@@ -350,7 +346,7 @@ export default function AiAdCreativeStudioPage() {
         return;
       }
 
-      setGenerationId(json.generationId);
+      setGenerationId(typeof json.generationId === "string" ? json.generationId : null);
       setResult(json.result);
       setUsageBump((x) => x + 1);
       await loadHistory();

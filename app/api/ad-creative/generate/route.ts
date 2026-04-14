@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireFeatureAccess } from "@/lib/entitlements/api";
@@ -42,11 +43,7 @@ function parseAspectRatios(v: unknown): AspectRatio[] {
 
 export async function POST(req: Request) {
   let generationId: string | null = null;
-  let supabaseRef: Awaited<
-    ReturnType<typeof requireSessionClientAndUsageAllowance>
-  > extends { ok: true; supabase: infer S }
-    ? S
-    : null = null;
+  let supabaseRef: SupabaseClient | null = null;
   let userIdRef: string | null = null;
   try {
     if (!process.env.OPENAI_API_KEY) {
