@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { AdCreativeAssetImageDraft, AdCreativeAspectRatio } from "@/lib/ad-creative/types";
 import { buildRealismVisualPlan } from "@/lib/ai/image-realism-pipeline";
 import { evaluateImageQuality } from "@/lib/ai/image-quality";
+import type { ImageStylePresetKey } from "@/lib/ad-creative/image-style-presets";
 
 export type ImageProviderId = "openai-dalle3";
 
@@ -36,6 +37,7 @@ export async function generateDraftImage(params: {
   brandName: string;
   conceptIntent: string;
   styleDirection?: string;
+  stylePreset?: ImageStylePresetKey;
   referenceImageUrl?: string;
   mode?: "studio_product_shot" | "lifestyle_scene";
   aspectRatio: AdCreativeAspectRatio;
@@ -58,6 +60,7 @@ export async function generateDraftImage(params: {
       brandName: params.brandName,
       conceptIntent: params.conceptIntent,
       styleDirection: params.styleDirection,
+      stylePreset: params.stylePreset,
       referenceImageUrl: params.referenceImageUrl,
       mode: params.mode,
     });
@@ -85,12 +88,29 @@ export async function generateDraftImage(params: {
           const r = await fetch(params.referenceImageUrl);
           if (r.ok) {
             const buf = await r.arrayBuffer();
-            const file = new File([buf], "reference.png", { type: "image/png" });
+            // Proxy the reference image into our own storage so the image-edit provider
+            // can reliably download it (some hosts block hotlinking / user-agent access).
+            const refBucket = "brand-assets";
+            const contentType = r.headers.get("content-type") || "image/png";
+            const refExt = contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "png";
+            const refPath = `ad-creative-refs-proxy/${params.generationId}/${params.angleId}-ref-${Date.now()}.${refExt}`;
+            const { error: refUploadErr } = await supabaseAdmin.storage
+              .from(refBucket)
+              .upload(refPath, buf, { contentType, upsert: true });
+            const { data: refSigned, error: refSignErr } = await supabaseAdmin.storage
+              .from(refBucket)
+              .createSignedUrl(refPath, 60 * 60);
+            const refUrl =
+              !refUploadErr && !refSignErr && refSigned?.signedUrl
+                ? refSigned.signedUrl
+                : null;
             const editsApi = imagesAny?.edits?.create;
             if (typeof editsApi === "function") {
               const editResp = await editsApi({
                 model: process.env.OPENAI_IMAGE_EDIT_MODEL ?? "gpt-image-1",
-                image: file,
+                // Many image-edit endpoints accept a URL string for `image`.
+                // We prefer the proxied, signed storage URL here.
+                image: refUrl ?? params.referenceImageUrl,
                 prompt: `${p}
 
 STRICT PRESERVATION (HIGHEST PRIORITY):

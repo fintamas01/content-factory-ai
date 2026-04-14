@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getImageStylePreset, type ImageStylePresetKey } from "@/lib/ad-creative/image-style-presets";
 
 export type RealismVisualPlan = {
   mode: "studio_product_shot" | "lifestyle_scene";
@@ -35,6 +36,7 @@ export type RealismPipelineOutput = {
   style_metadata: {
     realism_version: 1;
     emphasis: "reference-first" | "text-to-image-fallback";
+    preset?: { key: ImageStylePresetKey; label: string };
   };
 };
 
@@ -66,11 +68,13 @@ export async function buildRealismVisualPlan(params: {
   brandName: string;
   conceptIntent: string;
   styleDirection?: string;
+  stylePreset?: ImageStylePresetKey;
   referenceImageUrl?: string;
   mode?: "studio_product_shot" | "lifestyle_scene";
 }): Promise<RealismPipelineOutput> {
   const { id, brandName, conceptIntent, styleDirection, referenceImageUrl } = params;
   const mode = params.mode === "studio_product_shot" ? "studio_product_shot" : "lifestyle_scene";
+  const preset = getImageStylePreset(params.stylePreset ?? null);
 
   const system = `You are a senior commercial photographer + ad creative director.
 Return ONLY valid JSON.
@@ -104,6 +108,8 @@ Required JSON shape:
   const user = `Brand: ${brandName}
 Concept intent: ${conceptIntent}
 Style direction (optional): ${styleDirection ?? ""}
+Style preset (optional): ${preset ? `${preset.label} (${preset.key})` : ""}
+Preset controls (if provided, incorporate them):\n- lighting: ${preset?.lighting ?? ""}\n- camera: ${preset?.camera ?? ""}\n- color grading: ${preset?.colorGrading ?? ""}\n- composition: ${preset?.composition ?? ""}
 Reference image provided: ${referenceImageUrl ? "yes" : "no"}
 Mode: ${mode}`;
 
@@ -169,44 +175,130 @@ Mode: ${mode}`;
     postProcessNotes: clampLines(p.postProcessNotes, 10),
   };
 
+  const defaultNegatives = [
+    // Text & logos
+    "text, letters, typography, watermark, logo text",
+    // Requested negatives
+    "no CGI",
+    "no artificial skin",
+    "no plastic textures",
+    "no unrealistic reflections",
+    // Common failure modes
+    "cgi, 3d render, illustration, cartoon, anime",
+    "uncanny, overly smooth surfaces, airbrushed",
+    "warped geometry, melted objects, duplicated objects",
+    "weird hands, extra fingers, distorted objects",
+    "cheap lens flare, overbloom, oversharpening halos",
+  ];
+
   const negative = [
     ...plan.negativePrompts,
-    "text, letters, typography, watermark, logo text",
-    "cgi, 3d render, illustration, cartoon, anime",
-    "uncanny, plastic skin, overly smooth surfaces, airbrushed",
-    "weird hands, extra fingers, distorted objects",
+    ...(preset?.negative ?? []),
+    ...defaultNegatives,
   ]
     .map((s) => s.trim())
     .filter(Boolean)
     .join(", ");
 
-  const prompt = [
-    "Ultra realistic commercial product photo, premium marketing photography.",
-    mode === "studio_product_shot"
-      ? "Mode: studio product shot (controlled studio lighting, seamless background, premium tabletop/studio setup)."
-      : "Mode: lifestyle scene (product naturally integrated into a real environment, believable context, candid feel).",
-    plan.environment ? `Environment: ${plan.environment}.` : "",
-    plan.productPlacement ? `Product placement: ${plan.productPlacement}.` : "",
-    plan.composition ? `Composition: ${plan.composition}.` : "",
-    plan.camera?.body || plan.camera?.lens
-      ? `Shot on ${plan.camera.body || "DSLR"} with ${plan.camera.lens || "35mm"}; ${plan.camera.framing || ""} ${plan.camera.angle ? `(${plan.camera.angle})` : ""}.`
-      : "",
-    plan.lighting?.setup ? `Lighting: ${plan.lighting.setup}.` : "",
-    plan.lighting?.timeOfDay ? `Time of day: ${plan.lighting.timeOfDay}.` : "",
-    plan.lighting?.shadows ? `Shadows: ${plan.lighting.shadows}.` : "",
-    plan.realismConstraints.length
-      ? `Realism constraints: ${plan.realismConstraints.join("; ")}.`
-      : "",
-    "Natural texture detail, believable depth, imperfect realism, subtle sensor grain, natural shadows.",
-    "No text in the image. Leave clean negative space for later overlay.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // Layered prompt builder (reusable + consistent):
+  // scene + product + camera + lighting + grading + composition + realism constraints
+  const promptSections: string[] = [];
+  promptSections.push("SCENE");
+  promptSections.push(
+    [
+      "Photorealistic commercial photography (real photo, not AI-looking).",
+      mode === "studio_product_shot"
+        ? "Studio product shot in a real studio environment."
+        : "Lifestyle scene captured in a real environment (candid, believable).",
+      plan.environment ? `Environment: ${plan.environment}.` : "",
+      styleDirection ? `Creative direction: ${styleDirection}.` : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  promptSections.push("PRODUCT");
+  promptSections.push(
+    [
+      referenceImageUrl
+        ? "Use the provided reference image as the product identity source; preserve shape, proportions, materials, colors."
+        : "Keep product identity consistent, realistic materials, believable proportions.",
+      plan.productPlacement ? `Placement: ${plan.productPlacement}.` : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  promptSections.push("CAMERA");
+  promptSections.push(
+    [
+      preset?.camera ? `Preset camera: ${preset.camera}.` : "",
+      plan.camera?.body || plan.camera?.lens
+        ? `Camera: ${plan.camera.body || "DSLR"}; Lens: ${plan.camera.lens || "35mm"}.`
+        : "Camera: professional photo camera; Lens: realistic focal length for the scene.",
+      plan.camera?.framing ? `Framing: ${plan.camera.framing}.` : "",
+      plan.camera?.angle ? `Angle: ${plan.camera.angle}.` : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  promptSections.push("LIGHTING");
+  promptSections.push(
+    [
+      preset?.lighting ? `Preset lighting: ${preset.lighting}.` : "",
+      plan.lighting?.setup ? `Setup: ${plan.lighting.setup}.` : "",
+      plan.lighting?.timeOfDay ? `Time of day: ${plan.lighting.timeOfDay}.` : "",
+      plan.lighting?.shadows ? `Shadows: ${plan.lighting.shadows}.` : "",
+      "Lighting continuity: consistent direction, consistent color temperature, believable falloff.",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  promptSections.push("COLOR GRADING");
+  promptSections.push(
+    [
+      preset?.colorGrading ? `Preset grade: ${preset.colorGrading}.` : "",
+      plan.postProcessNotes.length ? `Notes: ${plan.postProcessNotes.join("; ")}.` : "",
+      "Keep tones natural. Avoid HDR halos, oversharpening, and fake plastic sheen.",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  promptSections.push("COMPOSITION");
+  promptSections.push(
+    [
+      preset?.composition ? `Preset composition: ${preset.composition}.` : "",
+      plan.composition ? `Composition: ${plan.composition}.` : "",
+      "Leave clean negative space for later overlay (but DO NOT include any text in the image).",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  promptSections.push("REALISM CONSTRAINTS");
+  promptSections.push(
+    [
+      plan.realismConstraints.length
+        ? plan.realismConstraints.map((x) => `- ${x}`).join("\n")
+        : "- Natural micro-texture, subtle sensor grain, realistic depth, imperfect realism.",
+      "- No CGI/illustration look; no plastic textures; no unrealistic reflections.",
+      "- No broken shapes/warped objects; avoid uncanny symmetry.",
+    ].join("\n")
+  );
+
+  const prompt = promptSections.join("\n\n");
 
   const out: RealismPipelineOutput = {
     concepts: [{ id, intent: conceptIntent, plan }],
     prompts: [{ id, prompt, negative_prompt: negative }],
-    style_metadata: { realism_version: 1, emphasis: referenceImageUrl ? "reference-first" : "text-to-image-fallback" },
+    style_metadata: {
+      realism_version: 1,
+      emphasis: referenceImageUrl ? "reference-first" : "text-to-image-fallback",
+      preset: preset ? { key: preset.key, label: preset.label } : undefined,
+    },
   };
   return out;
 }

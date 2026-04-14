@@ -16,6 +16,7 @@ import {
 } from "@/lib/ad-creative/v1";
 import { generateDraftImage } from "@/lib/ad-creative/image-provider";
 import type { AdCreativeAssets, AdCreativeAsset, AdCreativeAspectRatio } from "@/lib/ad-creative/types";
+import type { ImageStylePresetKey } from "@/lib/ad-creative/image-style-presets";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -115,6 +116,8 @@ export async function POST(req: Request) {
       imageModeRaw === "studio_product_shot"
         ? "studio_product_shot"
         : "lifestyle_scene";
+    const stylePresetRaw = typeof body?.imageStylePreset === "string" ? body.imageStylePreset.trim() : "";
+    const stylePreset = (stylePresetRaw || undefined) as ImageStylePresetKey | undefined;
 
     const source_type =
       input.landingPageUrl && input.landingPageUrl.trim()
@@ -265,6 +268,7 @@ export async function POST(req: Request) {
           brandName: input.brandName,
           conceptIntent: `${a.hook}\n\n${promptParts.join("\n")}`,
           styleDirection: input.styleDirection,
+          stylePreset,
           referenceImageUrl: input.sourceImageUrl,
           mode: imageMode,
           aspectRatio: ar,
