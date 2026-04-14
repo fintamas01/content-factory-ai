@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { HelpCircle, LogOut, Plug, RefreshCcw } from "lucide-react";
+import { ExternalLink, HelpCircle, LogOut, Plug, RefreshCcw } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { ConnectionStatusBadge } from "@/app/components/connections/ConnectionStatusBadge";
 
@@ -36,69 +36,90 @@ export function PlatformConnectionCard({
             {platformLabel}
           </h3>
           <p className="mt-1 text-sm text-white/55 leading-relaxed">{description}</p>
-          <div className="mt-3">
-            <ConnectionStatusBadge
-              status={status}
-              label={status === "connected" ? connectedDomain ?? null : null}
-            />
-            {disabledReason ? (
-              <p className="mt-2 text-xs text-amber-200/80">{disabledReason}</p>
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ConnectionStatusBadge status={status} />
+              {status === "connected" && connectedDomain ? (
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-mono text-white/65">
+                  Connected store: {connectedDomain}
+                </span>
+              ) : null}
+            </div>
+
+            {status === "connected" ? (
+              <p className="text-xs text-white/45">
+                Your store is connected. You can now manage and optimize products from the Products page.
+              </p>
+            ) : disabledReason ? (
+              <p className="text-xs text-white/45">{disabledReason}</p>
             ) : null}
           </div>
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        {status === "connected" ? (
-          <>
+      <div className="mt-5 space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {status === "connected" ? (
+            <>
+              <Link
+                href="/dashboard/products"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500/30 via-violet-500/20 to-transparent px-5 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:brightness-110"
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden />
+                Go to Products
+              </Link>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-11 rounded-2xl"
+                onClick={onPrimaryAction}
+                disabled={busy}
+              >
+                <RefreshCcw className="mr-2 h-4 w-4" aria-hidden />
+                {busy ? "Working…" : "Reconnect"}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                className="h-11 rounded-2xl"
+                onClick={onDisconnect}
+                disabled={busy}
+              >
+                <LogOut className="mr-2 h-4 w-4" aria-hidden />
+                {busy ? "Disconnecting…" : "Disconnect"}
+              </Button>
+            </>
+          ) : status === "coming_soon" ? (
+            <button
+              type="button"
+              onClick={onPrimaryAction}
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.07]"
+            >
+              Planned for next release
+            </button>
+          ) : (
             <Button
               type="button"
-              variant="secondary"
               className="h-11 rounded-2xl"
               onClick={onPrimaryAction}
-              disabled={busy}
+              disabled={!onPrimaryAction || busy}
             >
-              <RefreshCcw className="mr-2 h-4 w-4" aria-hidden />
-              {busy ? "Working…" : "Reconnect"}
+              <Plug className="mr-2 h-4 w-4" aria-hidden />
+              {busy ? "Working…" : primaryAction === "connect" ? "Connect" : "Reconnect"}
             </Button>
-            <Button
-              type="button"
-              variant="danger"
-              className="h-11 rounded-2xl"
-              onClick={onDisconnect}
-              disabled={busy}
-            >
-              <LogOut className="mr-2 h-4 w-4" aria-hidden />
-              {busy ? "Disconnecting…" : "Disconnect"}
-            </Button>
-          </>
-        ) : (
-          <Button
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
             type="button"
-            className="h-11 rounded-2xl"
-            onClick={onPrimaryAction}
-            disabled={status === "coming_soon" || !onPrimaryAction || busy}
+            onClick={onHelp}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-white/60 transition hover:text-white/85"
           >
-            <Plug className="mr-2 h-4 w-4" aria-hidden />
-            {busy ? "Working…" : primaryAction === "connect" ? "Connect" : "Reconnect"}
-          </Button>
-        )}
-
-        <button
-          type="button"
-          onClick={onHelp}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.06]"
-        >
-          <HelpCircle className="h-4 w-4 text-white/70" aria-hidden />
-          View setup guide
-        </button>
-
-        <Link
-          href="/dashboard/products"
-          className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] px-5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.06]"
-        >
-          Go to Products
-        </Link>
+            <HelpCircle className="h-4 w-4 text-white/50" aria-hidden />
+            View setup guide
+          </button>
+        </div>
       </div>
     </div>
   );

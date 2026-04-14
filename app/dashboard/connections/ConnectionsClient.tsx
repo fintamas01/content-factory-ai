@@ -125,10 +125,10 @@ export function ConnectionsClient({ initial }: { initial: StoreConnectionsSnapsh
           status="coming_soon"
           connectedDomain={null}
           primaryAction="connect"
-          onPrimaryAction={undefined}
+          onPrimaryAction={() => setShopifyHelpOpen(true)}
           onHelp={() => setShopifyHelpOpen(true)}
           busy={busy === "shopify"}
-          disabledReason="Connector staged for next release"
+          disabledReason="Shopify support is being finalized and will be available in an upcoming release."
         />
       </div>
 

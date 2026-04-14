@@ -23,7 +23,7 @@ export default async function ConnectionsPage() {
         icon={<Link2 className="h-6 w-6" />}
         eyebrow="Integrations"
         title="Store connections"
-        description="Connect your store once, then keep Products focused on product operations. Credentials are stored server-side and scoped to your current workspace."
+        description="Connect your ecommerce platform once, then sync products and run optimizations from one workspace."
       />
 
       <ConnectionsClient initial={snapshot} />
