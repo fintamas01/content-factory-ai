@@ -80,6 +80,29 @@ function clampDurationSeconds(n: unknown): number {
   return Math.max(5, Math.min(8, Math.round(v)));
 }
 
+function parseAllowedDurations(): number[] {
+  const raw = (process.env.REPLICATE_IMAGE_TO_VIDEO_ALLOWED_DURATIONS ?? "5,10")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const uniq = Array.from(new Set(raw)).sort((a, b) => a - b);
+  return uniq.length ? uniq : [5, 10];
+}
+
+function mapToAllowedDurationSeconds(requested: number): { requested: number; mapped: number; allowed: number[] } {
+  const allowed = parseAllowedDurations();
+  let best = allowed[0]!;
+  let bestDist = Math.abs(best - requested);
+  for (const a of allowed) {
+    const d = Math.abs(a - requested);
+    if (d < bestDist) {
+      best = a;
+      bestDist = d;
+    }
+  }
+  return { requested, mapped: best, allowed };
+}
+
 async function replicateFetch(path: string, init: RequestInit) {
   const token = process.env.REPLICATE_API_TOKEN;
   if (!token) throw new Error("REPLICATE_API_TOKEN is not configured.");
@@ -129,7 +152,9 @@ export async function startAdCreativeVideoFromImage(params: {
       };
     }
 
-    const duration = clampDurationSeconds(params.duration_seconds);
+    const durationRequested = clampDurationSeconds(params.duration_seconds);
+    const durationMapped = mapToAllowedDurationSeconds(durationRequested);
+    const duration = durationMapped.mapped;
     const aspect = platformAspect(params.platform);
 
     const prompt = `Create a short (${duration}s) photoreal ad video from this source image.
@@ -174,7 +199,7 @@ Output: mp4 video. Aspect ratio: ${aspect}.`;
         status: "completed",
         video_url: maybeVideo,
         thumbnail_url: params.image_url,
-        metadata: { raw: json },
+        metadata: { raw: json, duration: durationMapped },
       };
     }
 
@@ -187,7 +212,7 @@ Output: mp4 video. Aspect ratio: ${aspect}.`;
       provider,
       status: "processing",
       job_id: id,
-      metadata: { raw: json },
+      metadata: { raw: json, duration: durationMapped },
     };
   } catch (e: any) {
     return { ok: false, provider, error: String(e?.message ?? e ?? "Video generation failed.") };

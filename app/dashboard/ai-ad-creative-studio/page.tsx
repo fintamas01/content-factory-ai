@@ -1568,7 +1568,8 @@ export default function AiAdCreativeStudioPage() {
                 })}
               </div>
               <p className="mt-2 text-xs text-white/45">
-                Subtle camera motion, stable lighting, and realistic movement.
+                Subtle camera motion, stable lighting, and realistic movement. (If the provider only supports specific
+                durations, we’ll pick the closest match.)
               </p>
             </div>
           </div>
