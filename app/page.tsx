@@ -79,20 +79,20 @@ export default function HomePage() {
         <header className="text-center md:text-left">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-200/80">
             <Sparkles className="h-4 w-4 text-amber-200/90" aria-hidden />
-            One workspace for content, products, and growth
+            Built for ecommerce teams shipping weekly
           </div>
 
           <h1 className="mt-5 text-4xl font-black tracking-tight text-white md:text-6xl">
-            Grow your business with{" "}
+            Turn product pages into{" "}
             <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">
-              AI-powered execution
+              traffic + sales
             </span>
             .
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-relaxed text-slate-400 md:mx-0 md:text-base">
-            Stop juggling tools. Create better content, stronger product pages, and clear
-            growth actions—faster than your competitors.
+            Generate high-converting product descriptions, SEO-ready page copy, and scroll-stopping social posts—in minutes.
+            Spend less time writing, and more time selling.
           </p>
 
           <div className="mt-8 flex flex-col items-stretch justify-start gap-3 sm:flex-row sm:items-center">
@@ -106,14 +106,18 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
+          <div className="mt-3 text-xs font-medium text-slate-500">
+            No credit card required · Start free in 1 minute
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
               <Zap className="h-3.5 w-3.5 text-blue-300" aria-hidden />
-              Start Free in 1 minute
+              Shopify + WooCommerce friendly
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
               <FileText className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-              Built for real outputs, not prompts
+              Consistent tone across your store
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
               <Check className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
@@ -122,6 +126,81 @@ export default function HomePage() {
           </div>
         </header>
 
+        {/* WHAT YOU CAN DO */}
+        <section className="mt-12 md:mt-14">
+          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+              What you can do
+            </p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white">
+              Ship ecommerce content that actually converts.
+            </h2>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                "Generate product descriptions",
+                "Create social media posts",
+                "Optimize product pages for SEO",
+                "Analyze store performance",
+              ].map((t) => (
+                <div
+                  key={t}
+                  className="flex items-start gap-3 rounded-2xl border border-white/[0.08] bg-black/15 p-4 text-sm text-slate-200"
+                >
+                  <Check className="mt-0.5 h-4 w-4 text-emerald-300" aria-hidden />
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* BEFORE / AFTER */}
+        <section className="mt-6 md:mt-8">
+          <div className="grid gap-6 md:grid-cols-2 md:gap-8">
+            <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                Before
+              </p>
+              <h3 className="mt-3 text-lg font-bold text-white">
+                Generic product copy that doesn’t sell
+              </h3>
+              <div className="mt-4 rounded-2xl border border-white/[0.06] bg-black/15 p-5 text-sm leading-relaxed text-slate-300">
+                Comfortable running shoes with a modern design. Lightweight and durable. Great for everyday use.
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-3xl border border-blue-500/35 bg-gradient-to-br from-blue-500/[0.10] via-[#0a1628] to-[#050b14] p-8 shadow-[0_0_0_1px_rgba(59,130,246,0.12)]">
+              <div
+                className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-blue-500/25 blur-3xl"
+                aria-hidden
+              />
+              <p className="relative text-[10px] font-black uppercase tracking-[0.22em] text-blue-200/70">
+                After
+              </p>
+              <h3 className="relative mt-3 text-lg font-bold text-white">
+                Clear benefits + SEO-ready structure
+              </h3>
+              <div className="relative mt-4 rounded-2xl border border-white/[0.06] bg-black/15 p-5 text-sm leading-relaxed text-blue-50/85">
+                <p className="font-semibold text-white">
+                  Nimbus Running Shoes — lightweight comfort for daily miles
+                </p>
+                <p className="mt-2">
+                  Cushion every step with a breathable upper and responsive foam that keeps your feet fresh—on the treadmill,
+                  on the street, and everywhere between.
+                </p>
+                <ul className="mt-3 list-disc space-y-1 pl-5">
+                  <li>Breathable knit upper for all-day airflow</li>
+                  <li>Responsive cushioning that reduces impact</li>
+                  <li>Grippy outsole for confident traction</li>
+                </ul>
+                <p className="mt-3">
+                  Perfect for: daily runs, walking, commuting, and casual wear.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* PROBLEM -> SOLUTION */}
         <section className="mt-16 grid gap-6 md:mt-20 md:grid-cols-2 md:gap-8">
           <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] p-8 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
@@ -129,12 +208,12 @@ export default function HomePage() {
               The problem
             </p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-white">
-              Growth feels chaotic.
+              Your store can’t grow on inconsistent content.
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-400">
-              Teams lose momentum across content, SEO, product pages, and audits—because
-              everything lives in different tools and workflows. The result: slow output,
-              inconsistent quality, and missed opportunities.
+              You lose hours rewriting product pages, posts, and ad angles—then still get low conversions because the copy
+              doesn’t highlight the right benefits. SEO is an afterthought, messaging drifts across channels, and the “next
+              best action” is never clear.
             </p>
           </div>
 
@@ -147,11 +226,11 @@ export default function HomePage() {
               The solution
             </p>
             <h2 className="relative mt-3 text-2xl font-bold tracking-tight text-white">
-              One AI platform to execute.
+              One place to generate, optimize, and publish.
             </h2>
             <p className="relative mt-3 text-sm leading-relaxed text-blue-50/80">
-              Add your brand once. Then generate content, product copy, and growth audits
-              that actually ship—aligned to your voice and limited by clean monthly quotas.
+              Save your brand voice once. Then generate product descriptions, SEO-ready page sections, and social posts that
+              match your store—plus a growth audit that tells you what to fix next to drive more traffic and sales.
             </p>
           </div>
         </section>
@@ -167,14 +246,14 @@ export default function HomePage() {
                 Everything you need to publish, rank, and convert.
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-slate-400">
-                Four modules that work together—so every output compounds.
+                Four modules that work together—so your product pages, social posts, and insights stay aligned.
               </p>
             </div>
             <Link
               href="/dashboard"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-bold text-white transition hover:bg-white/[0.08]"
             >
-              Explore dashboard
+              See it in action
               <ArrowRight className="h-4 w-4 opacity-70" aria-hidden />
             </Link>
           </div>
@@ -359,11 +438,11 @@ export default function HomePage() {
                 Ready?
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-white md:text-4xl">
-                Start free. Get your first wins today.
+                Start your free trial. Publish faster this week.
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-slate-400">
-                {PLATFORM_DISPLAY_NAME} is designed for execution: publish faster, improve pages,
-                and keep quality consistent as you scale.
+                In one session you can refresh a product page, generate a week of posts, and get a growth audit with clear
+                next steps. Less busywork—more sales.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <StartFreeButton />
@@ -376,7 +455,7 @@ export default function HomePage() {
                 </Link>
               </div>
               <p className="mt-6 text-xs font-medium text-slate-500">
-                No credit card needed to start · Upgrade only when you hit the limits
+                No credit card required · Start free in 1 minute · Upgrade only when it pays for itself
               </p>
             </div>
           </div>

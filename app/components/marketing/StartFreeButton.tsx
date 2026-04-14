@@ -39,7 +39,7 @@ export function StartFreeButton({ variant = "primary" }: { variant?: Variant }) 
     return "inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 px-7 text-[15px] font-black text-white shadow-[0_8px_28px_-4px_rgba(37,99,235,0.55)] ring-1 ring-white/15 transition hover:brightness-110 active:scale-[0.99] sm:w-auto";
   }, [variant]);
 
-  const label = hasUser ? "Go to dashboard" : "Start Free";
+  const label = hasUser ? "Go to dashboard" : "Start Free Trial";
 
   const onClick = async () => {
     if (loading) return;
