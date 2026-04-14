@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { AdCreativeAssetImageDraft, AdCreativeAspectRatio } from "@/lib/ad-creative/types";
+import { buildRealismVisualPlan } from "@/lib/ai/image-realism-pipeline";
+import { evaluateImageQuality } from "@/lib/ai/image-quality";
 
 export type ImageProviderId = "openai-dalle3";
 
@@ -31,8 +33,11 @@ function safeSlug(s: string): string {
 }
 
 export async function generateDraftImage(params: {
-  prompt: string;
   brandName: string;
+  conceptIntent: string;
+  styleDirection?: string;
+  referenceImageUrl?: string;
+  mode?: "studio_product_shot" | "lifestyle_scene";
   aspectRatio: AdCreativeAspectRatio;
   generationId: string;
   angleId: string;
@@ -48,33 +53,137 @@ export async function generateDraftImage(params: {
 
     const { size, w, h } = arToSize(params.aspectRatio);
 
-    const enhancedPrompt = `Create a premium static ad creative draft image.
-Brand: ${params.brandName}
-Concept: ${params.prompt}
-
-Style rules:
-- Photoreal or premium product photography feel (not illustration).
-- Clean layout with negative space (leave room for potential overlay text later).
-- ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO WATERMARKS in the image.
-- Avoid unsafe/medical/financial claim visuals.
-
-Output: one single image.`;
-
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: enhancedPrompt,
-      n: 1,
-      size,
-      quality: "standard",
-      style: "natural",
+    const realism = await buildRealismVisualPlan({
+      id: params.angleId,
+      brandName: params.brandName,
+      conceptIntent: params.conceptIntent,
+      styleDirection: params.styleDirection,
+      referenceImageUrl: params.referenceImageUrl,
+      mode: params.mode,
     });
+    const prompt = realism.prompts[0]?.prompt || params.conceptIntent;
+    const negative = realism.prompts[0]?.negative_prompt || "";
+    const composition_description =
+      realism.concepts[0]?.plan?.composition || realism.concepts[0]?.plan?.environment || "";
+    const mode =
+      realism.concepts[0]?.plan?.mode === "studio_product_shot"
+        ? "studio_product_shot"
+        : "lifestyle_scene";
 
-    const openAiImageUrl = response.data?.[0]?.url;
-    if (!openAiImageUrl) {
-      return { ok: false, provider, error: "No image URL returned by provider." };
+    // Reference-first workflow + QC retries:
+    // - Prefer edit/composite when a reference image exists
+    // - Validate realism/artifacts and retry (max 2) with tightened constraints
+    const imagesAny = openai.images as any;
+
+    const tryEditOrGenerate = async (promptOverride?: string): Promise<{ url: string | null; usedBase: boolean }> => {
+      const p = promptOverride ?? prompt;
+      let url: string | null = null;
+      let usedBase = false;
+
+      if (params.referenceImageUrl) {
+        try {
+          const r = await fetch(params.referenceImageUrl);
+          if (r.ok) {
+            const buf = await r.arrayBuffer();
+            const file = new File([buf], "reference.png", { type: "image/png" });
+            const editsApi = imagesAny?.edits?.create;
+            if (typeof editsApi === "function") {
+              const editResp = await editsApi({
+                model: process.env.OPENAI_IMAGE_EDIT_MODEL ?? "gpt-image-1",
+                image: file,
+                prompt: `${p}
+
+STRICT PRESERVATION (HIGHEST PRIORITY):
+- Preserve the product exactly from the reference image (shape, proportions, materials, colors).
+- Do NOT alter or invent logos/marks; do NOT change logo placement.
+- Keep the product edges, silhouette, and proportions realistic.
+- Place the product naturally in the scene; do not warp, melt, or deform it.`,
+                negative_prompt: negative || undefined,
+                size,
+              });
+              url = editResp?.data?.[0]?.url ?? null;
+              usedBase = Boolean(url);
+            }
+          }
+        } catch {
+          // ignore; fallback
+        }
+      }
+
+      if (!url) {
+        const response = await openai.images.generate({
+          model: "dall-e-3",
+          prompt: p,
+          n: 1,
+          size,
+          quality: "standard",
+          style: "natural",
+        });
+        url = response.data?.[0]?.url ?? null;
+        usedBase = false;
+      }
+
+      return { url, usedBase };
+    };
+
+    const modeForQc =
+      params.mode === "studio_product_shot" ? "studio_product_shot" : "lifestyle_scene";
+
+    const pass = (s: { realism_score: number; artifact_score: number; brand_consistency_score: number }) => {
+      // Conservative defaults; tune later per brand.
+      return s.realism_score >= 7 && s.artifact_score <= 3 && s.brand_consistency_score >= 6;
+    };
+
+    let best: {
+      url: string;
+      usedBase: boolean;
+      qc: Awaited<ReturnType<typeof evaluateImageQuality>>;
+      retryCount: number;
+    } | null = null;
+
+    let promptAttempt = prompt;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const gen = await tryEditOrGenerate(promptAttempt);
+      if (!gen.url) {
+        if (!best) {
+          return { ok: false, provider, error: "No image URL returned by provider." };
+        }
+        break;
+      }
+
+      const qc = await evaluateImageQuality({
+        generatedImageUrl: gen.url,
+        referenceImageUrl: params.referenceImageUrl,
+        brandName: params.brandName,
+        conceptIntent: params.conceptIntent,
+        mode: modeForQc,
+      });
+
+      const score = qc.realism_score - qc.artifact_score * 0.9 + qc.brand_consistency_score * 0.3;
+      const bestScore =
+        best ? best.qc.realism_score - best.qc.artifact_score * 0.9 + best.qc.brand_consistency_score * 0.3 : -Infinity;
+      if (!best || score > bestScore) {
+        best = { url: gen.url, usedBase: gen.usedBase, qc, retryCount: attempt };
+      }
+
+      if (pass(qc)) break;
+
+      // Tighten prompt to address observed issues (no new UI; purely internal).
+      const fixes = qc.issues.slice(0, 6).join("; ");
+      promptAttempt = `${prompt}
+
+RETRY FIXES:
+- Fix these visible issues: ${fixes || "remove AI artifacts and improve realism"}.
+- Increase realism: natural shadows, believable depth, micro-texture, slight asymmetry.
+- Remove any uncanny/warped geometry; ensure product edges are crisp and undistorted.
+- Keep materials and colors true-to-life.`;
     }
 
-    const imageResponse = await fetch(openAiImageUrl);
+    if (!best) {
+      return { ok: false, provider, error: "Image generation failed." };
+    }
+
+    const imageResponse = await fetch(best.url);
     if (!imageResponse.ok) {
       return { ok: false, provider, error: "Failed to download provider image." };
     }
@@ -107,6 +216,15 @@ Output: one single image.`;
         kind: "image",
         angleId: params.angleId,
         aspectRatio: params.aspectRatio,
+        base_image_used: Boolean(params.referenceImageUrl && best.usedBase),
+        composition_description,
+        mode,
+        qc: {
+          realism_score: best.qc.realism_score,
+          artifact_score: best.qc.artifact_score,
+          brand_consistency_score: best.qc.brand_consistency_score,
+          retry_count: best.retryCount,
+        },
         createdAt: new Date().toISOString(),
         provider,
         status: "succeeded",

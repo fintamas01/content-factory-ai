@@ -34,16 +34,31 @@ export async function GET() {
         const list = Array.isArray(assets?.items) ? (assets.items as any[]) : [];
         const signedItems = await Promise.all(
           list.map(async (it: any) => {
-            if (it?.kind !== "image") return it;
             if (it?.status !== "succeeded") return it;
-            const bucket = it?.storage?.bucket;
-            const path = it?.storage?.path;
-            if (typeof bucket !== "string" || typeof path !== "string") return it;
-            const { data: signed, error: signErr } = await supabaseAdmin.storage
-              .from(bucket)
-              .createSignedUrl(path, 60 * 60);
-            if (signErr || !signed?.signedUrl) return it;
-            return { ...it, url: signed.signedUrl };
+
+            if (it?.kind === "image") {
+              const bucket = it?.storage?.bucket;
+              const path = it?.storage?.path;
+              if (typeof bucket !== "string" || typeof path !== "string") return it;
+              const { data: signed, error: signErr } = await supabaseAdmin.storage
+                .from(bucket)
+                .createSignedUrl(path, 60 * 60);
+              if (signErr || !signed?.signedUrl) return it;
+              return { ...it, url: signed.signedUrl };
+            }
+
+            if (it?.kind === "video") {
+              const bucket = it?.storage?.bucket;
+              const path = it?.storage?.path;
+              if (typeof bucket !== "string" || typeof path !== "string") return it;
+              const { data: signed, error: signErr } = await supabaseAdmin.storage
+                .from(bucket)
+                .createSignedUrl(path, 60 * 60);
+              if (signErr || !signed?.signedUrl) return it;
+              return { ...it, url: signed.signedUrl };
+            }
+
+            return it;
           })
         );
         return {

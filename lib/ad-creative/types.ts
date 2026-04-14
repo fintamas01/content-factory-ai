@@ -65,6 +65,24 @@ export type AdCreativeAssetBase = {
 export type AdCreativeAssetImageDraft = AdCreativeAssetBase & {
   kind: "image";
   aspectRatio: AdCreativeAspectRatio;
+  /** True when generated using a reference/base image (edit/composite mode). */
+  base_image_used?: boolean;
+  /** Human-readable composition summary (from the realism plan). */
+  composition_description?: string;
+  /** Studio vs lifestyle mode used for this draft. */
+  mode?: "studio_product_shot" | "lifestyle_scene";
+  /**
+   * Quality control scores for the best selected candidate.
+   * - realism_score: higher is better
+   * - artifact_score: higher is worse
+   * - brand_consistency_score: higher is better
+   */
+  qc?: {
+    realism_score: number;
+    artifact_score: number;
+    brand_consistency_score: number;
+    retry_count: number;
+  };
   width?: number;
   height?: number;
   url?: string;

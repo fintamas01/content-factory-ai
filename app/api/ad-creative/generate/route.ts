@@ -110,6 +110,11 @@ export async function POST(req: Request) {
       callToAction: asOptionalString(body?.callToAction),
     };
     const generateImages = Boolean(body?.generateImages);
+    const imageModeRaw = typeof body?.imageMode === "string" ? body.imageMode.trim() : "";
+    const imageMode =
+      imageModeRaw === "studio_product_shot"
+        ? "studio_product_shot"
+        : "lifestyle_scene";
 
     const source_type =
       input.landingPageUrl && input.landingPageUrl.trim()
@@ -257,8 +262,11 @@ export async function POST(req: Request) {
         ].filter(Boolean);
 
         const img = await generateDraftImage({
-          prompt: promptParts.join("\n"),
           brandName: input.brandName,
+          conceptIntent: `${a.hook}\n\n${promptParts.join("\n")}`,
+          styleDirection: input.styleDirection,
+          referenceImageUrl: input.sourceImageUrl,
+          mode: imageMode,
           aspectRatio: ar,
           generationId: generationId!,
           angleId: a.id,

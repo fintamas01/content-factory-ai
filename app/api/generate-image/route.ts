@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
+import { buildRealismVisualPlan } from "@/lib/ai/image-realism-pipeline";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -19,25 +20,68 @@ export async function POST(req: Request) {
 
     const { supabase, clientId } = gate;
 
-    const { prompt, platform, brandName } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const concept =
+      typeof body?.concept === "string"
+        ? body.concept
+        : typeof body?.prompt === "string"
+          ? body.prompt
+          : "";
+    const brandName = typeof body?.brandName === "string" ? body.brandName : "";
+    const platform = typeof body?.platform === "string" ? body.platform : "";
+    const referenceImageUrl =
+      typeof body?.referenceImageUrl === "string" ? body.referenceImageUrl.trim() : "";
 
-    const enhancedPrompt = `An authentic, highly realistic photograph capturing the following concept: "${prompt}". 
-    Context: A premium lifestyle or corporate scene for the brand '${brandName}' on ${platform}.
-    Execution details: 
-    - Camera settings: Shot on a DSLR with a 35mm lens, shallow depth of field (f/1.8), soft blurred background (bokeh effect).
-    - Lighting & Tone: Natural window daylight, candid, documentary style, authentic, unposed, true-to-life textures, subtle film grain.
-    - Constraints: MUST look like a real, raw photograph. NOT a 3D render, NOT an illustration. ABSOLUTELY NO TEXT, NO LETTERS, NO WORDS, NO WATERMARKS anywhere in the image.`;
+    if (!concept.trim()) {
+      return NextResponse.json({ error: "Missing concept." }, { status: 400 });
+    }
 
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: enhancedPrompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard",
-      style: "natural",
+    const realism = await buildRealismVisualPlan({
+      id: "content-image",
+      brandName: brandName || "Brand",
+      conceptIntent: platform ? `${concept}\nPlatform: ${platform}` : concept,
+      referenceImageUrl: referenceImageUrl || undefined,
     });
+    const prompt = realism.prompts[0]?.prompt || concept;
+    const negative = realism.prompts[0]?.negative_prompt || "";
 
-    const openAiImageUrl = response.data?.[0]?.url;
+    // Reference-first attempt (edit/composite) when a reference image is provided.
+    const imagesAny = openai.images as any;
+    let openAiImageUrl: string | null = null;
+    if (referenceImageUrl) {
+      try {
+        const r = await fetch(referenceImageUrl);
+        if (r.ok) {
+          const buf = await r.arrayBuffer();
+          const file = new File([buf], "reference.png", { type: "image/png" });
+          const editsApi = imagesAny?.edits?.create;
+          if (typeof editsApi === "function") {
+            const editResp = await editsApi({
+              model: process.env.OPENAI_IMAGE_EDIT_MODEL ?? "gpt-image-1",
+              image: file,
+              prompt: `${prompt}\n\nSTRICT PRESERVATION:\nPreserve the product identity from the reference image (shape, materials, colors).`,
+              negative_prompt: negative || undefined,
+              size: "1024x1024",
+            });
+            openAiImageUrl = editResp?.data?.[0]?.url ?? null;
+          }
+        }
+      } catch {
+        // ignore; fallback below
+      }
+    }
+
+    if (!openAiImageUrl) {
+      const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "standard",
+        style: "natural",
+      });
+      openAiImageUrl = response.data?.[0]?.url ?? null;
+    }
 
     if (!openAiImageUrl) {
       throw new Error("Nem érkezett képadat az OpenAI-tól.");
