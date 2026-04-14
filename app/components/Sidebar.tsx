@@ -21,6 +21,7 @@ import {
   ClipboardCheck,
   BarChart3,
   Lock,
+  Link2,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
@@ -64,6 +65,7 @@ const SIDEBAR_ICONS: Record<
   content: Megaphone,
   adCreativeStudio: Images,
   products: Package,
+  connections: Link2,
   priceIntelligence: BarChart3,
   siteAudit: Radar,
   history: History,

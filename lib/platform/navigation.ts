@@ -57,6 +57,11 @@ export const SIDEBAR_NAV_ITEMS = [
     href: MODULES.products.href,
   },
   {
+    id: "connections",
+    label: "Connections",
+    href: "/dashboard/connections",
+  },
+  {
     id: "priceIntelligence",
     label: "Price Intelligence",
     href: "/dashboard/price-intelligence",

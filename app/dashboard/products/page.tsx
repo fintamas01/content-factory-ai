@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useMemo, useState, useEffect, useRef, type ComponentType, type ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { UserBrandProfileRow } from "@/lib/brand-profile/types";
@@ -153,10 +154,6 @@ export default function ProductGeniePage() {
   // WooCommerce connection + product selection
   const [wooConnected, setWooConnected] = useState(false);
   const [wooStoreUrl, setWooStoreUrl] = useState("");
-  const [wooCk, setWooCk] = useState("");
-  const [wooCs, setWooCs] = useState("");
-  const [wooSaving, setWooSaving] = useState(false);
-  const [wooEditing, setWooEditing] = useState(false);
   const [wooLoadingList, setWooLoadingList] = useState(false);
   const [wooLastRefreshAt, setWooLastRefreshAt] = useState<string | null>(null);
   const [wooQuery, setWooQuery] = useState("");
@@ -265,7 +262,6 @@ export default function ProductGeniePage() {
       if (res.ok && json.connected) {
         setWooConnected(true);
         if (typeof json.connection?.store_url === "string") setWooStoreUrl(json.connection.store_url);
-        setWooEditing(false);
       } else {
         setWooConnected(false);
       }
@@ -504,59 +500,6 @@ export default function ProductGeniePage() {
       setError("Network error. Try again.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const connectWoo = async () => {
-    setError(null);
-    setWooSaving(true);
-    try {
-      const res = await fetch("/api/woocommerce/connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          store_url: wooStoreUrl,
-          consumer_key: wooCk,
-          consumer_secret: wooCs,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof json.error === "string" ? json.error : "Could not connect.");
-        return;
-      }
-      setWooConnected(true);
-      setWooEditing(false);
-      setWooCk("");
-      setWooCs("");
-      setWooSyncStatus({ state: "idle" });
-    } catch {
-      setError("Network error connecting store.");
-    } finally {
-      setWooSaving(false);
-    }
-  };
-
-  const disconnectWoo = async () => {
-    setError(null);
-    setWooSaving(true);
-    try {
-      const res = await fetch("/api/woocommerce/connection", { method: "DELETE" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof json.error === "string" ? json.error : "Could not disconnect.");
-        return;
-      }
-      setWooConnected(false);
-      setWooEditing(false);
-      setWooItems([]);
-      setWooSelectedId(null);
-      setWooQuery("");
-      setWooSyncStatus({ state: "idle" });
-    } catch {
-      setError("Network error disconnecting store.");
-    } finally {
-      setWooSaving(false);
     }
   };
 
@@ -926,10 +869,10 @@ export default function ProductGeniePage() {
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
-                      WooCommerce
+                      Store connection
                     </p>
                     <h3 className="text-lg font-semibold tracking-tight text-white leading-tight">
-                      Store connection
+                      WooCommerce
                     </h3>
                   </div>
                 </div>
@@ -940,84 +883,30 @@ export default function ProductGeniePage() {
                 ) : null}
               </div>
 
-              {!wooConnected || wooEditing ? (
+              {!wooConnected ? (
                 <div className="mt-5 grid gap-4">
-                  {wooConnected ? (
-                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
-                      You’re updating connection details. This won’t change anything until you save.
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65 leading-relaxed">
-                      Connect your WooCommerce store to sync products and push updates back safely.
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
-                      Store URL
-                    </label>
-                    <Input
-                      value={wooStoreUrl}
-                      onChange={(e) => setWooStoreUrl(e.target.value)}
-                      placeholder="https://yourstore.com"
-                      className="rounded-2xl"
-                      disabled={wooSaving}
-                    />
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/15 px-4 py-4 text-sm text-white/55">
+                    <p className="font-semibold text-white/80">No store connected yet</p>
+                    <p className="mt-1">
+                      Connect WooCommerce (and soon Shopify) on the Connections page. Products stays focused on product operations.
+                    </p>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
-                      Consumer key
-                    </label>
-                    <Input
-                      value={wooCk}
-                      onChange={(e) => setWooCk(e.target.value)}
-                      placeholder="ck_..."
-                      className="rounded-2xl"
-                      disabled={wooSaving}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 block mb-2">
-                      Consumer secret
-                    </label>
-                    <Input
-                      value={wooCs}
-                      onChange={(e) => setWooCs(e.target.value)}
-                      placeholder="cs_..."
-                      className="rounded-2xl"
-                      disabled={wooSaving}
-                    />
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Link
+                      href="/dashboard/connections"
+                      className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-white/[0.06] px-6 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-white/[0.10]"
+                    >
+                      Manage connections
+                    </Link>
                     <Button
                       type="button"
-                      onClick={connectWoo}
-                      disabled={wooSaving}
-                      variant="primary"
-                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
+                      variant="secondary"
+                      className="h-12 flex-1 rounded-2xl text-[11px] font-black uppercase tracking-[0.18em]"
+                      onClick={() => setMode("manual")}
                     >
-                      {wooSaving ? (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                      ) : (
-                        <Plug className="h-4 w-4 shrink-0" />
-                      )}
-                      {wooSaving ? "Saving…" : wooConnected ? "Save changes" : "Connect store"}
+                      Use manual mode
                     </Button>
-                    {wooConnected ? (
-                      <Button
-                        type="button"
-                        onClick={() => setWooEditing(false)}
-                        disabled={wooSaving}
-                        variant="secondary"
-                        className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
-                      >
-                        Cancel
-                      </Button>
-                    ) : null}
                   </div>
-                  <p className="text-xs text-white/40 leading-relaxed">
-                    Stored in your Supabase project with row-level security. For additional hardening,
-                    encrypt secrets at rest.
-                  </p>
                 </div>
               ) : (
                 <div className="mt-5 grid min-w-0 gap-4">
@@ -1046,7 +935,7 @@ export default function ProductGeniePage() {
                     <Button
                       type="button"
                       onClick={() => loadWooProducts()}
-                      disabled={wooLoadingList || wooSaving}
+                      disabled={wooLoadingList}
                       variant="primary"
                       className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
                     >
@@ -1057,24 +946,12 @@ export default function ProductGeniePage() {
                       )}
                       Refresh
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={() => setWooEditing(true)}
-                      disabled={wooSaving}
-                      variant="secondary"
-                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
+                    <Link
+                      href="/dashboard/connections"
+                      className="inline-flex h-12 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-6 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-white/[0.08]"
                     >
-                      Change store
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={disconnectWoo}
-                      disabled={wooSaving}
-                      variant="danger"
-                      className="h-12 w-full whitespace-normal rounded-2xl px-3 text-center text-[11px] font-black uppercase leading-tight tracking-[0.18em]"
-                    >
-                      Disconnect
-                    </Button>
+                      Manage connections
+                    </Link>
                   </div>
 
                   <div className="flex min-w-0 flex-col gap-2">
