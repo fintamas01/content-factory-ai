@@ -17,23 +17,16 @@ export function ConnectionsClient({ initial }: { initial: StoreConnectionsSnapsh
   const [wooModalOpen, setWooModalOpen] = useState(false);
   const [wooHelpOpen, setWooHelpOpen] = useState(false);
   const [shopifyHelpOpen, setShopifyHelpOpen] = useState(false);
-  const [shopifyModalOpen, setShopifyModalOpen] = useState(false);
 
   const [wooStoreUrl, setWooStoreUrl] = useState("");
   const [wooCk, setWooCk] = useState("");
   const [wooCs, setWooCs] = useState("");
-  const [shopifyShop, setShopifyShop] = useState("");
 
   const wooConnected = snapshot.woocommerce.status === "connected";
-  const shopifyConnected = snapshot.shopify.status === "connected";
 
   const wooDomainLabel = useMemo(() => {
     return snapshot.woocommerce.storeDomain ?? null;
   }, [snapshot.woocommerce.storeDomain]);
-
-  const shopifyDomainLabel = useMemo(() => {
-    return snapshot.shopify.storeDomain ?? null;
-  }, [snapshot.shopify.storeDomain]);
 
   async function reloadWooStatus() {
     const res = await fetch("/api/woocommerce/connection");
@@ -56,77 +49,12 @@ export function ConnectionsClient({ initial }: { initial: StoreConnectionsSnapsh
     }
   }
 
-  async function reloadShopifyStatus() {
-    const res = await fetch("/api/shopify/connection");
-    const json = await res.json().catch(() => ({}));
-    if (res.ok && json.connected) {
-      const d = typeof json.connection?.store_domain === "string" ? json.connection.store_domain : "";
-      setSnapshot((prev) => ({
-        ...prev,
-        shopify: { ...prev.shopify, status: "connected", storeDomain: d || prev.shopify.storeDomain },
-      }));
-    } else {
-      setSnapshot((prev) => ({
-        ...prev,
-        shopify: { ...prev.shopify, status: "not_connected", storeDomain: null },
-      }));
-    }
-  }
-
   function openWooConnect() {
     setError(null);
     setWooStoreUrl(wooConnected ? (snapshot.woocommerce.storeDomain ? `https://${snapshot.woocommerce.storeDomain}` : "") : "");
     setWooCk("");
     setWooCs("");
     setWooModalOpen(true);
-  }
-
-  function openShopifyConnect() {
-    setError(null);
-    setShopifyShop(shopifyConnected ? (snapshot.shopify.storeDomain ?? "") : "");
-    setShopifyModalOpen(true);
-  }
-
-  async function startShopifyConnect() {
-    setError(null);
-    setBusy("shopify");
-    try {
-      const res = await fetch("/api/shopify/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shop: shopifyShop }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof json?.error === "string" ? json.error : "Could not start Shopify connection.");
-        return;
-      }
-      const url = typeof json?.url === "string" ? json.url : "";
-      if (!url) {
-        setError("Shopify connection URL was missing.");
-        return;
-      }
-      // Redirect to Shopify install/auth page.
-      window.location.href = url;
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function disconnectShopify() {
-    setError(null);
-    setBusy("shopify");
-    try {
-      const res = await fetch("/api/shopify/connection", { method: "DELETE" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof json?.error === "string" ? json.error : "Could not disconnect.");
-        return;
-      }
-      await reloadShopifyStatus();
-    } finally {
-      setBusy(null);
-    }
   }
 
   async function saveWoo() {
@@ -194,13 +122,13 @@ export function ConnectionsClient({ initial }: { initial: StoreConnectionsSnapsh
         <PlatformConnectionCard
           platformLabel="Shopify"
           description="Connect your Shopify store to sync products and generate optimized content."
-          status={shopifyConnected ? "connected" : "not_connected"}
-          connectedDomain={shopifyDomainLabel}
-          primaryAction={shopifyConnected ? "reconnect" : "connect"}
-          onPrimaryAction={openShopifyConnect}
-          onDisconnect={disconnectShopify}
+          status="coming_soon"
+          connectedDomain={null}
+          primaryAction="connect"
+          onPrimaryAction={() => setShopifyHelpOpen(true)}
           onHelp={() => setShopifyHelpOpen(true)}
           busy={busy === "shopify"}
+          disabledReason="Shopify app setup is in progress. Finish setup, then enable the connection flow."
         />
       </div>
 
@@ -286,56 +214,6 @@ export function ConnectionsClient({ initial }: { initial: StoreConnectionsSnapsh
         onClose={() => setShopifyHelpOpen(false)}
       >
         <ShopifySetupGuide />
-      </SimpleModal>
-
-      <SimpleModal
-        title={shopifyConnected ? "Reconnect Shopify" : "Connect Shopify"}
-        open={shopifyModalOpen}
-        onClose={() => setShopifyModalOpen(false)}
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-white/65">
-            Enter your Shopify shop domain to begin the secure install flow. We’ll redirect you to Shopify
-            to approve access, then bring you back here.
-          </p>
-          <div>
-            <label className="text-xs font-semibold text-white/60">Shop domain</label>
-            <Input
-              value={shopifyShop}
-              onChange={(e) => setShopifyShop(e.target.value)}
-              placeholder="your-shop.myshopify.com"
-              className="mt-1.5 rounded-2xl"
-              disabled={busy === "shopify"}
-            />
-            <p className="mt-2 text-xs text-white/45">
-              Use the <span className="font-mono">.myshopify.com</span> domain (or just the shop name).
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Button
-              type="button"
-              className="rounded-2xl"
-              onClick={() => void startShopifyConnect()}
-              disabled={busy === "shopify"}
-            >
-              {busy === "shopify" ? "Redirecting…" : shopifyConnected ? "Reconnect" : "Connect Shopify"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="rounded-2xl"
-              onClick={() => setShopifyModalOpen(false)}
-              disabled={busy === "shopify"}
-            >
-              Cancel
-            </Button>
-          </div>
-
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-slate-400">
-            Permissions are limited to product read access in the MVP (configurable via scopes).
-          </div>
-        </div>
       </SimpleModal>
     </div>
   );

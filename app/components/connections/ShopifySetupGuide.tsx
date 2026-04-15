@@ -5,11 +5,11 @@ export function ShopifySetupGuide() {
     <div className="space-y-5">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-          Shopify setup (MVP)
+          Shopify connection (coming soon)
         </p>
         <p className="mt-2 text-sm text-slate-300">
-          This uses Shopify’s OAuth install flow to securely store a workspace-scoped Admin API token
-          on the server. After connecting, you can browse products in Products → Connected store.
+          The UI is ready. Once the Shopify app is created and credentials are added, you’ll be able to
+          connect your store here without moving onboarding back into Products.
         </p>
       </div>
 
@@ -41,7 +41,8 @@ export function ShopifySetupGuide() {
       </div>
 
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-slate-400">
-        Security: access tokens are stored server-side in Supabase and scoped to your active workspace/client.
+        Once enabled, the connection will use Shopify OAuth and store tokens server-side scoped to your
+        active workspace/client.
       </div>
     </div>
   );
