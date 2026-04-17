@@ -114,7 +114,8 @@ async function waitForRender(params: {
 
 export async function POST(req: Request) {
   try {
-    // Production-safety: require an authenticated user (prevents public API key abuse).
+    // TODO(SECURITY): Re-enable auth protection after curl testing on production.
+    // Temporary: auth is disabled ONLY for this route so it can be invoked from curl.
     const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnon =
@@ -138,8 +139,8 @@ export async function POST(req: Request) {
         },
       },
     });
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) return jsonError("Unauthorized.", 401);
+    // Intentionally do not enforce Supabase auth during testing.
+    void (await supabase.auth.getUser());
 
     const apiKey = process.env.CREATOMATE_API_KEY?.trim();
     const templateId = process.env.CREATOMATE_TEMPLATE_ID?.trim();
