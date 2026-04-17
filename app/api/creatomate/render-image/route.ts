@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { requireActiveClientId } from "@/lib/clients/server";
 
 type RenderStatus =
   | "planned"
@@ -139,8 +140,10 @@ export async function POST(req: Request) {
         },
       },
     });
-    // Intentionally do not enforce Supabase auth during testing.
-    void (await supabase.auth.getUser());
+    // Intentionally do not enforce Supabase auth during curl testing.
+    // We still read the user; if present, we can persist generation history.
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user ?? null;
 
     const apiKey = process.env.CREATOMATE_API_KEY?.trim();
     const templateId = process.env.CREATOMATE_TEMPLATE_ID?.trim();
@@ -216,7 +219,49 @@ export async function POST(req: Request) {
     }
 
     // Final URL must come from the succeeded status response.
-    return NextResponse.json({ success: true, url: done.url });
+    let saved: { id: string; created_at: string } | null = null;
+
+    // Persist only when we have a real user session and an active client.
+    // (When auth is disabled for curl testing, there may be no user -> cannot safely persist user/client scoped data.)
+    if (user) {
+      try {
+        const cookieStore = await cookies();
+        const active = await requireActiveClientId(supabase, cookieStore, user.id);
+        const clientId = active.clientId;
+
+        const templateName = "creatomate_social_post";
+
+        const { data: inserted, error: insErr } = await supabase
+          .from("social_post_generations")
+          .insert({
+            user_id: user.id,
+            client_id: clientId,
+            template_name: templateName,
+            headline,
+            subheadline,
+            body: bodyText,
+            image_top,
+            image_middle,
+            image_bottom,
+            output_url: done.url,
+          })
+          .select("id, created_at")
+          .single();
+
+        if (insErr) {
+          console.error("social_post_generations insert:", insErr);
+        } else if (inserted?.id) {
+          saved = {
+            id: String(inserted.id),
+            created_at: String(inserted.created_at),
+          };
+        }
+      } catch (e) {
+        console.warn("social_post_generations persist failed:", e);
+      }
+    }
+
+    return NextResponse.json({ success: true, url: done.url, saved });
   } catch (e) {
     console.error("POST /api/creatomate/render-image:", e);
     return jsonError("Unexpected server error.", 500);

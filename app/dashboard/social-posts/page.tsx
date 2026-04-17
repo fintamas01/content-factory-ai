@@ -45,23 +45,29 @@ export default function SocialPostsPage() {
     );
   }, [form]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const handleSubmit = async (
+    e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>
+  ) => {
+    e?.preventDefault();
     setError(null);
     setUrl(null);
     setLoading(true);
     try {
+      const payload = {
+        headline: form.headline,
+        subheadline: form.subheadline,
+        body: form.body,
+        image_top: form.image_top,
+        image_middle: form.image_middle,
+        image_bottom: form.image_bottom,
+      };
+
+      console.log("Submitting Creatomate request", payload);
+
       const res = await fetch("/api/creatomate/render-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          headline: form.headline,
-          subheadline: form.subheadline,
-          body: form.body,
-          image_top: form.image_top,
-          image_middle: form.image_middle,
-          image_bottom: form.image_bottom,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = (await res.json().catch(() => ({}))) as ApiResponse;
@@ -81,12 +87,13 @@ export default function SocialPostsPage() {
       }
 
       setUrl(ok.url);
-    } catch {
+    } catch (err) {
+      console.error("Creatomate request failed:", err);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <Page>
@@ -116,7 +123,7 @@ export default function SocialPostsPage() {
             </div>
           ) : null}
 
-          <form onSubmit={onSubmit} className="mt-5 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs font-semibold text-white/60">Headline</label>
@@ -191,6 +198,7 @@ export default function SocialPostsPage() {
                 size="lg"
                 className="rounded-2xl"
                 disabled={loading || !canSubmit}
+                onClick={handleSubmit}
               >
                 {loading ? (
                   <>
