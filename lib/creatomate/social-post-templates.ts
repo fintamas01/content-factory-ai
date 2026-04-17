@@ -36,7 +36,7 @@ export const SOCIAL_POST_TEMPLATES: readonly SocialPostTemplateDefinition[] = [
     name: "Triple image story",
     description: "Headline, subheadline, body, and three stacked product images.",
     previewImage:
-      "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&q=80&auto=format&fit=crop",
+      "/templates/v2.png",
     creatomateTemplateId: "__ENV_PRIMARY__",
     fields: [
       { key: "headline", label: "Headline", type: "text", placeholder: "Main headline…", required: true },
