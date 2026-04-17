@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { requireActiveClientId } from "@/lib/clients/server";
+import {
+  buildCreatomateModifications,
+  getSocialPostTemplateById,
+  resolveCreatomateTemplateId,
+  validateTemplateValues,
+  valuesToLegacyRow,
+} from "@/lib/creatomate/social-post-templates";
 
 type RenderStatus =
   | "planned"
@@ -49,10 +56,7 @@ async function fetchJson(
 
 /**
  * Polls Creatomate until render succeeds/fails, or times out.
- *
- * Notes:
- * - Creatomate also supports webhooks, but polling is acceptable for this MVP route.
- * - Official status polling for this route uses the v2 endpoint.
+ * Official status polling uses the v2 endpoint.
  */
 async function waitForRender(params: {
   renderId: string;
@@ -73,16 +77,13 @@ async function waitForRender(params: {
     });
 
     if (!statusResp.ok) {
-      // If Creatomate is temporarily unhappy, keep polling until timeout.
       await sleep(pollEveryMs);
       continue;
     }
 
-    // v2 returns a single render object.
     const render = statusResp.json as CreatomateRender;
     const status = String(render?.status ?? "");
 
-    // Dev-only log (never log API keys/secrets).
     if (process.env.NODE_ENV !== "production") {
       console.log("[creatomate] poll render:", {
         id: render?.id,
@@ -116,7 +117,6 @@ async function waitForRender(params: {
 export async function POST(req: Request) {
   try {
     // TODO(SECURITY): Re-enable auth protection after curl testing on production.
-    // Temporary: auth is disabled ONLY for this route so it can be invoked from curl.
     const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnon =
@@ -140,46 +140,52 @@ export async function POST(req: Request) {
         },
       },
     });
-    // Intentionally do not enforce Supabase auth during curl testing.
-    // We still read the user; if present, we can persist generation history.
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user ?? null;
 
     const apiKey = process.env.CREATOMATE_API_KEY?.trim();
-    const templateId = process.env.CREATOMATE_TEMPLATE_ID?.trim();
     if (!apiKey) return jsonError("Missing env var: CREATOMATE_API_KEY", 500);
-    if (!templateId) return jsonError("Missing env var: CREATOMATE_TEMPLATE_ID", 500);
 
     const body = await req.json().catch(() => ({}));
-    const headline = typeof body?.headline === "string" ? body.headline.trim() : "";
-    const subheadline = typeof body?.subheadline === "string" ? body.subheadline.trim() : "";
-    const bodyText = typeof body?.body === "string" ? body.body.trim() : "";
-    const image_top = typeof body?.image_top === "string" ? body.image_top.trim() : "";
-    const image_middle =
-      typeof body?.image_middle === "string" ? body.image_middle.trim() : "";
-    const image_bottom =
-      typeof body?.image_bottom === "string" ? body.image_bottom.trim() : "";
+    const templateId = typeof body?.templateId === "string" ? body.templateId.trim() : "";
+    const valuesRaw = body?.values;
+    const valuesObj =
+      valuesRaw && typeof valuesRaw === "object" && valuesRaw !== null && !Array.isArray(valuesRaw)
+        ? (valuesRaw as Record<string, unknown>)
+        : null;
 
-    if (!headline || !subheadline || !bodyText || !image_top || !image_middle || !image_bottom) {
+    if (!templateId) {
+      return jsonError("Missing templateId.", 400);
+    }
+    if (!valuesObj) {
+      return jsonError("Missing values object.", 400);
+    }
+
+    const template = getSocialPostTemplateById(templateId);
+    if (!template) {
+      return jsonError(`Unknown templateId: ${templateId}`, 400);
+    }
+
+    const validated = validateTemplateValues(template, valuesObj);
+    if (!validated.ok) {
+      return jsonError(validated.error, 400);
+    }
+
+    const creatomateTemplateId = resolveCreatomateTemplateId(template);
+    if (!creatomateTemplateId) {
       return jsonError(
-        "All fields are required: headline, subheadline, body, image_top, image_middle, image_bottom",
-        400
+        "Creatomate template id is not configured. Set CREATOMATE_TEMPLATE_ID for the primary template, or set a real id on the template registry entry.",
+        500
       );
     }
 
+    const modifications = buildCreatomateModifications(template, validated.values);
+
     const createBody = {
-      template_id: templateId,
-      modifications: {
-        "image_middle.source": image_middle,
-        "image_top.source": image_top,
-        "image_bottom.source": image_bottom,
-        "headline.text": headline,
-        "subheadline.text": subheadline,
-        "body.text": bodyText,
-      },
+      template_id: creatomateTemplateId,
+      modifications,
     };
 
-    // Official v2 API: create a render job.
     const created = await fetchJson("https://api.creatomate.com/v2/renders", {
       method: "POST",
       headers: {
@@ -190,21 +196,34 @@ export async function POST(req: Request) {
     });
 
     if (!created.ok) {
+      let creatomateMessage: string | undefined;
+      try {
+        const j = JSON.parse(created.text);
+        if (typeof j?.message === "string") creatomateMessage = j.message;
+        if (typeof j?.error === "string") creatomateMessage = creatomateMessage ?? j.error;
+      } catch {
+        /* ignore */
+      }
       return jsonError("Creatomate render request failed.", 502, {
         status: created.status,
         body: created.text,
+        ...(creatomateMessage ? { creatomateMessage } : {}),
       });
     }
 
-    // Dev-only log (never log API keys/secrets).
     if (process.env.NODE_ENV !== "production") {
       const shape = Array.isArray(created.json) ? "array" : typeof created.json;
       console.log("[creatomate] create render response:", { shape });
     }
 
-    // Creatomate may return an object or an array depending on API usage.
-    const createdRender: any = Array.isArray(created.json) ? created.json?.[0] : created.json;
-    const renderId = typeof createdRender?.id === "string" ? createdRender.id : "";
+    const createdRender: unknown = Array.isArray(created.json) ? created.json?.[0] : created.json;
+    const renderId =
+      createdRender &&
+      typeof createdRender === "object" &&
+      "id" in createdRender &&
+      typeof (createdRender as { id: unknown }).id === "string"
+        ? (createdRender as { id: string }).id
+        : "";
 
     if (!renderId) {
       return jsonError("Creatomate response did not include a render id.", 502, created.json);
@@ -218,31 +237,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // Final URL must come from the succeeded status response.
     let saved: { id: string; created_at: string } | null = null;
+    const legacy = valuesToLegacyRow(validated.values);
 
-    // Persist only when we have a real user session and an active client.
-    // (When auth is disabled for curl testing, there may be no user -> cannot safely persist user/client scoped data.)
     if (user) {
       try {
-        const cookieStore = await cookies();
         const active = await requireActiveClientId(supabase, cookieStore, user.id);
         const clientId = active.clientId;
-
-        const templateName = "creatomate_social_post";
 
         const { data: inserted, error: insErr } = await supabase
           .from("social_post_generations")
           .insert({
             user_id: user.id,
             client_id: clientId,
-            template_name: templateName,
-            headline,
-            subheadline,
-            body: bodyText,
-            image_top,
-            image_middle,
-            image_bottom,
+            template_id: template.id,
+            template_name: template.name,
+            values: validated.values,
+            headline: legacy.headline || null,
+            subheadline: legacy.subheadline || null,
+            body: legacy.body || null,
+            image_top: legacy.image_top || null,
+            image_middle: legacy.image_middle || null,
+            image_bottom: legacy.image_bottom || null,
             output_url: done.url,
           })
           .select("id, created_at")
@@ -267,4 +283,3 @@ export async function POST(req: Request) {
     return jsonError("Unexpected server error.", 500);
   }
 }
-
