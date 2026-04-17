@@ -60,7 +60,7 @@ export const SOCIAL_POST_TEMPLATES: readonly SocialPostTemplateDefinition[] = [
     name: "Promo hero strip",
     description: "Placeholder template — swap Creatomate id and fields when your second design is ready.",
     previewImage:
-      "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80&auto=format&fit=crop",
+      "/templates/v1.png",
     creatomateTemplateId: "f00877d6-c7d3-4a04-9745-b9e155a878b6",
     fields: [
       { key: "title", label: "Title", type: "text", placeholder: "Offer headline…", required: true },
