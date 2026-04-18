@@ -81,6 +81,35 @@ export function getSocialPostTemplateById(id: string): SocialPostTemplateDefinit
   return SOCIAL_POST_TEMPLATES.find((t) => t.id === id);
 }
 
+/** sessionStorage key for "Reuse" from history (used with `?reuse=1` on the generator URL). */
+export const SOCIAL_POST_REUSE_SESSION_KEY = "cf-social-post-reuse-v1";
+
+export type SocialPostReusePayload = {
+  templateId: string;
+  values: Record<string, unknown>;
+};
+
+/** Empty strings for every field in the template (form default state). */
+export function emptyTemplateValues(template: SocialPostTemplateDefinition): Record<string, string> {
+  const v: Record<string, string> = {};
+  for (const f of template.fields) v[f.key] = "";
+  return v;
+}
+
+/** Apply saved JSON (e.g. from DB) onto the current template shape; unknown keys are ignored. */
+export function mergeSavedValuesIntoTemplate(
+  template: SocialPostTemplateDefinition,
+  saved: Record<string, unknown> | null | undefined
+): Record<string, string> {
+  const out = emptyTemplateValues(template);
+  if (!saved || typeof saved !== "object") return out;
+  for (const field of template.fields) {
+    const raw = saved[field.key];
+    if (typeof raw === "string") out[field.key] = raw;
+  }
+  return out;
+}
+
 /** Resolve Creatomate template id for API calls (server-only env injection). */
 export function resolveCreatomateTemplateId(template: SocialPostTemplateDefinition): string {
   if (template.creatomateTemplateId === "__ENV_PRIMARY__") {

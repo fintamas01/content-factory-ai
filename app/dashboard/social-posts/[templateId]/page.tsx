@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { ArrowLeft, Image as ImageIcon, Loader2, Upload } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
@@ -11,9 +11,13 @@ import { Input } from "@/app/components/ui/Input";
 import { Textarea } from "@/app/components/ui/Textarea";
 import { Button } from "@/app/components/ui/Button";
 import {
+  SOCIAL_POST_REUSE_SESSION_KEY,
+  emptyTemplateValues,
   getSocialPostTemplateById,
+  mergeSavedValuesIntoTemplate,
   type SocialPostFieldDefinition,
   type SocialPostTemplateDefinition,
+  type SocialPostReusePayload,
 } from "@/lib/creatomate/social-post-templates";
 
 const supabase = createBrowserClient(
@@ -28,19 +32,15 @@ type ApiOk = { success: true; url: string };
 type ApiErr = { success: false; error: string; details?: unknown };
 type ApiResponse = ApiOk | ApiErr | Record<string, unknown>;
 
-function emptyValuesForTemplate(t: SocialPostTemplateDefinition): Record<string, string> {
-  const v: Record<string, string> = {};
-  for (const f of t.fields) v[f.key] = "";
-  return v;
-}
-
 function fileExtension(name: string, fallback: string) {
   const m = name.match(/\.([a-zA-Z0-9]+)$/);
   return m ? m[1].toLowerCase() : fallback;
 }
 
-export default function SocialPostsTemplateFormPage() {
+function SocialPostsTemplateFormPageInner() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const templateId = typeof params?.templateId === "string" ? params.templateId : "";
 
   const template = useMemo(() => getSocialPostTemplateById(templateId), [templateId]);
@@ -53,6 +53,8 @@ export default function SocialPostsTemplateFormPage() {
   const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, string>>({});
   const [uploadingField, setUploadingField] = useState<Record<string, boolean>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  /** After applying history reuse, skip one init cycle so `router.replace` does not wipe the form. */
+  const skipEmptyAfterReuseRef = useRef(false);
 
   const revokePreviews = useCallback((keys?: string[]) => {
     setLocalImagePreviews((prev) => {
@@ -73,11 +75,37 @@ export default function SocialPostsTemplateFormPage() {
   }, []);
 
   useEffect(() => {
-    if (template) {
-      setValues(emptyValuesForTemplate(template));
-      revokePreviews();
+    if (!template) return;
+
+    if (searchParams.get("reuse") === "1") {
+      try {
+        const raw =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(SOCIAL_POST_REUSE_SESSION_KEY)
+            : null;
+        if (raw) {
+          const parsed = JSON.parse(raw) as SocialPostReusePayload;
+          if (parsed.templateId === template.id && parsed.values) {
+            setValues(mergeSavedValuesIntoTemplate(template, parsed.values));
+            sessionStorage.removeItem(SOCIAL_POST_REUSE_SESSION_KEY);
+            skipEmptyAfterReuseRef.current = true;
+            router.replace(`/dashboard/social-posts/${template.id}`, { scroll: false });
+            return;
+          }
+        }
+      } catch {
+        /* ignore invalid reuse payload */
+      }
     }
-  }, [template, revokePreviews]);
+
+    if (skipEmptyAfterReuseRef.current && searchParams.get("reuse") !== "1") {
+      skipEmptyAfterReuseRef.current = false;
+      return;
+    }
+
+    setValues(emptyTemplateValues(template));
+    revokePreviews();
+  }, [template, searchParams, router, revokePreviews]);
 
   useEffect(() => {
     return () => {
@@ -405,7 +433,7 @@ export default function SocialPostsTemplateFormPage() {
                   setUrl(null);
                   revokePreviews();
                   setUploadingField({});
-                  setValues(emptyValuesForTemplate(template));
+                  setValues(emptyTemplateValues(template));
                   for (const k of Object.keys(fileInputRefs.current)) {
                     const el = fileInputRefs.current[k];
                     if (el) el.value = "";
@@ -443,5 +471,21 @@ export default function SocialPostsTemplateFormPage() {
         </Card>
       </div>
     </Page>
+  );
+}
+
+function SocialPostsTemplateFormFallback() {
+  return (
+    <Page>
+      <p className="text-sm text-white/55">Loading…</p>
+    </Page>
+  );
+}
+
+export default function SocialPostsTemplateFormPage() {
+  return (
+    <Suspense fallback={<SocialPostsTemplateFormFallback />}>
+      <SocialPostsTemplateFormPageInner />
+    </Suspense>
   );
 }
