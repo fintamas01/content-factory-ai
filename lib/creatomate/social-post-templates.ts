@@ -5,7 +5,7 @@
  *   Use `__ENV_PRIMARY__` for the template id from `process.env.CREATOMATE_TEMPLATE_ID` (server).
  */
 
-export type SocialPostFieldType = "text" | "textarea" | "url";
+export type SocialPostFieldType = "text" | "textarea" | "url" | "image";
 
 export type SocialPostFieldDefinition = {
   key: string;
@@ -42,9 +42,9 @@ export const SOCIAL_POST_TEMPLATES: readonly SocialPostTemplateDefinition[] = [
       { key: "headline", label: "Headline", type: "text", placeholder: "Main headline…", required: true },
       { key: "subheadline", label: "Subheadline", type: "text", placeholder: "Supporting line…", required: true },
       { key: "body", label: "Body", type: "textarea", placeholder: "Body copy…", required: true },
-      { key: "image_top", label: "Image (top)", type: "url", placeholder: "https://…", required: true },
-      { key: "image_middle", label: "Image (middle)", type: "url", placeholder: "https://…", required: true },
-      { key: "image_bottom", label: "Image (bottom)", type: "url", placeholder: "https://…", required: true },
+      { key: "image_top", label: "Image (top)", type: "image", placeholder: "https://…", required: true },
+      { key: "image_middle", label: "Image (middle)", type: "image", placeholder: "https://…", required: true },
+      { key: "image_bottom", label: "Image (bottom)", type: "image", placeholder: "https://…", required: true },
     ],
     modificationsMap: {
       headline: "headline.text",
@@ -66,7 +66,7 @@ export const SOCIAL_POST_TEMPLATES: readonly SocialPostTemplateDefinition[] = [
       { key: "title", label: "Title", type: "text", placeholder: "Offer headline…", required: true },
       { key: "subtitle", label: "Subtitle", type: "text", placeholder: "Short supporting line…", required: true },
       { key: "cta", label: "CTA label", type: "text", placeholder: "Shop now", required: true },
-      { key: "hero_image", label: "Hero image URL", type: "url", placeholder: "https://…", required: true },
+      { key: "hero_image", label: "Hero image", type: "image", placeholder: "https://…", required: true },
     ],
     modificationsMap: {
       title: "Title.text",

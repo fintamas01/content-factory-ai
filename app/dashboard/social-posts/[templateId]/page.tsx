@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Image as ImageIcon, Loader2 } from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
+import { ArrowLeft, Image as ImageIcon, Loader2, Upload } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
 import { Card } from "@/app/components/ui/Card";
 import { Input } from "@/app/components/ui/Input";
@@ -11,8 +12,17 @@ import { Textarea } from "@/app/components/ui/Textarea";
 import { Button } from "@/app/components/ui/Button";
 import {
   getSocialPostTemplateById,
+  type SocialPostFieldDefinition,
   type SocialPostTemplateDefinition,
 } from "@/lib/creatomate/social-post-templates";
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANNON_KEY!
+);
+
+const STORAGE_BUCKET = "generated-images";
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 type ApiOk = { success: true; url: string };
 type ApiErr = { success: false; error: string; details?: unknown };
@@ -22,6 +32,11 @@ function emptyValuesForTemplate(t: SocialPostTemplateDefinition): Record<string,
   const v: Record<string, string> = {};
   for (const f of t.fields) v[f.key] = "";
   return v;
+}
+
+function fileExtension(name: string, fallback: string) {
+  const m = name.match(/\.([a-zA-Z0-9]+)$/);
+  return m ? m[1].toLowerCase() : fallback;
 }
 
 export default function SocialPostsTemplateFormPage() {
@@ -34,17 +49,148 @@ export default function SocialPostsTemplateFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
 
+  /** Object URLs for local preview before the public URL is available. */
+  const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, string>>({});
+  const [uploadingField, setUploadingField] = useState<Record<string, boolean>>({});
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const revokePreviews = useCallback((keys?: string[]) => {
+    setLocalImagePreviews((prev) => {
+      const next = { ...prev };
+      const toRevoke = keys ?? Object.keys(next);
+      for (const k of toRevoke) {
+        if (next[k]) {
+          try {
+            URL.revokeObjectURL(next[k]);
+          } catch {
+            /* ignore */
+          }
+          delete next[k];
+        }
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
-    if (template) setValues(emptyValuesForTemplate(template));
-  }, [template]);
+    if (template) {
+      setValues(emptyValuesForTemplate(template));
+      revokePreviews();
+    }
+  }, [template, revokePreviews]);
+
+  useEffect(() => {
+    return () => {
+      setLocalImagePreviews((prev) => {
+        for (const u of Object.values(prev)) {
+          try {
+            URL.revokeObjectURL(u);
+          } catch {
+            /* ignore */
+          }
+        }
+        return {};
+      });
+    };
+  }, []);
+
+  const isImageUploading = useMemo(
+    () => Object.values(uploadingField).some(Boolean),
+    [uploadingField]
+  );
 
   const canSubmit = useMemo(() => {
     if (!template) return false;
+    if (loading || isImageUploading) return false;
     return template.fields.every((f) => {
       if (f.required === false) return true;
       return Boolean(values[f.key]?.trim());
     });
-  }, [template, values]);
+  }, [template, values, loading, isImageUploading]);
+
+  const uploadImageField = async (field: SocialPostFieldDefinition, file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError(`Image must be ${MAX_IMAGE_BYTES / (1024 * 1024)}MB or smaller.`);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setError("You must be signed in to upload images.");
+      return;
+    }
+
+    const ext = fileExtension(file.name, file.type.split("/")[1] || "jpg");
+    const uid =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+    const objectPath = `social-post-templates/${user.id}/${template!.id}/${field.key}/${Date.now()}-${uid}.${ext}`;
+
+    setUploadingField((prev) => ({ ...prev, [field.key]: true }));
+    setError(null);
+
+    try {
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(objectPath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || `image/${ext}`,
+      });
+
+      if (upErr) {
+        console.error("storage upload:", upErr);
+        revokePreviews([field.key]);
+        setError(upErr.message || "Upload failed.");
+        return;
+      }
+
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(objectPath);
+      const publicUrl = pub.publicUrl;
+      if (!publicUrl) {
+        revokePreviews([field.key]);
+        setError("Could not resolve public URL for upload.");
+        return;
+      }
+
+      setValues((prev) => ({ ...prev, [field.key]: publicUrl }));
+
+      revokePreviews([field.key]);
+      const input = fileInputRefs.current[field.key];
+      if (input) input.value = "";
+    } finally {
+      setUploadingField((prev) => ({ ...prev, [field.key]: false }));
+    }
+  };
+
+  const onImageFileChange = async (field: SocialPostFieldDefinition, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !template) return;
+
+    revokePreviews([field.key]);
+    const blobUrl = URL.createObjectURL(file);
+    setLocalImagePreviews((prev) => ({ ...prev, [field.key]: blobUrl }));
+
+    await uploadImageField(field, file);
+  };
+
+  const onImageUrlPaste = (field: SocialPostFieldDefinition, value: string) => {
+    setValues((prev) => ({ ...prev, [field.key]: value }));
+    revokePreviews([field.key]);
+    const input = fileInputRefs.current[field.key];
+    if (input) input.value = "";
+  };
+
+  const previewSrcForField = (fieldKey: string) => {
+    const v = values[fieldKey]?.trim() ?? "";
+    if (/^https?:\/\//i.test(v)) return v;
+    return localImagePreviews[fieldKey] ?? "";
+  };
 
   const handleSubmit = async (
     e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>
@@ -163,6 +309,57 @@ export default function SocialPostsTemplateFormPage() {
                     disabled={loading}
                     required={field.required !== false}
                   />
+                ) : field.type === "image" ? (
+                  <div className="mt-1.5 space-y-2">
+                    <div className="rounded-2xl border border-dashed border-white/15 bg-black/25 p-4">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/[0.09]">
+                          <Upload className="h-3.5 w-3.5 text-cyan-300/90" aria-hidden />
+                          Choose file
+                          <input
+                            ref={(el) => {
+                              fileInputRefs.current[field.key] = el;
+                            }}
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            disabled={loading || Boolean(uploadingField[field.key])}
+                            onChange={(e) => void onImageFileChange(field, e)}
+                          />
+                        </label>
+                        {uploadingField[field.key] ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-white/55">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" aria-hidden />
+                            Uploading…
+                          </span>
+                        ) : null}
+                      </div>
+                      {previewSrcForField(field.key) ? (
+                        <div className="mt-4 flex justify-center rounded-xl border border-white/10 bg-black/40 p-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={previewSrcForField(field.key)}
+                            alt=""
+                            className="max-h-48 max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-center text-xs text-white/40">No image selected yet.</p>
+                      )}
+                    </div>
+                    <Input
+                      value={values[field.key] ?? ""}
+                      onChange={(e) => onImageUrlPaste(field, e.target.value)}
+                      placeholder={field.placeholder ?? "Or paste an image URL…"}
+                      type="url"
+                      className="rounded-2xl"
+                      disabled={loading || Boolean(uploadingField[field.key])}
+                      aria-label={`${field.label} URL fallback`}
+                    />
+                    <p className="text-[11px] text-white/40">
+                      Upload stores the file in your workspace storage; Creatomate receives a public URL.
+                    </p>
+                  </div>
                 ) : (
                   <Input
                     value={values[field.key] ?? ""}
@@ -202,11 +399,17 @@ export default function SocialPostsTemplateFormPage() {
                 variant="secondary"
                 size="lg"
                 className="rounded-2xl"
-                disabled={loading}
+                disabled={loading || isImageUploading}
                 onClick={() => {
                   setError(null);
                   setUrl(null);
+                  revokePreviews();
+                  setUploadingField({});
                   setValues(emptyValuesForTemplate(template));
+                  for (const k of Object.keys(fileInputRefs.current)) {
+                    const el = fileInputRefs.current[k];
+                    if (el) el.value = "";
+                  }
                 }}
               >
                 Reset
