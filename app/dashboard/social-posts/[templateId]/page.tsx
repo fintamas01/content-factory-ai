@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useRef, useCallback, Suspense } from "rea
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { ArrowLeft, Image as ImageIcon, Loader2, Upload } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Loader2, Sparkles, Upload } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
 import { Card } from "@/app/components/ui/Card";
 import { Input } from "@/app/components/ui/Input";
@@ -14,6 +14,8 @@ import {
   SOCIAL_POST_REUSE_SESSION_KEY,
   emptyTemplateValues,
   getSocialPostTemplateById,
+  getTemplateTextFieldDefinitions,
+  mergeAiTextValuesIntoForm,
   mergeSavedValuesIntoTemplate,
   type SocialPostFieldDefinition,
   type SocialPostTemplateDefinition,
@@ -27,6 +29,15 @@ const supabase = createBrowserClient(
 
 const STORAGE_BUCKET = "generated-images";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+const TONE_OPTIONS = [
+  { value: "", label: "Default (infer from brief)" },
+  { value: "professional", label: "Professional" },
+  { value: "casual", label: "Casual" },
+  { value: "bold", label: "Bold" },
+  { value: "playful", label: "Playful" },
+  { value: "urgent", label: "Urgent" },
+] as const;
 
 type ApiOk = { success: true; url: string };
 type ApiErr = { success: false; error: string; details?: unknown };
@@ -44,10 +55,18 @@ function SocialPostsTemplateFormPageInner() {
   const templateId = typeof params?.templateId === "string" ? params.templateId : "";
 
   const template = useMemo(() => getSocialPostTemplateById(templateId), [templateId]);
+  const textFieldDefs = useMemo(() => {
+    if (!template) return [];
+    return getTemplateTextFieldDefinitions(template);
+  }, [template]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiTone, setAiTone] = useState("");
+  const [textAssistLoading, setTextAssistLoading] = useState(false);
+  const [textAssistError, setTextAssistError] = useState<string | null>(null);
 
   /** Object URLs for local preview before the public URL is available. */
   const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, string>>({});
@@ -220,6 +239,45 @@ function SocialPostsTemplateFormPageInner() {
     return localImagePreviews[fieldKey] ?? "";
   };
 
+  const handleGenerateTextWithAi = async () => {
+    if (!template || textFieldDefs.length === 0) return;
+    const brief = aiBrief.trim();
+    if (!brief) {
+      setTextAssistError("Add a short topic or brief first.");
+      return;
+    }
+    setTextAssistError(null);
+    setTextAssistLoading(true);
+    try {
+      const res = await fetch("/api/social-posts/generate-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: template.id,
+          brief,
+          tone: aiTone.trim() ? aiTone.trim() : null,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        values?: Record<string, unknown>;
+        error?: string;
+      };
+      if (!res.ok || json.success !== true || !json.values || typeof json.values !== "object") {
+        setTextAssistError(
+          typeof json.error === "string" ? json.error : "Could not generate text."
+        );
+        return;
+      }
+      const generated = json.values;
+      setValues((prev) => mergeAiTextValuesIntoForm(template, prev, generated));
+    } catch {
+      setTextAssistError("Network error. Please try again.");
+    } finally {
+      setTextAssistLoading(false);
+    }
+  };
+
   const handleSubmit = async (
     e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>
   ) => {
@@ -315,6 +373,85 @@ function SocialPostsTemplateFormPageInner() {
           <p className="mt-2 text-sm text-white/60">
             Template <span className="font-mono text-white/75">{template.id}</span>
           </p>
+
+          {textFieldDefs.length > 0 ? (
+            <div className="mt-5 rounded-2xl border border-white/[0.08] bg-black/25 p-4 sm:p-5">
+              <div className="flex items-center gap-2 text-white/90">
+                <Sparkles className="h-4 w-4 shrink-0 text-cyan-300/90" aria-hidden />
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+                  AI text assist
+                </p>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Describe your topic; we&apos;ll suggest copy for the text fields only (images stay as
+                they are).
+              </p>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-white/60" htmlFor="social-ai-brief">
+                    Topic / brief
+                  </label>
+                  <Textarea
+                    id="social-ai-brief"
+                    value={aiBrief}
+                    onChange={(e) => setAiBrief(e.target.value)}
+                    placeholder="e.g. Summer sale — 25% off swimwear, friendly and energetic"
+                    className="mt-1.5 min-h-[88px] rounded-2xl"
+                    disabled={textAssistLoading || loading}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-white/60" htmlFor="social-ai-tone">
+                    Tone (optional)
+                  </label>
+                  <select
+                    id="social-ai-tone"
+                    value={aiTone}
+                    onChange={(e) => setAiTone(e.target.value)}
+                    disabled={textAssistLoading || loading}
+                    className="mt-1.5 h-11 w-full rounded-xl border border-white/[0.10] bg-black/30 px-4 text-sm font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-[border-color,box-shadow] duration-200 hover:border-white/[0.14] focus:border-white/[0.18] focus:shadow-[0_0_0_3px_var(--ring)] disabled:opacity-60"
+                  >
+                    {TONE_OPTIONS.map((opt) => (
+                      <option key={opt.value || "default"} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {textAssistError ? (
+                  <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                    {textAssistError}
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="rounded-2xl"
+                  disabled={
+                    textAssistLoading ||
+                    loading ||
+                    !aiBrief.trim()
+                  }
+                  onClick={() => void handleGenerateTextWithAi()}
+                >
+                  {textAssistLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" aria-hidden />
+                      Generate text with AI
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-white/45">This template has no AI-assist text fields.</p>
+          )}
 
           {error ? (
             <div className="mt-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">

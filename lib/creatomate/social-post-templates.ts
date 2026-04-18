@@ -81,6 +81,29 @@ export function getSocialPostTemplateById(id: string): SocialPostTemplateDefinit
   return SOCIAL_POST_TEMPLATES.find((t) => t.id === id);
 }
 
+/** Fields the AI text assist may fill (excludes image, url, etc.). */
+export function getTemplateTextFieldDefinitions(
+  template: SocialPostTemplateDefinition
+): SocialPostFieldDefinition[] {
+  return template.fields.filter((f) => f.type === "text" || f.type === "textarea");
+}
+
+/** Merge AI-generated strings into the form; only updates text/textarea keys; image/url unchanged. */
+export function mergeAiTextValuesIntoForm(
+  template: SocialPostTemplateDefinition,
+  current: Record<string, string>,
+  generated: Record<string, unknown>
+): Record<string, string> {
+  const textKeys = new Set(getTemplateTextFieldDefinitions(template).map((f) => f.key));
+  const next = { ...current };
+  if (!generated || typeof generated !== "object") return next;
+  for (const key of textKeys) {
+    const raw = (generated as Record<string, unknown>)[key];
+    if (typeof raw === "string") next[key] = raw;
+  }
+  return next;
+}
+
 /** sessionStorage key for "Reuse" from history (used with `?reuse=1` on the generator URL). */
 export const SOCIAL_POST_REUSE_SESSION_KEY = "cf-social-post-reuse-v1";
 
