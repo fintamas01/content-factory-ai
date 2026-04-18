@@ -1,13 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
 import { Card } from "@/app/components/ui/Card";
-import { SOCIAL_POST_TEMPLATES } from "@/lib/creatomate/social-post-templates";
+import { Button } from "@/app/components/ui/Button";
+import { SimpleModal } from "@/app/components/ui/SimpleModal";
+import {
+  SOCIAL_POST_TEMPLATES,
+  type SocialPostTemplateDefinition,
+} from "@/lib/creatomate/social-post-templates";
 import { cn } from "@/app/lib/cn";
 
 export default function SocialPostsTemplatePickerPage() {
+  const [previewTemplate, setPreviewTemplate] =
+    useState<SocialPostTemplateDefinition | null>(null);
+
   return (
     <Page>
       <PageHero
@@ -37,7 +46,16 @@ export default function SocialPostsTemplatePickerPage() {
                 <h2 className="mt-1 text-lg font-semibold tracking-tight text-white">{t.name}</h2>
                 <p className="mt-2 text-sm leading-relaxed text-white/55">{t.description}</p>
               </div>
-              <div className="mt-auto pt-2">
+              <div className="mt-auto grid grid-cols-2 gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full rounded-2xl"
+                  onClick={() => setPreviewTemplate(t)}
+                >
+                  View
+                </Button>
                 <Link
                   href={`/dashboard/social-posts/${t.id}`}
                   className={cn(
@@ -53,6 +71,28 @@ export default function SocialPostsTemplatePickerPage() {
           </Card>
         ))}
       </div>
+
+      <SimpleModal
+        title={previewTemplate?.name ?? "Template preview"}
+        open={Boolean(previewTemplate)}
+        onClose={() => setPreviewTemplate(null)}
+        maxWidthClass="max-w-4xl"
+      >
+        {previewTemplate ? (
+          <div className="space-y-5">
+            <div className="flex min-h-[min(52vh,480px)] items-center justify-center rounded-2xl border border-white/[0.08] bg-black/35 p-4 sm:p-6 md:min-h-[min(70vh,720px)] md:p-8">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewTemplate.previewImage}
+                alt={`${previewTemplate.name} preview`}
+                className="max-h-[min(65vh,680px)] w-full max-w-full object-contain md:max-h-[min(70vh,720px)]"
+                loading="eager"
+              />
+            </div>
+            <p className="text-sm leading-relaxed text-white/65">{previewTemplate.description}</p>
+          </div>
+        ) : null}
+      </SimpleModal>
     </Page>
   );
 }
