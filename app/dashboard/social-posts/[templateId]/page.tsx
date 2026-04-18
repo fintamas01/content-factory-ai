@@ -17,10 +17,12 @@ import {
   getTemplateTextFieldDefinitions,
   mergeAiTextValuesIntoForm,
   mergeSavedValuesIntoTemplate,
+  validateTemplateValues,
   type SocialPostFieldDefinition,
   type SocialPostTemplateDefinition,
   type SocialPostReusePayload,
 } from "@/lib/creatomate/social-post-templates";
+import { cn } from "@/app/lib/cn";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,6 +69,7 @@ function SocialPostsTemplateFormPageInner() {
   const [aiTone, setAiTone] = useState("");
   const [textAssistLoading, setTextAssistLoading] = useState(false);
   const [textAssistError, setTextAssistError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   /** Object URLs for local preview before the public URL is available. */
   const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, string>>({});
@@ -106,6 +109,7 @@ function SocialPostsTemplateFormPageInner() {
           const parsed = JSON.parse(raw) as SocialPostReusePayload;
           if (parsed.templateId === template.id && parsed.values) {
             setValues(mergeSavedValuesIntoTemplate(template, parsed.values));
+            setFieldErrors({});
             sessionStorage.removeItem(SOCIAL_POST_REUSE_SESSION_KEY);
             skipEmptyAfterReuseRef.current = true;
             router.replace(`/dashboard/social-posts/${template.id}`, { scroll: false });
@@ -123,6 +127,9 @@ function SocialPostsTemplateFormPageInner() {
     }
 
     setValues(emptyTemplateValues(template));
+    setAiBrief("");
+    setAiTone(template.defaultTone ?? "");
+    setFieldErrors({});
     revokePreviews();
   }, [template, searchParams, router, revokePreviews]);
 
@@ -146,14 +153,7 @@ function SocialPostsTemplateFormPageInner() {
     [uploadingField]
   );
 
-  const canSubmit = useMemo(() => {
-    if (!template) return false;
-    if (loading || isImageUploading) return false;
-    return template.fields.every((f) => {
-      if (f.required === false) return true;
-      return Boolean(values[f.key]?.trim());
-    });
-  }, [template, values, loading, isImageUploading]);
+  const submitDisabled = loading || isImageUploading;
 
   const uploadImageField = async (field: SocialPostFieldDefinition, file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -206,6 +206,12 @@ function SocialPostsTemplateFormPageInner() {
       }
 
       setValues((prev) => ({ ...prev, [field.key]: publicUrl }));
+      setFieldErrors((prev) => {
+        if (!prev[field.key]) return prev;
+        const next = { ...prev };
+        delete next[field.key];
+        return next;
+      });
 
       revokePreviews([field.key]);
       const input = fileInputRefs.current[field.key];
@@ -227,6 +233,13 @@ function SocialPostsTemplateFormPageInner() {
   };
 
   const onImageUrlPaste = (field: SocialPostFieldDefinition, value: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field.key]) return prev;
+      const next = { ...prev };
+      delete next[field.key];
+      return next;
+    });
+    setError(null);
     setValues((prev) => ({ ...prev, [field.key]: value }));
     revokePreviews([field.key]);
     const input = fileInputRefs.current[field.key];
@@ -285,9 +298,18 @@ function SocialPostsTemplateFormPageInner() {
     if (!template) return;
     setError(null);
     setUrl(null);
+
+    const validated = validateTemplateValues(template, values);
+    if (!validated.ok) {
+      setFieldErrors(validated.fieldErrors);
+      setError(validated.error);
+      return;
+    }
+    setFieldErrors({});
+
     setLoading(true);
     try {
-      const payload = { templateId: template.id, values };
+      const payload = { templateId: template.id, values: validated.values };
       console.log("Submitting Creatomate request", payload);
 
       const res = await fetch("/api/creatomate/render-image", {
@@ -367,6 +389,21 @@ function SocialPostsTemplateFormPageInner() {
         description={template.description}
       />
 
+      {template.category || template.recommendedUseCase ? (
+        <div className="-mt-2 flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            {template.category ? (
+              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+                {template.category}
+              </span>
+            ) : null}
+          </div>
+          {template.recommendedUseCase ? (
+            <p className="max-w-3xl text-sm leading-relaxed text-white/45">{template.recommendedUseCase}</p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-5 sm:p-6">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">Fields</p>
@@ -395,7 +432,10 @@ function SocialPostsTemplateFormPageInner() {
                     id="social-ai-brief"
                     value={aiBrief}
                     onChange={(e) => setAiBrief(e.target.value)}
-                    placeholder="e.g. Summer sale — 25% off swimwear, friendly and energetic"
+                    placeholder={
+                      template.aiBriefHint ??
+                      "e.g. Summer sale — 25% off swimwear, friendly and energetic"
+                    }
                     className="mt-1.5 min-h-[88px] rounded-2xl"
                     disabled={textAssistLoading || loading}
                   />
@@ -460,17 +500,66 @@ function SocialPostsTemplateFormPageInner() {
           ) : null}
 
           <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-            {template.fields.map((field) => (
+            {template.fields.map((field) => {
+              const rawLen = values[field.key]?.length ?? 0;
+              const showCounter =
+                typeof field.maxLength === "number" &&
+                field.maxLength > 0 &&
+                (field.type === "text" || field.type === "textarea" || field.type === "url");
+              const handleTextChange = (next: string) => {
+                setFieldErrors((prev) => {
+                  if (!prev[field.key]) return prev;
+                  const nextErr = { ...prev };
+                  delete nextErr[field.key];
+                  return nextErr;
+                });
+                setError(null);
+                setValues((prev) => ({ ...prev, [field.key]: next }));
+              };
+
+              return (
               <div key={field.key}>
-                <label className="text-xs font-semibold text-white/60">{field.label}</label>
+                <div className="flex items-start justify-between gap-3">
+                  <label className="text-xs font-semibold text-white/60" htmlFor={`field-${field.key}`}>
+                    <span id={`label-${field.key}`}>{field.label}</span>
+                    {field.required !== false ? (
+                      <span className="text-red-400/90" aria-hidden>
+                        {" "}
+                        *
+                      </span>
+                    ) : null}
+                    {field.required === false && field.recommended ? (
+                      <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-400/75">
+                        Recommended
+                      </span>
+                    ) : null}
+                  </label>
+                  {showCounter ? (
+                    <span
+                      className={cn(
+                        "shrink-0 tabular-nums text-[11px]",
+                        rawLen > (field.maxLength ?? 0) ? "text-red-300" : "text-white/35"
+                      )}
+                      aria-live="polite"
+                    >
+                      {rawLen}/{field.maxLength}
+                    </span>
+                  ) : null}
+                </div>
                 {field.type === "textarea" ? (
                   <Textarea
+                    id={`field-${field.key}`}
+                    aria-labelledby={`label-${field.key}`}
+                    aria-invalid={Boolean(fieldErrors[field.key])}
                     value={values[field.key] ?? ""}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                    }
+                    onChange={(e) => handleTextChange(e.target.value)}
                     placeholder={field.placeholder}
-                    className="mt-1.5 min-h-[120px] rounded-2xl"
+                    maxLength={field.maxLength}
+                    className={cn(
+                      "mt-1.5 min-h-[120px] rounded-2xl",
+                      fieldErrors[field.key] &&
+                        "border-red-400/45 focus:border-red-400/55 focus:shadow-[0_0_0_3px_rgba(248,113,113,0.12)]"
+                    )}
                     disabled={loading}
                     required={field.required !== false}
                   />
@@ -513,33 +602,62 @@ function SocialPostsTemplateFormPageInner() {
                       )}
                     </div>
                     <Input
+                      id={`field-${field.key}`}
                       value={values[field.key] ?? ""}
                       onChange={(e) => onImageUrlPaste(field, e.target.value)}
                       placeholder={field.placeholder ?? "Or paste an image URL…"}
                       type="url"
-                      className="rounded-2xl"
+                      className={cn(
+                        "rounded-2xl",
+                        fieldErrors[field.key] &&
+                          "border-red-400/45 focus:border-red-400/55 focus:shadow-[0_0_0_3px_rgba(248,113,113,0.12)]"
+                      )}
                       disabled={loading || Boolean(uploadingField[field.key])}
                       aria-label={`${field.label} URL fallback`}
+                      aria-invalid={Boolean(fieldErrors[field.key])}
                     />
                     <p className="text-[11px] text-white/40">
                       Upload stores the file in your workspace storage; Creatomate receives a public URL.
                     </p>
+                    {field.helperText ? (
+                      <p className="text-[11px] leading-snug text-white/45">{field.helperText}</p>
+                    ) : null}
+                    {fieldErrors[field.key] ? (
+                      <p className="text-[11px] font-medium text-red-300">{fieldErrors[field.key]}</p>
+                    ) : null}
                   </div>
                 ) : (
                   <Input
+                    id={`field-${field.key}`}
+                    aria-labelledby={`label-${field.key}`}
+                    aria-invalid={Boolean(fieldErrors[field.key])}
                     value={values[field.key] ?? ""}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                    }
+                    onChange={(e) => handleTextChange(e.target.value)}
                     placeholder={field.placeholder}
                     type={field.type === "url" ? "url" : "text"}
-                    className="mt-1.5 rounded-2xl"
+                    maxLength={field.maxLength}
+                    className={cn(
+                      "mt-1.5 rounded-2xl",
+                      fieldErrors[field.key] &&
+                        "border-red-400/45 focus:border-red-400/55 focus:shadow-[0_0_0_3px_rgba(248,113,113,0.12)]"
+                    )}
                     disabled={loading}
                     required={field.required !== false}
                   />
                 )}
+                {field.type !== "image" ? (
+                  <div className="mt-1.5 space-y-1">
+                    {field.helperText ? (
+                      <p className="text-[11px] leading-snug text-white/45">{field.helperText}</p>
+                    ) : null}
+                    {fieldErrors[field.key] ? (
+                      <p className="text-[11px] font-medium text-red-300">{fieldErrors[field.key]}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-            ))}
+              );
+            })}
 
             <div className="flex flex-wrap gap-2 pt-2">
               <Button
@@ -547,7 +665,7 @@ function SocialPostsTemplateFormPageInner() {
                 variant="primary"
                 size="lg"
                 className="rounded-2xl"
-                disabled={loading || !canSubmit}
+                disabled={submitDisabled}
                 onClick={handleSubmit}
               >
                 {loading ? (
@@ -568,9 +686,12 @@ function SocialPostsTemplateFormPageInner() {
                 onClick={() => {
                   setError(null);
                   setUrl(null);
+                  setFieldErrors({});
                   revokePreviews();
                   setUploadingField({});
                   setValues(emptyTemplateValues(template));
+                  setAiBrief("");
+                  setAiTone(template.defaultTone ?? "");
                   for (const k of Object.keys(fileInputRefs.current)) {
                     const el = fileInputRefs.current[k];
                     if (el) el.value = "";
