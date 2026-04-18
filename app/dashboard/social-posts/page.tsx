@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { History, Image as ImageIcon } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -24,6 +24,19 @@ export default function SocialPostsTemplatePickerPage() {
         eyebrow="Creatomate"
         title="Social post images"
         description="Choose a template, then fill in the fields to generate an image."
+        right={
+          <Link
+            href="/dashboard/social-posts/history"
+            className={cn(
+              "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl border text-[12px] font-semibold tracking-wide transition-[transform,background,border-color,box-shadow,color] duration-200 active:scale-[0.98]",
+              "h-11 px-5",
+              "border-white/10 bg-white/[0.04] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-white/16 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--ring)]"
+            )}
+          >
+            <History className="h-4 w-4 shrink-0" aria-hidden />
+            History
+          </Link>
+        }
       />
 
       <div className="grid gap-6 sm:grid-cols-2">
