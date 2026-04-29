@@ -7,6 +7,9 @@ type CampaignJobRow = {
   status: string | null;
   product_name: string | null;
   product_price: string | null;
+  headline: string | null;
+  caption: string | null;
+  cta: string | null;
   created_at: string | null;
 };
 
@@ -51,6 +54,8 @@ export function CampaignJobsTestPanel() {
           product_name: "iPhone 15 Pro",
           product_image: "https://placehold.co/600x600",
           product_price: "3999 RON",
+          language: "English",
+          tone: "premium",
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -114,27 +119,52 @@ export function CampaignJobsTestPanel() {
           ) : jobs.length === 0 ? (
             <p className="text-sm text-white/60">No jobs yet.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {jobs.map((job) => (
                 <li
                   key={job.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+                  className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {job.product_name ?? "Untitled product"}{" "}
-                      <span className="text-white/40">
-                        {job.product_price ? `· ${job.product_price}` : ""}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">
+                        {job.product_name ?? "Untitled product"}{" "}
+                        <span className="text-white/40">
+                          {job.product_price ? `· ${job.product_price}` : ""}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-[11px] font-mono text-white/40">
+                        {job.id.slice(0, 10)}…{" "}
+                        {job.created_at ? `· ${new Date(job.created_at).toLocaleString()}` : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-bold text-white/70">
+                      {job.status ?? "—"}
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-sm text-white/75">
+                    <p>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                        Headline
                       </span>
+                      <br />
+                      {job.headline ?? "—"}
                     </p>
-                    <p className="mt-1 text-[11px] font-mono text-white/40">
-                      {job.id.slice(0, 10)}…{" "}
-                      {job.created_at ? `· ${new Date(job.created_at).toLocaleString()}` : ""}
+                    <p>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                        Caption
+                      </span>
+                      <br />
+                      {job.caption ?? "—"}
+                    </p>
+                    <p>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                        CTA
+                      </span>
+                      <br />
+                      {job.cta ?? "—"}
                     </p>
                   </div>
-                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-bold text-white/70">
-                    {job.status ?? "—"}
-                  </span>
                 </li>
               ))}
             </ul>

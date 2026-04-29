@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedClient } from "@/lib/usage/require-session-usage";
+import {
+  fallbackCampaignAdCopy,
+  generateCampaignAdCopy,
+  resolveCampaignLanguageLabel,
+  resolveCampaignTone,
+} from "@/lib/campaign-jobs/generate-ad-copy";
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +21,19 @@ export async function POST(req: Request) {
     const product_price =
       typeof body?.product_price === "string" ? body.product_price.trim() : null;
 
+    const languageLabel = resolveCampaignLanguageLabel(body?.language);
+    const tone = resolveCampaignTone(body?.tone);
+
+    const generated = await generateCampaignAdCopy({
+      product_name,
+      product_image,
+      product_price,
+      languageLabel,
+      tone,
+    });
+
+    const copy = generated ?? fallbackCampaignAdCopy(product_name);
+
     const { data, error } = await supabase
       .from("campaign_jobs")
       .insert({
@@ -23,6 +42,9 @@ export async function POST(req: Request) {
         product_name,
         product_image,
         product_price,
+        headline: copy.headline,
+        caption: copy.caption,
+        cta: copy.cta,
         status: "pending",
       })
       .select("id")
@@ -45,4 +67,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
