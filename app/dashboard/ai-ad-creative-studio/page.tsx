@@ -37,7 +37,7 @@ import {
   saveWorkspace,
   WORKSPACE_MODULES,
 } from "@/lib/persistence/workspace-storage";
-import { CampaignJobsTestPanel } from "./CampaignJobsTestPanel";
+import { CampaignGeneratorPanel } from "./CampaignGeneratorPanel";
 
 type AspectRatio = AdCreativeAspectRatio;
 
@@ -708,7 +708,7 @@ export default function AiAdCreativeStudioPage() {
       <ModuleUsageBanner feature="content" bump={usageBump} />
 
       <div className="mt-6">
-        <CampaignJobsTestPanel />
+        <CampaignGeneratorPanel />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
