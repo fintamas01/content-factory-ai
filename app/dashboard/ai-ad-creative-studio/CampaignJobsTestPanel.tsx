@@ -5,11 +5,14 @@ import { Button } from "@/app/components/ui/Button";
 type CampaignJobRow = {
   id: string;
   status: string | null;
+  template_id: string | null;
   product_name: string | null;
   product_price: string | null;
   headline: string | null;
   caption: string | null;
   cta: string | null;
+  render_url: string | null;
+  error_message: string | null;
   created_at: string | null;
 };
 
@@ -56,6 +59,7 @@ export function CampaignJobsTestPanel() {
           product_price: "3999 RON",
           language: "English",
           tone: "premium",
+          template_id: "promo-hero-strip",
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -83,7 +87,8 @@ export function CampaignJobsTestPanel() {
               Temporary test panel (safe to delete)
             </h3>
             <p className="mt-1 text-sm text-white/55">
-              Creates a pending job, then reloads and lists jobs for your current workspace.
+              Runs AI copy + Creatomate render (<span className="font-mono text-white/50">promo-hero-strip</span>
+              ), then lists jobs for your workspace.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -136,6 +141,7 @@ export function CampaignJobsTestPanel() {
                       <p className="mt-1 text-[11px] font-mono text-white/40">
                         {job.id.slice(0, 10)}…{" "}
                         {job.created_at ? `· ${new Date(job.created_at).toLocaleString()}` : ""}
+                        {job.template_id ? ` · template ${job.template_id}` : ""}
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-bold text-white/70">
@@ -164,6 +170,22 @@ export function CampaignJobsTestPanel() {
                       <br />
                       {job.cta ?? "—"}
                     </p>
+                    {job.status === "failed" && job.error_message ? (
+                      <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                        {job.error_message}
+                      </p>
+                    ) : null}
+                    {job.render_url ? (
+                      <div className="mt-2 overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={job.render_url}
+                          alt="Rendered creative"
+                          className="h-auto max-h-64 w-full object-contain"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               ))}
