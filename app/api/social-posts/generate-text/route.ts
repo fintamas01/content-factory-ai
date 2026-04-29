@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { resolveOutputLanguage } from "@/lib/i18n/output-language";
+import {
+  buildSocialPostGenerateTextMessages,
+  parseWooCommerceProductContext,
+} from "@/lib/social-posts/generate-text-messages";
 import { incrementUsage } from "@/lib/usage/usage-service";
 import { requireSessionClientAndUsageAllowance } from "@/lib/usage/require-session-usage";
 import {
@@ -28,6 +33,9 @@ export async function POST(req: Request) {
           ? body.tone.trim() || null
           : null;
 
+    const languageRaw = typeof body.language === "string" ? body.language.trim() : "";
+    const { label: languageLabel } = resolveOutputLanguage(languageRaw || "en");
+
     if (!templateId) {
       return NextResponse.json({ success: false, error: "templateId is required." }, { status: 400 });
     }
@@ -48,41 +56,30 @@ export async function POST(req: Request) {
       );
     }
 
+    const productRaw = body.product;
+    const product = parseWooCommerceProductContext(productRaw);
+    if (
+      productRaw != null &&
+      typeof productRaw === "object" &&
+      !Array.isArray(productRaw) &&
+      product === null
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid product context." }, { status: 400 });
+    }
+
     const gate = await requireSessionClientAndUsageAllowance("content");
     if (!gate.ok) return gate.response;
 
     const { supabase, clientId } = gate;
 
-    const keysList = textFields.map((f) => `"${f.key}"`).join(", ");
-    const fieldLines = textFields
-      .map((f) => {
-        const hint = f.placeholder ? ` Suggested direction: ${f.placeholder}` : "";
-        const lengthHint =
-          f.type === "textarea"
-            ? "Use 1–3 short sentences or a tight paragraph suitable for body copy on a graphic."
-            : "Keep it very short — suitable for a single line on a social image.";
-        return `- ${f.key}: (${f.type}) ${f.label}.${hint} ${lengthHint}`;
-      })
-      .join("\n");
-
-    const system = `You write on-image copy for social media graphics. The design is fixed; you only supply text field values.
-
-Return a single JSON object with EXACTLY these string keys and no others: ${keysList}
-
-Template: ${template.name}
-About this layout: ${template.description}
-
-Fields:
-${fieldLines}
-
-Rules:
-- Each value must be a non-empty string unless the brief truly cannot apply (then use a minimal sensible fallback).
-- Match the user's brief and intent.
-- ${tone ? `Tone: ${tone}.` : "Infer an appropriate tone from the brief."}
-- Do not include hashtags unless the brief asks for them.
-- Output valid JSON only, no markdown fences.`;
-
-    const userMsg = `Brief / topic:\n${brief}`;
+    const { system, user: userMsg } = buildSocialPostGenerateTextMessages({
+      template,
+      textFields,
+      brief,
+      tone,
+      languageLabel,
+      product,
+    });
 
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",

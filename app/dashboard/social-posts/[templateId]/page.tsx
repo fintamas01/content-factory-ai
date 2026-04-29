@@ -24,6 +24,8 @@ import {
 } from "@/lib/creatomate/social-post-templates";
 import { cn } from "@/app/lib/cn";
 import { stripHtmlForAnalysis } from "@/lib/products/product-health";
+import { OUTPUT_LANGUAGE_OPTIONS } from "@/lib/i18n/output-language";
+import type { WooCommerceProductContext } from "@/lib/social-posts/generate-text-messages";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -110,6 +112,7 @@ function SocialPostsTemplateFormPageInner() {
   const [url, setUrl] = useState<string | null>(null);
   const [aiBrief, setAiBrief] = useState("");
   const [aiTone, setAiTone] = useState("");
+  const [aiLangCode, setAiLangCode] = useState("en");
   const [textAssistLoading, setTextAssistLoading] = useState(false);
   const [textAssistError, setTextAssistError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -120,7 +123,9 @@ function SocialPostsTemplateFormPageInner() {
   >("idle");
   const [wooErrorMsg, setWooErrorMsg] = useState<string | null>(null);
   const [wooDetailLoading, setWooDetailLoading] = useState(false);
-  const [wooSelectedId, setWooSelectedId] = useState<number | null>(null);
+  const [wooProductContext, setWooProductContext] = useState<WooCommerceProductContext | null>(
+    null
+  );
 
   /** Object URLs for local preview before the public URL is available. */
   const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, string>>({});
@@ -161,6 +166,7 @@ function SocialPostsTemplateFormPageInner() {
           if (parsed.templateId === template.id && parsed.values) {
             setValues(mergeSavedValuesIntoTemplate(template, parsed.values));
             setFieldErrors({});
+            setWooProductContext(null);
             sessionStorage.removeItem(SOCIAL_POST_REUSE_SESSION_KEY);
             skipEmptyAfterReuseRef.current = true;
             router.replace(`/dashboard/social-posts/${template.id}`, { scroll: false });
@@ -180,6 +186,8 @@ function SocialPostsTemplateFormPageInner() {
     setValues(emptyTemplateValues(template));
     setAiBrief("");
     setAiTone(template.defaultTone ?? "");
+    setAiLangCode("en");
+    setWooProductContext(null);
     setFieldErrors({});
     revokePreviews();
   }, [template, searchParams, router, revokePreviews]);
@@ -369,6 +377,8 @@ function SocialPostsTemplateFormPageInner() {
           templateId: template.id,
           brief,
           tone: aiTone.trim() ? aiTone.trim() : null,
+          language: aiLangCode,
+          ...(wooProductContext ? { product: wooProductContext } : {}),
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -394,7 +404,6 @@ function SocialPostsTemplateFormPageInner() {
   const handleApplyWooProduct = async (productId: number) => {
     if (!template) return;
     setWooDetailLoading(true);
-    setWooSelectedId(productId);
     setError(null);
     try {
       const res = await fetch(`/api/woocommerce/products/${productId}`);
@@ -422,6 +431,15 @@ function SocialPostsTemplateFormPageInner() {
         description: p.description ?? "",
       });
       setAiBrief(brief);
+      setWooProductContext({
+        source: "woocommerce",
+        id: p.id,
+        name: p.name,
+        price: p.price ?? null,
+        short_description: p.short_description ?? "",
+        description: p.description ?? "",
+        image_url: p.image ?? null,
+      });
       const imageKeys = template.fields.filter((f) => f.type === "image").map((f) => f.key);
       if (imageKeys.length) revokePreviews(imageKeys);
       setValues((prev) => applyProductImageUrlsToTemplate(template, p.image, prev));
@@ -608,7 +626,7 @@ function SocialPostsTemplateFormPageInner() {
                   ) : null}
                   <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                     {wooList.map((item) => {
-                      const selected = wooSelectedId === item.id;
+                      const selected = wooProductContext?.id === item.id;
                       const priceLabel =
                         item.price != null && String(item.price).trim()
                           ? String(item.price).trim()
@@ -669,8 +687,9 @@ function SocialPostsTemplateFormPageInner() {
                 </p>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-white/55">
-                Describe your topic; we&apos;ll suggest copy for the text fields only (images stay as
-                they are).
+                {wooProductContext
+                  ? "A WooCommerce product is linked — generation targets a product ad creative. We suggest text for the template fields only; images stay as they are."
+                  : "Describe your topic; we suggest copy for the text fields only (images stay as they are)."}
               </p>
               <div className="mt-4 space-y-3">
                 <div>
@@ -703,6 +722,24 @@ function SocialPostsTemplateFormPageInner() {
                     {TONE_OPTIONS.map((opt) => (
                       <option key={opt.value || "default"} value={opt.value}>
                         {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-white/60" htmlFor="social-ai-lang">
+                    Output language
+                  </label>
+                  <select
+                    id="social-ai-lang"
+                    value={aiLangCode}
+                    onChange={(e) => setAiLangCode(e.target.value)}
+                    disabled={textAssistLoading || loading}
+                    className="mt-1.5 h-11 w-full rounded-xl border border-white/[0.10] bg-black/30 px-4 text-sm font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-[border-color,box-shadow] duration-200 hover:border-white/[0.14] focus:border-white/[0.18] focus:shadow-[0_0_0_3px_var(--ring)] disabled:opacity-60"
+                  >
+                    {OUTPUT_LANGUAGE_OPTIONS.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.name}
                       </option>
                     ))}
                   </select>
@@ -941,7 +978,7 @@ function SocialPostsTemplateFormPageInner() {
                   setValues(emptyTemplateValues(template));
                   setAiBrief("");
                   setAiTone(template.defaultTone ?? "");
-                  setWooSelectedId(null);
+                  setWooProductContext(null);
                   for (const k of Object.keys(fileInputRefs.current)) {
                     const el = fileInputRefs.current[k];
                     if (el) el.value = "";
