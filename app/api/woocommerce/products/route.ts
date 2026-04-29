@@ -79,6 +79,7 @@ export async function GET(req: Request) {
       sku: p.sku ?? null,
       status: p.status ?? null,
       permalink: p.permalink ?? null,
+      price: p.price ?? null,
       image: p.images?.[0]?.src ?? null,
     }));
 

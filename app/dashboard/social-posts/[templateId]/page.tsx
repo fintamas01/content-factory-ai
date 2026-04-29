@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useRef, useCallback, Suspense } from "rea
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { ArrowLeft, Image as ImageIcon, Loader2, Sparkles, Upload } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Loader2, Plug, Sparkles, Upload } from "lucide-react";
 import { Page, PageHero } from "@/app/components/ui/Page";
 import { Card } from "@/app/components/ui/Card";
 import { Input } from "@/app/components/ui/Input";
@@ -23,6 +23,7 @@ import {
   type SocialPostReusePayload,
 } from "@/lib/creatomate/social-post-templates";
 import { cn } from "@/app/lib/cn";
+import { stripHtmlForAnalysis } from "@/lib/products/product-health";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,6 +41,48 @@ const TONE_OPTIONS = [
   { value: "playful", label: "Playful" },
   { value: "urgent", label: "Urgent" },
 ] as const;
+
+type WooListItem = {
+  id: number;
+  name: string;
+  sku: string | null;
+  image: string | null;
+  price: string | null;
+};
+
+function buildWooBriefFromProduct(product: {
+  name: string;
+  price?: string | null;
+  short_description: string;
+  description: string;
+}): string {
+  const shortPlain = stripHtmlForAnalysis(product.short_description ?? "").trim();
+  const longPlain = stripHtmlForAnalysis(product.description ?? "").trim();
+  const lines: string[] = [];
+  lines.push(`Product: ${product.name}`);
+  const price = typeof product.price === "string" ? product.price.trim() : "";
+  if (price) lines.push(`Price: ${price}`);
+  if (shortPlain) lines.push(`Short description:\n${shortPlain}`);
+  if (longPlain) {
+    const clipped = longPlain.length > 900 ? `${longPlain.slice(0, 900)}…` : longPlain;
+    lines.push(`Description:\n${clipped}`);
+  }
+  return lines.join("\n\n");
+}
+
+function applyProductImageUrlsToTemplate(
+  template: SocialPostTemplateDefinition,
+  imageUrl: string | null,
+  prev: Record<string, string>
+): Record<string, string> {
+  if (!imageUrl?.trim()) return prev;
+  const url = imageUrl.trim();
+  const next = { ...prev };
+  for (const f of template.fields) {
+    if (f.type === "image") next[f.key] = url;
+  }
+  return next;
+}
 
 type ApiOk = { success: true; url: string };
 type ApiErr = { success: false; error: string; details?: unknown };
@@ -70,6 +113,14 @@ function SocialPostsTemplateFormPageInner() {
   const [textAssistLoading, setTextAssistLoading] = useState(false);
   const [textAssistError, setTextAssistError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const [wooList, setWooList] = useState<WooListItem[]>([]);
+  const [wooLoadState, setWooLoadState] = useState<
+    "idle" | "loading" | "ready" | "unavailable" | "error"
+  >("idle");
+  const [wooErrorMsg, setWooErrorMsg] = useState<string | null>(null);
+  const [wooDetailLoading, setWooDetailLoading] = useState(false);
+  const [wooSelectedId, setWooSelectedId] = useState<number | null>(null);
 
   /** Object URLs for local preview before the public URL is available. */
   const [localImagePreviews, setLocalImagePreviews] = useState<Record<string, string>>({});
@@ -145,6 +196,55 @@ function SocialPostsTemplateFormPageInner() {
         }
         return {};
       });
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setWooLoadState("loading");
+      setWooErrorMsg(null);
+      try {
+        const res = await fetch("/api/woocommerce/products?per_page=50");
+        const j = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          items?: WooListItem[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) {
+          const msg = typeof j?.error === "string" ? j.error : "";
+          if (
+            res.status === 400 &&
+            msg.toLowerCase().includes("not connected")
+          ) {
+            setWooLoadState("unavailable");
+            setWooList([]);
+            return;
+          }
+          setWooLoadState("error");
+          setWooErrorMsg(msg || "Could not load products.");
+          setWooList([]);
+          return;
+        }
+        if (j?.ok === true && Array.isArray(j.items)) {
+          setWooList(j.items);
+          setWooLoadState("ready");
+        } else {
+          setWooLoadState("error");
+          setWooErrorMsg("Unexpected response from store.");
+          setWooList([]);
+        }
+      } catch {
+        if (!cancelled) {
+          setWooLoadState("error");
+          setWooErrorMsg("Network error.");
+          setWooList([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -291,6 +391,48 @@ function SocialPostsTemplateFormPageInner() {
     }
   };
 
+  const handleApplyWooProduct = async (productId: number) => {
+    if (!template) return;
+    setWooDetailLoading(true);
+    setWooSelectedId(productId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/woocommerce/products/${productId}`);
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        product?: {
+          id: number;
+          name: string;
+          price?: string | null;
+          description: string;
+          short_description: string;
+          image: string | null;
+        };
+      };
+      if (!res.ok || j.ok !== true || !j.product) {
+        setError(typeof j.error === "string" ? j.error : "Could not load product.");
+        return;
+      }
+      const p = j.product;
+      const brief = buildWooBriefFromProduct({
+        name: p.name,
+        price: p.price ?? null,
+        short_description: p.short_description ?? "",
+        description: p.description ?? "",
+      });
+      setAiBrief(brief);
+      const imageKeys = template.fields.filter((f) => f.type === "image").map((f) => f.key);
+      if (imageKeys.length) revokePreviews(imageKeys);
+      setValues((prev) => applyProductImageUrlsToTemplate(template, p.image, prev));
+      setFieldErrors({});
+    } catch {
+      setError("Could not load product.");
+    } finally {
+      setWooDetailLoading(false);
+    }
+  };
+
   const handleSubmit = async (
     e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>
   ) => {
@@ -410,6 +552,113 @@ function SocialPostsTemplateFormPageInner() {
           <p className="mt-2 text-sm text-white/60">
             Template <span className="font-mono text-white/75">{template.id}</span>
           </p>
+
+          <details className="mt-5 rounded-2xl border border-white/[0.10] bg-black/20 open:border-cyan-500/20 open:bg-black/25">
+            <summary className="cursor-pointer list-none px-4 py-3 sm:px-5 sm:py-4 [&::-webkit-details-marker]:hidden">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-violet-200">
+                  <Plug className="h-5 w-5" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+                    WooCommerce
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-white">Fill from WooCommerce product</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/45">
+                    Prefills the topic brief and image URLs from your catalog. You can edit everything
+                    before generating.
+                  </p>
+                </div>
+              </div>
+            </summary>
+            <div className="border-t border-white/[0.06] px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
+              {wooLoadState === "loading" ? (
+                <div className="flex items-center gap-2 py-6 text-sm text-white/55">
+                  <Loader2 className="h-5 w-5 animate-spin text-cyan-400" aria-hidden />
+                  Loading products…
+                </div>
+              ) : wooLoadState === "unavailable" ? (
+                <p className="py-4 text-sm leading-relaxed text-white/55">
+                  Connect WooCommerce or add product details manually.{" "}
+                  <Link
+                    href="/dashboard/products"
+                    className="font-medium text-cyan-300/90 underline decoration-cyan-500/30 underline-offset-2 hover:text-cyan-200"
+                  >
+                    Open Products
+                  </Link>
+                </p>
+              ) : wooLoadState === "error" ? (
+                <div className="space-y-2 py-2">
+                  <p className="text-sm text-rose-200/90">{wooErrorMsg ?? "Could not load products."}</p>
+                  <p className="text-sm text-white/50">
+                    Connect WooCommerce or add product details manually.
+                  </p>
+                </div>
+              ) : wooList.length === 0 ? (
+                <p className="py-4 text-sm text-white/55">
+                  No products returned. Connect WooCommerce or add product details manually.
+                </p>
+              ) : (
+                <>
+                  {wooDetailLoading ? (
+                    <p className="mb-3 flex items-center gap-2 text-xs text-white/50">
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      Applying product…
+                    </p>
+                  ) : null}
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {wooList.map((item) => {
+                      const selected = wooSelectedId === item.id;
+                      const priceLabel =
+                        item.price != null && String(item.price).trim()
+                          ? String(item.price).trim()
+                          : null;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          disabled={wooDetailLoading || loading}
+                          onClick={() => void handleApplyWooProduct(item.id)}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition",
+                            selected
+                              ? "border-cyan-400/35 bg-cyan-500/10 shadow-[0_0_24px_-14px_rgba(34,211,238,0.45)]"
+                              : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.14] hover:bg-white/[0.05]"
+                          )}
+                        >
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                            {item.image ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={item.image}
+                                alt=""
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] text-white/35">
+                                No img
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-white">{item.name}</p>
+                            <p className="mt-0.5 text-xs text-white/45">
+                              {priceLabel ? (
+                                <span className="text-white/60">{priceLabel}</span>
+                              ) : (
+                                <span className="italic text-white/35">Price —</span>
+                              )}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </details>
 
           {textFieldDefs.length > 0 ? (
             <div className="mt-5 rounded-2xl border border-white/[0.08] bg-black/25 p-4 sm:p-5">
@@ -692,6 +941,7 @@ function SocialPostsTemplateFormPageInner() {
                   setValues(emptyTemplateValues(template));
                   setAiBrief("");
                   setAiTone(template.defaultTone ?? "");
+                  setWooSelectedId(null);
                   for (const k of Object.keys(fileInputRefs.current)) {
                     const el = fileInputRefs.current[k];
                     if (el) el.value = "";

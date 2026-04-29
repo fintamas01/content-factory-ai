@@ -76,6 +76,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         sku: p.sku ?? null,
         status: p.status ?? null,
         permalink: p.permalink ?? null,
+        price: p.price ?? null,
         description: p.description ?? "",
         short_description: p.short_description ?? "",
         image: p.images?.[0]?.src ?? null,
